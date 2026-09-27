@@ -1,0 +1,38 @@
+#pragma once
+
+#include "Float3.h"
+#include "VoxModel.h"
+#include "VoxelRecord.h"
+
+#include <array>
+#include <cstddef>
+
+namespace NeuronClient
+{
+
+// One palette entry as the shaders read it (Design/SampleRenderer.md §7.2): linear albedo, and the scale that turns it
+// into emitted light. The emissive scale is the lighting's to define (M3, D12); until then it is zero.
+struct PaletteMaterial
+{
+  NeuronCore::Float3 albedo;
+  float emissiveScale;
+};
+
+// The sixteen entries of R14, 256 bytes of constants (R16, §7.4). This struct is the truth;
+// Shader/PaletteConstants.hlsli mirrors it, and the layout echo in NeuronClientTests proves the two agree.
+struct PaletteConstants
+{
+  std::array<PaletteMaterial, NeuronCore::PALETTE_ENTRY_COUNT> materials;
+};
+
+static_assert(sizeof(PaletteMaterial) == 16);
+static_assert(offsetof(PaletteMaterial, albedo) == 0);
+static_assert(offsetof(PaletteMaterial, emissiveScale) == 12);
+static_assert(sizeof(PaletteConstants) == 256);
+static_assert(offsetof(PaletteConstants, materials) == 0);
+
+// The file's sRGB bytes as linear albedo, by the exact curve.
+[[nodiscard]] PaletteConstants
+MakePaletteConstants(const std::array<NeuronCore::PaletteEntry, NeuronCore::PALETTE_ENTRY_COUNT>& _palette) noexcept;
+
+} // namespace NeuronClient

@@ -18,8 +18,10 @@ It checks, over the whole tree:
   - edges: no cycles, and nothing references an application or a test suite (§2, R9);
   - registration: every source file is in its project's .vcxproj and .filters, the two agree, and nothing
     listed is missing (§2);
-  - flat directories: no source file below a project folder or outside one (§2);
-  - R2 type affixes, R7 file names, R11 spellings, R17 HLSL files;
+  - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
+    anywhere else (§2, R17);
+  - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
+  - shader compilation: every project that compiles HLSL does it with the flags ADR-005 fixes;
   - every *Tests project holds at least one TEST_METHOD, because vstest reports an empty suite as a pass (§3).
 
 Exit status 0 when clean, 1 with one line per finding otherwise. It needs only Python 3.10+ and git.
@@ -39,6 +41,7 @@ CPP_EXTENSIONS = {'.cpp', '.h'}
 HLSL_EXTENSIONS = {'.hlsl', '.hlsli'}
 SOURCE_EXTENSIONS = CPP_EXTENSIONS | HLSL_EXTENSIONS
 ITEM_TYPE_FOR_EXTENSION = {'.cpp': 'ClCompile', '.h': 'ClInclude', '.hlsl': 'FxCompile', '.hlsli': 'None'}
+SHADER_FOLDER = 'Shader'  # AGENTS.md §2: a library's HLSL lives in <Project>/Shader; C++ stays flat
 BANNED_EXTENSIONS = {'.hpp', '.hh', '.hxx', '.h++', '.cc', '.cxx', '.c++', '.inl', '.ipp', '.tpp', '.ixx', '.cppm',
                      '.fx', '.fxh'}
 R7_EXCEPTIONS = {'pch.h', 'pch.cpp', 'framework.h', 'targetver.h', 'Resource.h'}
@@ -55,6 +58,21 @@ REQUIRED_SETTINGS = {
   ('ClCompile', 'FloatingPointModel'): 'Precise',
   ('ClCompile', 'EnableEnhancedInstructionSet'): 'AdvancedVectorExtensions2',
 }
+
+# Design/ADR/ADR-005: how every shader is compiled, in both configurations. -Gis keeps DXC from marking float operations
+# `fast`, which lets a driver assume no infinity or NaN, and Listing 5 is correct only because of both; -Qembed_debug
+# puts the debug information PIX reads into the shader, where DXC otherwise prints a warning MSBuild promotes.
+REQUIRED_SHADER_SETTINGS = {
+  'ShaderModel': '6.0',
+  'DisableOptimizations': 'false',
+  'EnableDebuggingInformation': 'true',
+  'TreatWarningAsError': 'true',
+  'ObjectFileOutput': '',
+  'HeaderFileOutput': '$(IntDir)Shaders\\%(Filename).h',
+}
+REQUIRED_SHADER_OPTIONS = ('-Gis', '-Qembed_debug')
+SHADER_TYPES = {'Vertex', 'Pixel', 'Compute'}
+UPPER_CASE_NAME = re.compile(r'^[A-Z][A-Z0-9_]*$')
 
 # AGENTS.md §3: the whole list of what may differ between Debug and Release, besides _DEBUG against NDEBUG.
 MAY_DIFFER = {'Optimization', 'FunctionLevelLinking', 'IntrinsicFunctions', 'UseDebugLibraries', 'RuntimeLibrary',
@@ -84,6 +102,9 @@ R11_SPELLINGS = {
   'cancelled': 'canceled', 'cancelling': 'canceling',
 }
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+# R12: COM objects are held in winrt::com_ptr, so WRL has no place here: not its header, its namespace or its pointer.
+R12_WRL = re.compile(r'#\s*include\s*[<"]wrl[/.\\]|\bMicrosoft::WRL\b|\bComPtr\s*<')
 
 
 class Findings:
@@ -149,6 +170,15 @@ def strip_comments_and_literals(text):
   return ''.join(out)
 
 
+def strip_comments_and_literals_keep_includes(text):
+  """strip_comments_and_literals, except that an #include keeps the header it names, which is a string literal."""
+  stripped = strip_comments_and_literals(text).split('\n')
+  for number, line in enumerate(text.split('\n')):
+    if re.match(r'\s*#\s*include\b', line) and number < len(stripped):
+      stripped[number] = line
+  return '\n'.join(stripped)
+
+
 def line_of(text, index):
   return text.count('\n', 0, index) + 1
 
@@ -171,6 +201,10 @@ class Project:
 
 
 CONDITION = re.compile(r"^\s*'\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'([^']+)'\s*$")
+# NuGet imports a package's targets only if the file is there: <Import Project="X" Condition="Exists('X')" />. The
+# test comes out the same in both configurations, so it cannot set them apart; a package that was never restored
+# fails the build from the EnsureNuGetPackageBuildImports target NuGet writes beside the import.
+IMPORT_GUARD = re.compile(r"^\s*exists\s*\(\s*'([^']+)'\s*\)\s*$", re.IGNORECASE)
 
 
 def resolve_item_path(project, include):
@@ -192,6 +226,9 @@ def resolve_item_path(project, include):
 def configurations_of(element, inherited, project, findings):
   condition = element.get('Condition')
   if condition is None:
+    return inherited
+  guard = IMPORT_GUARD.match(condition)
+  if guard and local_name(element.tag) == 'Import' and guard.group(1) == element.get('Project'):
     return inherited
   match = CONDITION.match(condition)
   if not match:
@@ -356,6 +393,7 @@ def check_settings(project, findings):
       if not value.startswith('$(SolutionDir)'):
         findings.add(project.path, '§3', f'{configuration} {directory} is "{value}"; it must be anchored on '
                      '$(SolutionDir)')
+    check_shader_settings(project, configuration, settings, findings)
 
   debug = project.settings['Debug|x64']
   release = project.settings['Release|x64']
@@ -371,6 +409,35 @@ def check_settings(project, findings):
     elif name not in MAY_DIFFER and debug.get(key) != release.get(key):
       findings.add(project.path, '§3', f'{group} {name} differs between Debug ({debug.get(key, "absent")}) and '
                    f'Release ({release.get(key, "absent")}); only the properties AGENTS.md §3 lists may')
+
+
+def check_shader_settings(project, configuration, settings, findings):
+  """ADR-005: a project that compiles HLSL compiles all of it one way, and names each shader's stage, entry point and
+  header variable."""
+  shaders = sorted(group[len('FxCompile:'):] for group, name in settings if group.startswith('FxCompile:') and
+                   name == '(listed)')
+  if not shaders:
+    return
+  for name, expected in REQUIRED_SHADER_SETTINGS.items():
+    actual = settings.get(('FxCompile', name))
+    if actual != expected:
+      findings.add(project.path, 'ADR-005', f'{configuration} FxCompile {name} is '
+                   f'{"not stated" if actual is None else repr(actual)}; must be stated as {expected!r}')
+  options = (settings.get(('FxCompile', 'AdditionalOptions')) or '').split()
+  for option in REQUIRED_SHADER_OPTIONS:
+    if option not in options:
+      findings.add(project.path, 'ADR-005', f'{configuration} FxCompile AdditionalOptions lacks {option}')
+  for shader in shaders:
+    shader_type = settings.get((f'FxCompile:{shader}', 'ShaderType'))
+    entry = settings.get((f'FxCompile:{shader}', 'EntryPointName'))
+    variable = settings.get((f'FxCompile:{shader}', 'VariableName'))
+    if shader_type not in SHADER_TYPES:
+      findings.add(project.path, 'ADR-005', f'{shader} has ShaderType {shader_type}; one of {sorted(SHADER_TYPES)}')
+    if not entry:
+      findings.add(project.path, 'ADR-005', f'{shader} names no EntryPointName')
+    if not variable or not UPPER_CASE_NAME.match(variable):
+      findings.add(project.path, 'ADR-005', f'{shader} has VariableName {variable}; the header array is a constant, '
+                   'UPPER_CASE (R3)')
 
 
 def check_edges(projects, findings):
@@ -424,6 +491,11 @@ def check_edges(projects, findings):
     visit(project.name, [])
 
 
+def home_of(project_folder, suffix):
+  """The one folder a source file of this kind may live in (AGENTS.md §2)."""
+  return f'{project_folder}/{SHADER_FOLDER}' if suffix in HLSL_EXTENSIONS else project_folder
+
+
 def check_registration(projects, files, findings):
   folders = {project.folder: project for project in projects}
   for project in projects:
@@ -432,8 +504,9 @@ def check_registration(projects, files, findings):
         findings.add(project.path, '§2', f'lists {path} ({item_type}), which does not exist')
       suffix = PurePosixPath(path).suffix.lower()
       if suffix in SOURCE_EXTENSIONS:
-        if PurePosixPath(path).parent.as_posix() != project.folder:
-          findings.add(project.path, '§2', f'compiles {path}, which is not in its own folder')
+        home = home_of(project.folder, suffix)
+        if PurePosixPath(path).parent.as_posix() != home:
+          findings.add(project.path, '§2', f'lists {path}, which does not live in {home}')
         elif item_type != ITEM_TYPE_FOR_EXTENSION[suffix]:
           findings.add(project.path, '§2', f'lists {path} as {item_type}; a {suffix} file is '
                        f'{ITEM_TYPE_FOR_EXTENSION[suffix]}')
@@ -454,10 +527,14 @@ def check_registration(projects, files, findings):
     if suffix not in SOURCE_EXTENSIONS:
       continue
     top = posix.parts[0]
-    if len(posix.parts) != 2 or top not in folders:
-      where = 'below its project folder' if top in folders else 'outside every project folder'
-      findings.add(path, '§2', f'is {where}; source lives directly in its project\'s folder, where '
-                   '.clang-tidy\'s HeaderFilterRegex can see it')
+    if top not in folders or posix.parent.as_posix() != home_of(top, suffix):
+      if suffix in HLSL_EXTENSIONS:
+        findings.add(path, '§2', f'is not in a project\'s {SHADER_FOLDER} folder; HLSL lives in '
+                     f'<Project>/{SHADER_FOLDER}, beside nothing but other HLSL (R17)')
+      else:
+        where = 'below its project folder' if top in folders else 'outside every project folder'
+        findings.add(path, '§2', f'is {where}; C++ lives directly in its project\'s folder, where '
+                     '.clang-tidy\'s HeaderFilterRegex can see it')
     elif path not in listed:
       findings.add(path, '§2', f'is not listed in {folders[top].path}; a file the project does not list is not built')
     if suffix in CPP_EXTENSIONS and posix.name in R7_EXCEPTIONS:
@@ -485,6 +562,11 @@ def check_sources(projects, files, findings):
         if british in lowered:
           findings.add(f'{path}:{line_of(code, match.start())}', 'R11', f'{match.group(0)} spells "{british}"; '
                        f'identifiers use the SDK\'s "{american}"')
+    if suffix in CPP_EXTENSIONS:
+      code_and_includes = strip_comments_and_literals_keep_includes(raw)
+      for match in R12_WRL.finditer(code_and_includes):
+        findings.add(f'{path}:{line_of(code_and_includes, match.start())}', 'R12', f'uses WRL ({match.group(0).strip()}); '
+                     'COM objects are held in winrt::com_ptr')
     if suffix == '.hlsl':
       check_hlsl_entry_file(path, code, findings)
 

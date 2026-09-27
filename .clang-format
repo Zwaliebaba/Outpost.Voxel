@@ -15,8 +15,9 @@
 # local run disagrees with CI, compare the version line first. Run it yourself before you push.
 #
 # `python Build/CheckFormat.py --fix` rewrites the offenders, and `--clang-format <binary>` names
-# the binary when the pinned one is not first on PATH. It checks .cpp and .h; whether HLSL is
-# formatted by this file too is decided when the first shader lands (Design/SampleRenderer.md).
+# the binary when the pinned one is not first on PATH. It checks .cpp and .h, and .hlsl and .hlsli,
+# which it formats as C++: HLSL is close enough to C++ for everything but a semantic after a
+# function's parameter list, so an entry point returns a struct (Design/ADR/ADR-005).
 #
 # On Windows the clang-format you have is almost certainly NOT 18: Visual Studio 2026 bundles 22
 # at VC\Tools\Llvm\x64\bin, and 22 breaks a long call argument list in a different place than 18
