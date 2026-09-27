@@ -2,9 +2,9 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="VoxelCore/VoxelCore.vcxproj" />
-  <Project Path="VoxelCoreTests/VoxelCoreTests.vcxproj" />
-  <Project Path="VoxelRender/VoxelRender.vcxproj" />
-  <Project Path="VoxelRenderTests/VoxelRenderTests.vcxproj" />
-  <Project Path="VoxelSample/VoxelSample.vcxproj" />
+  <Project Path="VoxelCore/VoxelCore.vcxproj" Id="6f240cd6-124f-489c-b8cf-1babebc02f72" />
+  <Project Path="VoxelCoreTests/VoxelCoreTests.vcxproj" Id="b6f9c408-d369-4128-90ca-4275e64cc79c" />
+  <Project Path="VoxelRender/VoxelRender.vcxproj" Id="666af8da-0704-489a-8862-a3ebc37b1e84" />
+  <Project Path="VoxelRenderTests/VoxelRenderTests.vcxproj" Id="9234d571-49cb-48df-9e49-b6e0b376acdc" />
+  <Project Path="VoxelSample/VoxelSample.vcxproj" Id="fcc12923-af0c-4af1-823a-d2ce1048a82b" />
 </Solution>
