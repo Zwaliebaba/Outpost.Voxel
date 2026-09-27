@@ -56,9 +56,11 @@ constexpr std::uint32_t SHADOW_MAP_PIXELS = 1024;
 constexpr float HDR_RELATIVE_TOLERANCE = 1.0e-3f;
 constexpr float HDR_ABSOLUTE_TOLERANCE = 4.0e-3f;
 
-// Pixels allowed beyond the tolerance, where a shadow tap's depth comparison falls the other way on the GPU: set from
-// the first measured run, which the test prints.
-constexpr std::uint32_t SHADOW_FLIP_LIMIT = 16;
+// Pixels allowed beyond the tolerance, where a shadow tap's depth comparison falls the other way on the GPU, which §14
+// sets from the first measured run. That run, on WARP in CI on 2026-09-27, found none among its 14,651 pixels. The bound
+// is not zero for the reason the splat tests give: a toolchain update can round a comparison made within rounding of the
+// map's depth the other way. Four is headroom.
+constexpr std::uint32_t SHADOW_FLIP_LIMIT = 4;
 
 // The tone map reads the HDR color the GPU wrote and computes a few operations on it; the result is single precision.
 constexpr float DISPLAY_TOLERANCE = 1.0e-5f;

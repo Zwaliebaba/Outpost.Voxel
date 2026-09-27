@@ -42,8 +42,11 @@ constexpr float DEPTH_TOLERANCE = 1.0e-6f;
 // units; the view splat's tests use the same sliver (Design/SampleRenderer.md §14).
 constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 
-// Mismatches on an edge allowed per map: set from the first measured run, which the test prints.
-constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 16;
+// Mismatches on an edge allowed per map, which §14 sets from the first measured run and gives a reason for. That run, on
+// WARP in CI on 2026-09-27, found none in either map. The bound is not zero because §14 assumes no bit equality between
+// CPU and GPU: an MSVC or WARP update that contracts or rounds differently can move a ray that lands within rounding of
+// an edge to its other side. Such a ray is rare, so four is headroom.
+constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
 struct Comparison
 {
