@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="VoxelCore/VoxelCore.vcxproj" />
+  <Project Path="VoxelCoreTests/VoxelCoreTests.vcxproj" />
+  <Project Path="VoxelRender/VoxelRender.vcxproj" />
+  <Project Path="VoxelRenderTests/VoxelRenderTests.vcxproj" />
+  <Project Path="VoxelSample/VoxelSample.vcxproj" />
+</Solution>

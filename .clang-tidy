@@ -7,28 +7,30 @@
 #
 # ── Status: CI gates this over the whole tree ──────────────────────────────────────────────
 #
-# `.github/workflows/build.yml` runs clang-tidy on the Windows job, after the build, over every
-# hand-written translation unit in the tree (AGENTS.md §6) -- from the moment Build/RunClangTidy.py
-# exists, which it does not yet, so the step is guarded until it does. It runs through clang's MSVC
-# driver (`--driver-mode=cl`) against the same switches the .vcxproj files set, because the
-# alternative — GNU driver mode against the Windows SDK — disagrees with MSVC in both directions
-# and reports defects that are not there.
+# `.github/workflows/build.yml` runs Build/RunClangTidy.py on the Windows job, after the build,
+# over every hand-written translation unit in the tree (AGENTS.md §6). It runs clang-tidy through
+# clang's MSVC driver (`--driver-mode=cl`) against the switches each .vcxproj sets, read from the
+# project file itself, because the alternative — GNU driver mode against the Windows SDK —
+# disagrees with MSVC in both directions and reports defects that are not there.
 #
-# This repository is GREENFIELD, and at the time of writing it holds no C++ at all. Nothing is
-# grandfathered, a whole-tree pass comes back clean, and a finding is therefore a defect rather
-# than archaeology. That is a claim CI keeps true from the first translation unit onwards; it is
-# not a claim about how careful anyone was. When it breaks, fix the code — do not narrow the
-# filter.
+# The tree started GREENFIELD. Nothing is grandfathered, a whole-tree pass comes back clean, and a
+# finding is therefore a defect rather than archaeology. That is a claim CI keeps true from the
+# first translation unit onwards; it is not a claim about how careful anyone was. When it breaks,
+# fix the code — do not narrow the filter.
 #
-# Run it yourself, on the files you wrote, before you push. From a Developer PowerShell (the
-# INCLUDE variable is what makes the Windows SDK visible to clang):
+# Run it yourself before you push, from a Developer PowerShell (the INCLUDE variable is what makes
+# the Windows SDK visible to clang). The script derives each file's switches from its project, so
+# there is no command line to keep in step by hand:
 #
-#   clang-tidy --quiet <Project>/YourNewFile.cpp -- --driver-mode=cl /std:c++latest /EHsc `
-#     /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_DEBUG /I <Project>
+#   python Build/RunClangTidy.py                          # every translation unit
+#   python Build/RunClangTidy.py VoxelCore/YourFile.cpp   # just yours
+#   python Build/RunClangTidy.py --dry-run                # print the commands, run nothing
 #
-# UNICODE and _UNICODE are not optional in that command. Every project sets CharacterSet=Unicode,
-# so `IDC_ARROW` is `MAKEINTRESOURCEW`; without the defines clang-tidy reports a type error at
-# every `LoadCursorW` call that MSVC compiles without complaint.
+# Two things it passes are easy to get wrong by hand. UNICODE and _UNICODE follow from
+# CharacterSet=Unicode: without them `IDC_ARROW` is not `MAKEINTRESOURCEW`, and clang-tidy reports
+# a type error at every `LoadCursorW` call that MSVC compiles without complaint. And it passes NO
+# Windows macro switches: WIN32_LEAN_AND_MEAN and NOMINMAX belong to VoxelRender/WindowsSdk.h
+# (AGENTS.md §4), and defining them on the command line as well is a macro redefinition.
 #
 # THE VERSION MATTERS, and the workflow PINS it -- `CLANG_TIDY_VERSION` in
 # .github/workflows/build.yml, installed from pip so that the same binary is available on any
@@ -43,12 +45,15 @@
 #
 #   python -m pip install clang-tidy==22.1.8
 #   python Build/RunClangTidy.py
+#
+# The script prints the version it used and says so when it is not the pinned one.
 
-# Four rules of AGENTS.md §1 this file cannot express — R2's banned type affixes, R7's file naming
-# and .vcxproj/.filters registration, R11's standing spelling families, and §2's flat project
-# directories — are checked by Build/CheckProjectFiles.py, which runs in the same CI job that
-# builds, once somebody writes it (AGENTS.md §6). A check that exists somewhere is worth more
-# than a rule everyone is asked to remember.
+# The rules of AGENTS.md this file cannot express — R2's banned type affixes, R7's file naming and
+# .vcxproj/.filters registration, R11's standing spelling families, R17's HLSL files, and §2's
+# flat project directories — are checked by Build/CheckProjectFiles.py, which runs in the same CI
+# job, before the build (AGENTS.md §6). It also checks that the alternation below names every
+# project in the solution and nothing else. A check that exists somewhere is worth more than a rule
+# everyone is asked to remember.
 #
 # readability-identifier-length is deliberately NOT enabled. Its defaults reject the domain
 # vocabulary this codebase is built on — x, y, _a, _b — and short names here are precise, not lazy.
@@ -91,18 +96,19 @@ WarningsAsErrors: '*'
 # THIS ALTERNATION IS A PROJECT REGISTRY. It names the projects whose headers are linted, so
 # ADDING A PROJECT MEANS ADDING IT HERE -- a project missing from this list is a project whose
 # headers are checked by nothing at all, with no finding and no warning to say so. It is the
-# quietest way to lose a gate, which is why Build/CheckProjectFiles.py should be written to
-# compare this list against the solution rather than trusting anyone to remember.
+# quietest way to lose a gate, which is why Build/CheckProjectFiles.py compares this list against
+# the solution rather than trusting anyone to remember: a project it does not match, or a name here
+# that is no longer a project, fails the build.
 #
-# Only the `<Something>Tests` convention is seeded, because no project exists yet. When the first
-# one is created, add its folder name as another alternative, e.g. `(MyProject|[A-Za-z0-9]+Tests)`.
+# Libraries and the application are named one by one; test suites are covered by the
+# `<Something>Tests` convention (AGENTS.md §2, ADR-001).
 #
 # [/\\], not '/'. On a Windows Clang build the paths arrive with backslashes, so a filter anchored
 # on a forward slash matches no header at all and silently suppresses every in-build diagnostic.
 # The pattern matches headers sitting DIRECTLY in a project folder, which is every hand-written
 # one (AGENTS.md §2's flat-directory rule). A bare `.*` would also match build output and the
 # Windows SDK, and most of what it reported would be from headers nobody here wrote.
-HeaderFilterRegex: '([A-Za-z0-9]+Tests)[/\\][A-Za-z0-9]+\.h$'
+HeaderFilterRegex: '(VoxelCore|VoxelRender|VoxelSample|[A-Za-z0-9]+Tests)[/\\][A-Za-z0-9]+\.h$'
 
 # A `Resource.h` is written by the Visual Studio resource editor, not by hand. Its
 # `#define IDC_STATIC -1` trips bugprone-macro-parentheses, and the fix would be undone the next
@@ -126,6 +132,9 @@ CheckOptions:
 
   # ── Functions: PascalCase ──────────────────────────────────────────────────────────
   - { key: readability-identifier-naming.FunctionCase,             value: CamelCase  }
+  # R4: an identifier the SDK dictates keeps the SDK's spelling. The Windows entry point is one we
+  # have to DEFINE rather than call, so the check would otherwise demand `WWinMain`.
+  - { key: readability-identifier-naming.FunctionIgnoredRegexp,    value: '^wWinMain$' }
   - { key: readability-identifier-naming.MethodCase,               value: CamelCase  }
 
   # ── Constants: UPPER_CASE (R3); enumerators stay PascalCase above ──────────────────
