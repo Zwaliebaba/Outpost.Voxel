@@ -413,8 +413,8 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | | Delivers | Done when |
 |---|---|---|
 | M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
-| M1 | `VoxelCore`: reader, model, maths, CPU twins, reference tracer; ADR-003 | `VoxelCoreTests` green; §3's pinned figures reproduced |
-| M2 | Window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-002, ADR-004 | `VoxelRenderTests` green on WARP in CI; the owner sees the station on hardware |
+| M1 | `VoxelCore`: reader, model, maths, CPU twins, reference tracer; ADR-002 | `VoxelCoreTests` green; §3's pinned figures reproduced |
+| M2 | Window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003, ADR-004 | `VoxelRenderTests` green on WARP in CI; the owner sees the station on hardware |
 | M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
 | M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-005 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
@@ -454,8 +454,8 @@ The owner answered the open questions on 2026-09-27:
 Each expected ADR lands in the commit that implements it:
 
 - ADR-001, repository layout (M0);
-- ADR-002, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
-- ADR-003, voxel record and palette (M1);
+- ADR-002, voxel record and palette (M1);
+- ADR-003, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
 - ADR-004, depth conventions (M2);
 - ADR-005, explosion motion model and its defaults (M4).
 

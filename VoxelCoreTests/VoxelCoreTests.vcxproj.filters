@@ -17,9 +17,15 @@
     <ClInclude Include="SeededRandom.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VoxFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MilitaryStationTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PackingTests.cpp">
@@ -32,6 +38,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ViewTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VoxFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VoxModelTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

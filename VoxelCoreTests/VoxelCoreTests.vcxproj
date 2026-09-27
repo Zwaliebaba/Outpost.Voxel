@@ -108,15 +108,19 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="SeededRandom.h" />
+    <ClInclude Include="VoxFile.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
+    <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="SplatBoundsTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />
+    <ClCompile Include="VoxFile.cpp" />
+    <ClCompile Include="VoxModelTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VoxelCore\VoxelCore.vcxproj">

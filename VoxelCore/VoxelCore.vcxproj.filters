@@ -38,6 +38,9 @@
     <ClInclude Include="VoxelRecord.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VoxModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OctahedralNormal.cpp">
@@ -53,6 +56,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SplatBounds.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VoxModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
