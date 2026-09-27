@@ -29,7 +29,7 @@ UploadRing::~UploadRing()
   }
 }
 
-D3D12_GPU_VIRTUAL_ADDRESS UploadRing::Push(std::span<const std::byte> _bytes)
+D3D12_GPU_VIRTUAL_ADDRESS UploadRing::PushBytes(std::span<const std::byte> _bytes)
 {
   constexpr std::uint64_t ALIGNMENT_BYTES = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
   const std::uint64_t offset = (m_usedBytes + ALIGNMENT_BYTES - 1) / ALIGNMENT_BYTES * ALIGNMENT_BYTES;

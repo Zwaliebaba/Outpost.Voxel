@@ -34,12 +34,14 @@ public:
   }
 
   // Copies _bytes in and returns their GPU address. Throws when the ring is full.
-  [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Push(std::span<const std::byte> _bytes);
+  [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS PushBytes(std::span<const std::byte> _bytes);
 
+  // Copies _value in and returns its GPU address. The byte version has its own name because a template of the same name
+  // would take a fixed-extent span of bytes as a value and push the span itself, over and over.
   template <typename T> [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Push(const T& _value)
   {
     static_assert(std::is_trivially_copyable_v<T>, "constants are copied as bytes");
-    return Push(std::as_bytes(std::span<const T, 1>(&_value, 1)));
+    return PushBytes(std::as_bytes(std::span<const T, 1>(&_value, 1)));
   }
 
 private:
