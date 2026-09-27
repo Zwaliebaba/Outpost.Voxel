@@ -94,6 +94,7 @@ The intersection (Listing 5) moves the ray into the box's frame and picks the th
 9. **Stochastic pruning** (Listing 3) is left out. It gained 1.2× at 53 million voxels; at 225,048 there is nothing to gain, and it trades temporal stability for throughput.
 10. **Host-side frustum culling** of voxel objects is moot when there is a single object.
 11. **Output.** The paper shaded forward or into a G-buffer. We write a visibility buffer of voxel index and normal, the least that lets lighting run once per pixel — the paper's bandwidth argument applied to our own output.
+12. **Watertight seams.** Listing 5 tests the hit against each face with a strict inequality, so a ray that meets two neighbouring voxels exactly on their shared edge, or runs exactly in the plane between two layers, hits neither. A camera on an integer coordinate would see a line of background through the station, and a shadow map whose texel centres land on voxel edges would leak light; the GPU and the reference tracer agree on such pixels, so no comparison would catch it. The face tests include their edges instead (§9.4): a ray on a seam hits both neighbours, and the depth test keeps the one drawn first, the lower index. An isolated box's boundary now counts as part of the box, which changes its silhouette by nothing. The owner chose this on 2026-09-27.
 
 ## 5. Platform contract
 
@@ -302,10 +303,11 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
   d *= _invDirection;
 #endif
 
-  // Is each candidate hit in front of the origin and inside its face?
-  bool hitX = (d.x >= 0.0) && all(abs(origin.yz + direction.yz * d.x) < _box.radius.yz);
-  bool hitY = (d.y >= 0.0) && all(abs(origin.zx + direction.zx * d.y) < _box.radius.zx);
-  bool hitZ = (d.z >= 0.0) && all(abs(origin.xy + direction.xy * d.z) < _box.radius.xy);
+  // Is each candidate hit in front of the origin and on its face? The face includes its edges, so
+  // that a ray on the seam between two voxels hits both (§4.2, item 12); the paper's test is strict.
+  bool hitX = (d.x >= 0.0) && all(abs(origin.yz + direction.yz * d.x) <= _box.radius.yz);
+  bool hitY = (d.y >= 0.0) && all(abs(origin.zx + direction.zx * d.y) <= _box.radius.zx);
+  bool hitZ = (d.z >= 0.0) && all(abs(origin.xy + direction.xy * d.z) <= _box.radius.xy);
 
   // Keep exactly one axis, carrying the sign of the face normal.
   sgn = hitX ? float3(sgn.x, 0.0, 0.0) : (hitY ? float3(0.0, sgn.y, 0.0) : float3(0.0, 0.0, hitZ ? sgn.z : 0.0));
@@ -441,6 +443,7 @@ The owner answered the open questions on 2026-09-27:
 2. There is no comparison against MagicaVoxel renders (D12); M3 is accepted by eye.
 3. The loader rejects `.vox` features this file does not use, such as rotated nodes or more than 16 colours, by name (§7.1).
 4. The owner's display is 1920 × 1080, and the resolution policy of §13 (D11) applies.
+5. Seams are watertight: Listing 5's face tests include their edges (§4.2, item 12).
 
 ## 17. Conformance rules and expected ADRs
 

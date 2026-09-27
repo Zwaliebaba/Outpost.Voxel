@@ -71,13 +71,14 @@ template <bool Oriented, bool CanStartInBox>
     d = d * _invDirection;
   }
 
-  // Is each candidate hit in front of the origin and inside its face?
+  // Is each candidate hit in front of the origin and on its face? The face includes its edges, so that a ray on the seam
+  // between two voxels hits both (§4.2, item 12); the paper's test is strict.
   const bool hitX =
-    d.x >= 0.0f && std::abs(origin.y + direction.y * d.x) < _box.radius.y && std::abs(origin.z + direction.z * d.x) < _box.radius.z;
+    d.x >= 0.0f && std::abs(origin.y + direction.y * d.x) <= _box.radius.y && std::abs(origin.z + direction.z * d.x) <= _box.radius.z;
   const bool hitY =
-    d.y >= 0.0f && std::abs(origin.z + direction.z * d.y) < _box.radius.z && std::abs(origin.x + direction.x * d.y) < _box.radius.x;
+    d.y >= 0.0f && std::abs(origin.z + direction.z * d.y) <= _box.radius.z && std::abs(origin.x + direction.x * d.y) <= _box.radius.x;
   const bool hitZ =
-    d.z >= 0.0f && std::abs(origin.x + direction.x * d.z) < _box.radius.x && std::abs(origin.y + direction.y * d.z) < _box.radius.y;
+    d.z >= 0.0f && std::abs(origin.x + direction.x * d.z) <= _box.radius.x && std::abs(origin.y + direction.y * d.z) <= _box.radius.y;
 
   // Keep exactly one axis, carrying the sign of the face normal.
   sgn = hitX ? Float3{sgn.x, 0.0f, 0.0f} : (hitY ? Float3{0.0f, sgn.y, 0.0f} : Float3{0.0f, 0.0f, hitZ ? sgn.z : 0.0f});

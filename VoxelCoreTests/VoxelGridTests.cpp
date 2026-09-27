@@ -185,6 +185,20 @@ public:
     Assert::AreEqual(1u, VoxelCore::TraceBoxes<false>(Boxes(model), ray, 0.0f).voxel);
   }
 
+  TEST_METHOD(BreaksSeamTiesTowardTheLowerRecord)
+  {
+    // Two voxels share the face x = 1, and a ray runs down that face: both report a hit at one distance (§4.2, item 12).
+    // The walk starts in the cell of record 1 and meets record 0 second, so only the tie rule can put record 0 first.
+    VoxelCore::VoxModel model{};
+    model.records = {VoxelCore::PackVoxelRecord({0, 0, 0, 0}), VoxelCore::PackVoxelRecord({1, 0, 0, 0})};
+    model.instances = {{{0, 0, 0}, {2, 1, 1}, 0, 2}};
+    const VoxelCore::VoxelGrid grid(model);
+    const VoxelCore::Ray ray{{1.0f, 0.5f, 5.0f}, {0.0f, 0.0f, -1.0f}};
+    const TraceHit expected = VoxelCore::TraceBoxes<false>(Boxes(model), ray, 0.0f);
+    Assert::AreEqual(0u, expected.voxel, L"brute force");
+    ExpectSameHit(expected, grid.Trace(ray, 0.0f), L"the grid");
+  }
+
   TEST_METHOD(SkipsWhatLiesNearerThanTheMinimum)
   {
     VoxelCore::VoxModel model{};

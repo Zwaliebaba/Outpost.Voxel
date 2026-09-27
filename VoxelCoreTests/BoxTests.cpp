@@ -4,9 +4,11 @@
 #include "Float3.h"
 #include "Ray.h"
 #include "SeededRandom.h"
+#include "TraceHit.h"
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <limits>
@@ -30,8 +32,8 @@ constexpr std::uint32_t RAY_COUNT = 20000;
 constexpr double AMBIGUITY = 1.0e-3;
 
 // The brute-force reference: the classic slab test in double precision, in the box's own coordinates, tracking the
-// slab the ray enters last, which is the face it enters through, and the slab it leaves first. A ray parallel to a
-// slab and on its boundary misses, as it does under Listing 5's strict face tests.
+// slab the ray enters last, which is the face it enters through, and the slab it leaves first. The box is closed: a ray
+// parallel to a slab and on its boundary is inside it, as it is under the inclusive face tests (§4.2, item 12).
 struct SlabHit
 {
   bool hit; // the ray starts outside the box and enters it
@@ -60,7 +62,7 @@ struct SlabHit
     const double direction = BoxCoordinate(_direction, axes[a]);
     if (direction == 0.0)
     {
-      if (std::abs(origin) >= radius[a])
+      if (std::abs(origin) > radius[a])
       {
         return slabs;
       }
@@ -81,7 +83,7 @@ struct SlabHit
       slabs.leaveSign = direction > 0.0 ? 1.0 : -1.0;
     }
   }
-  slabs.hit = slabs.enter < slabs.leave && slabs.enter >= 0.0;
+  slabs.hit = slabs.enter <= slabs.leave && slabs.enter >= 0.0;
   return slabs;
 }
 
@@ -282,24 +284,50 @@ public:
     ExpectExactCases<true>(cases);
   }
 
-  TEST_METHOD(FaceTestsAreStrictAtEdgesAndCorners)
+  TEST_METHOD(FacesIncludeTheirEdgesAndCorners)
   {
-    // A ray that meets the box exactly on an edge or a corner misses it; one that meets it a representable step inside
-    // hits the face it is inside of.
-    const float inside = 1.0f / 1024.0f;
-    const float underHalf = std::nextafter(0.5f, 0.0f);
-    const std::array<ExactCase, 8> cases{{
-      {{-2.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, false, 0.0f, {}},
-      {{-2.0f, underHalf, 0.0f}, {1.0f, 0.0f, 0.0f}, true, 1.5f, {-1.0f, 0.0f, 0.0f}},
-      {{-1.5f, -1.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, false, 0.0f, {}},
-      {{-1.5f, -1.5f + inside, 0.0f}, {1.0f, 1.0f, 0.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
-      {{-1.5f + inside, -1.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, true, 1.0f, {0.0f, -1.0f, 0.0f}},
-      {{-1.5f, -1.5f, -1.5f}, {1.0f, 1.0f, 1.0f}, false, 0.0f, {}},
-      {{-1.5f, -1.5f + inside, -1.5f + inside}, {1.0f, 1.0f, 1.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
-      {{1.5f, 1.5f, 1.5f + inside}, {-1.0f, -1.0f, -1.0f}, true, 1.0f + inside, {0.0f, 0.0f, 1.0f}},
+    // A ray that meets the box exactly on an edge or a corner hits it (§4.2, item 12), through the first face it touches
+    // in x, y, z order; one that passes a representable step outside misses, and one a step inside hits the face it is
+    // inside of.
+    const float step = 1.0f / 1024.0f;
+    const float overHalf = std::nextafter(0.5f, 1.0f);
+    const std::array<ExactCase, 10> cases{{
+      {{-2.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, true, 1.5f, {-1.0f, 0.0f, 0.0f}},
+      {{-2.0f, overHalf, 0.0f}, {1.0f, 0.0f, 0.0f}, false, 0.0f, {}},
+      {{-1.5f, -1.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
+      {{-1.5f, 0.5f, 0.0f}, {1.0f, -1.0f, 0.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
+      {{-1.5f, 0.5f - step, 0.0f}, {1.0f, -1.0f, 0.0f}, false, 0.0f, {}},
+      {{-1.5f, -1.5f + step, 0.0f}, {1.0f, 1.0f, 0.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
+      {{-1.5f + step, -1.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, true, 1.0f, {0.0f, -1.0f, 0.0f}},
+      {{-1.5f, -1.5f, -1.5f}, {1.0f, 1.0f, 1.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
+      {{-1.5f, -1.5f + step, -1.5f + step}, {1.0f, 1.0f, 1.0f}, true, 1.0f, {-1.0f, 0.0f, 0.0f}},
+      {{1.5f, 1.5f, 1.5f + step}, {-1.0f, -1.0f, -1.0f}, true, 1.0f + step, {0.0f, 0.0f, 1.0f}},
     }};
     ExpectExactCases<false>(cases);
     ExpectExactCases<true>(cases);
+  }
+
+  TEST_METHOD(SeamsAreWatertight)
+  {
+    // Two unit boxes side by side, sharing the face x = 1. A ray down that face, and a ray through the edge their top
+    // faces share, hit both at one distance, and the brute force keeps the lower index, as the depth test does.
+    const std::array<Box, 2> boxes{VoxelCore::MakeAxisAlignedBox({0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}),
+                                   VoxelCore::MakeAxisAlignedBox({1.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f})};
+    const std::array<VoxelCore::Ray, 2> rays{{{{1.0f, 0.25f, 5.0f}, {0.0f, 0.0f, -1.0f}}, {{0.0f, 0.5f, 5.0f}, {0.25f, 0.0f, -1.0f}}}};
+    for (std::size_t r = 0; r < rays.size(); ++r)
+    {
+      for (std::size_t b = 0; b < boxes.size(); ++b)
+      {
+        float distance = 0.0f;
+        Float3 normal{};
+        const std::wstring what = std::format(L"ray {}, box {}", r, b);
+        Assert::IsTrue(Intersect<false, false>(boxes[b], rays[r].origin, rays[r].direction, distance, normal), what.c_str());
+        Assert::AreEqual(4.0f, distance, what.c_str());
+      }
+      const VoxelCore::TraceHit nearest = VoxelCore::TraceBoxes<false>(boxes, rays[r], 0.0f);
+      Assert::AreEqual(0u, nearest.voxel, std::format(L"ray {}", r).c_str());
+      AreEqualFloat3({0.0f, 0.0f, 1.0f}, nearest.normal, std::format(L"ray {}", r).c_str());
+    }
   }
 
   TEST_METHOD(StartingInsideTheBox)
