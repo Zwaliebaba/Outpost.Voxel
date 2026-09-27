@@ -1,0 +1,228 @@
+name: Build
+
+# CI for Outpost.Voxel (AGENTS.md §6).
+#
+# ── What blocks, and what is merely skipped ────────────────────────────────────────────────
+#
+# Every step that has something to run BLOCKS. Nothing here is `continue-on-error`, and a script
+# that exists and fails fails the build.
+#
+# But this repository is a clean start: there is no solution, no project and no checker script in
+# it yet, and a gate that cannot run must not be dressed up as a gate that passed. So each step is
+# guarded on the file it needs -- the checker script, the solution, the built test binaries -- and
+# a step whose input is absent is SKIPPED and says so in the log. The moment the file lands, the
+# step starts gating with no edit here. Remove a guard once its input is permanently there; never
+# add one to get past a red build.
+#
+# Nothing is discovered by name. The solution is whatever single .slnx/.sln sits at the root, and
+# the test suites are whatever *Tests.vcxproj the tree contains -- so adding a project does not
+# mean remembering to edit this file.
+#
+# ── What this builds, and what it deliberately does not ────────────────────────────────────
+#
+# DEBUG ONLY. The Windows build is the slow half of the pipeline and a second configuration
+# roughly doubles it, for a tree where Debug and Release differ in exactly four things:
+# Optimization, _DEBUG vs NDEBUG, FunctionLevelLinking/IntrinsicFunctions, and the linker's
+# folding and LTCG switches. What stands in for the missing build is the "Check the build shape"
+# step below: the checker fails when Debug and Release drift apart on any setting that is not
+# about optimisation, so the Release nobody compiles here still cannot quietly lose an include
+# directory or sit on an older language standard. Before a release, somebody builds Release for
+# real -- see AGENTS.md §3.
+#
+# X64 ONLY. There is no second platform to fall back on and nothing left to excuse a red x64.
+#
+# ── Why the toolchain is not pinned to an image ────────────────────────────────────────────
+#
+# PlatformToolset is pinned in the project files. The runner image is not: it is whatever GitHub
+# ships, and a wrong image pin trades a floating toolchain for a build that does not run at all.
+# Instead the first step of each job PRINTS what it got -- image, VS, MSBuild, clang-tidy,
+# clang-format -- so a pin can be taken from evidence the day one is wanted, and so "it broke and
+# nothing changed" has somewhere to look.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Debug|x64
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      CONFIGURATION: Debug
+      PLATFORM: x64
+
+      # ── Why clang-tidy is pinned and the rest of the toolchain is not ──────────────────────
+      #
+      # The clang-format job below pins clang-format 18 and says why: 18 and 22 break a long
+      # argument list in different places, so a floating version would flap. clang-tidy has the
+      # same problem: different LLVM releases report different findings on unchanged code, and a
+      # runner image that moves its bundled LLVM would turn the build red with nothing changed.
+      #
+      # A version change must not be able to turn main red on its own. The way to bump it is to
+      # change the number here, run it, and fix what it says -- a new finding that is a real defect
+      # is fixed in the code, not pinned away.
+      #
+      # From pip rather than from the image, because that is the only way a developer can run the
+      # same binary the gate runs. `python -m pip install clang-tidy==<this>` gets it on any
+      # machine; the runner's bundled LLVM cannot be asked for by version at all.
+      CLANG_TIDY_VERSION: 22.1.8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      # INCLUDE and LIB are what make the CRT and the Windows SDK visible to clang-tidy, which
+      # runs through clang's MSVC driver rather than being told about the SDK by hand. MSBuild
+      # does not need them -- it resolves the toolset itself -- so this exists for the linter.
+      - name: Import the MSVC environment
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $install = & $vswhere -latest -products * -property installationPath
+          if (-not $install) { throw "vswhere found no Visual Studio installation." }
+          $devcmd = Join-Path $install 'Common7\Tools\VsDevCmd.bat'
+          cmd /c "`"$devcmd`" -arch=amd64 -host_arch=amd64 -no_logo && set" | ForEach-Object {
+            if ($_ -match '^(INCLUDE|LIB|LIBPATH|VCINSTALLDIR|VCToolsInstallDir|VSINSTALLDIR)=(.*)$') {
+              "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
+          "VSWHERE_INSTALL=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # PINNED, and not taken from the runner image. CLANG_TIDY_VERSION at the top of this job
+      # carries the version and the reason.
+      - name: Install the pinned clang-tidy
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check "clang-tidy==$env:CLANG_TIDY_VERSION"
+
+      - name: Record the toolchain
+        shell: pwsh
+        run: |
+          Write-Output "runner image : $env:ImageOS / $env:ImageVersion"
+          Write-Output "visual studio: $env:VSWHERE_INSTALL"
+          msbuild -version -nologo
+          Write-Output "--- clang-tidy (pinned to $env:CLANG_TIDY_VERSION) ---"
+          clang-tidy --version
+          Write-Output "--- python ---"
+          python --version
+
+      # The solution is found, not named. Exactly one at the root, or none while the tree is still
+      # empty; two is a mistake worth failing on rather than picking between.
+      - name: Locate the solution
+        id: solution
+        shell: pwsh
+        run: |
+          $found = @(Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.slnx', '.sln' })
+          if ($found.Count -gt 1) { throw "More than one solution at the repository root: $($found.Name -join ', ')." }
+          if ($found.Count -eq 0) {
+            Write-Output "::notice::No solution at the repository root yet. The build and test steps will be skipped."
+            "path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          else {
+            Write-Output "Solution: $($found[0].Name)"
+            "path=$($found[0].Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      # First, because it is two seconds and it catches the class of mistake that would otherwise
+      # surface as a confusing build failure: a file missing from a project, a header in a
+      # subdirectory clang-tidy will never see, or Debug and Release drifting apart.
+      - name: Check the build shape and the project registries
+        if: hashFiles('Build/CheckProjectFiles.py') != ''
+        shell: pwsh
+        run: python Build\CheckProjectFiles.py
+
+      # /warnaserror covers MSBuild's own warnings; /WX for the compiler is set in the projects.
+      - name: Build
+        if: steps.solution.outputs.path != ''
+        shell: pwsh
+        run: |
+          msbuild "${{ steps.solution.outputs.path }}" `
+            /p:Configuration=$env:CONFIGURATION /p:Platform=$env:PLATFORM `
+            /m /nologo /v:minimal /warnaserror `
+            /flp:LogFile=build.log`;Verbosity=normal
+
+      # One suite per *Tests.vcxproj in the tree, and every one of them must have produced a DLL:
+      # vstest reports "no tests found" as a pass, so a suite that did not build is not a suite
+      # that passed. No suites at all is a state this repository is still legitimately in.
+      - name: Run the tests
+        if: steps.solution.outputs.path != ''
+        shell: pwsh
+        run: |
+          $projects = @(Get-ChildItem -Path . -Recurse -Filter '*Tests.vcxproj' -File)
+          if ($projects.Count -eq 0) {
+            Write-Output "::notice::No *Tests.vcxproj in the tree yet. Nothing to run."
+            exit 0
+          }
+          $suites = foreach ($project in $projects) {
+            $dll = "x64\$env:CONFIGURATION\$($project.BaseName).dll"
+            if (-not (Test-Path $dll)) { throw "$dll was not built. A suite that does not exist is not a suite that passed." }
+            $dll
+          }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vstest = & $vswhere -latest -products * -find '**\vstest.console.exe' | Select-Object -First 1
+          if (-not $vstest) { throw "vstest.console.exe not found." }
+          & $vstest $suites /Platform:x64 /Logger:trx /ResultsDirectory:TestResults
+          if ($LASTEXITCODE -ne 0) { throw "vstest reported failures." }
+
+      # After the build, so that a compile error is reported as a compile error rather than as
+      # forty linter findings about a file that does not parse.
+      - name: Run clang-tidy
+        if: hashFiles('Build/RunClangTidy.py') != ''
+        shell: pwsh
+        run: python Build\RunClangTidy.py
+
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Its own Linux job, and not a step on the Windows one, for two reasons. It is seconds rather
+    # than minutes, so it reports a formatting problem long before the build would have. And the
+    # version is reproducible here: Ubuntu ships clang-format 18.1.3 from apt, where the Windows
+    # runner's clang-format is whatever Visual Studio happened to bundle -- and 18 and 22 break a
+    # long argument list in different places, so a floating version would flap.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format 18
+        if: hashFiles('Build/CheckFormat.py') != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+
+      - name: Check formatting
+        if: hashFiles('Build/CheckFormat.py') != ''
+        run: python3 Build/CheckFormat.py --clang-format clang-format-18

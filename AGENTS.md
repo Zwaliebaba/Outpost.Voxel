@@ -1,0 +1,248 @@
+# AGENTS.md — Engineering Rules for *Outpost.Voxel*
+
+Operating instructions for every agent (and human) writing code in this repository. **Read this before generating a single line.**
+
+*Outpost.Voxel* is a C++23 project built on Windows with MSVC. This file is about **how code is written here** — naming, layout, build settings and the standing rules of the codebase. It is not the design: what the project *is* belongs in a design document.
+
+**The tree starts empty.** Until the first project lands, this repository holds this file, the root configuration files, `.gitignore` and `.github/` — no solution, no projects, no source. Nothing below is a target to migrate towards; it describes the code as it must be written from the first line. There is no legacy here and nothing is grandfathered, so a whole-tree run of any checker comes back clean — trivially today, and by conformance from then on.
+
+**What is authoritative, in order:**
+
+1. **This file** — conformance: naming, style, build settings, and how to work here.
+2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
+3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
+
+A design document, when there is one, sits alongside rather than above: it says what is built and this file says how. Until it exists there is no design authority, and a task that needs a design answer asks the owner and gets the answer written down before the code is.
+
+If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
+
+---
+
+## 1. Naming convention (normative — no exceptions)
+
+| Kind | Convention | Example |
+|---|---|---|
+| Type (class, struct, enum, concept, alias) | `PascalCase` | `FileReader` |
+| Function, method | `PascalCase` | `ReadBlock()` |
+| Member variable | `m_camelCase` | `m_isOpen` |
+| Static member (mutable) | `sm_camelCase` | `sm_openCount` |
+| Global | `g_camelCase` | `g_instance`, `g_frameCount` |
+| Parameter | `_camelCase` | `_fileName`, `_blockIndex` |
+| Local | `camelCase` | `bytesRead` |
+| Compile-time constant | `UPPER_CASE` | `MAX_PATH_CHARS`, `BLOCK_BYTES` |
+| Enumerator | `PascalCase` | `NotFound`, `AccessDenied` |
+| Macro | `UPPER_CASE` | `OUTPOST_ASSERT` |
+| Namespace | `PascalCase` | `Outpost` |
+| File | `PascalCase.cpp` / `.h` | `FileReader.cpp` |
+
+**Note the split that catches people out: a `constexpr` is `UPPER_CASE`, an enumerator is `PascalCase`.** They are both compile-time and they are spelled differently on purpose — an enumerator is a *value of a type* and reads as one at the use site (`ReadFault::AccessDenied`), while a constant is a number with a name and is meant to look like one. [`.clang-tidy`](.clang-tidy) enforces both, and it is the single source of truth for the option values; this document states the rules in prose and does not repeat the settings, so there is nothing to drift.
+
+### The rules behind the table
+
+**R1 — The leading underscore on parameters is deliberate.** It is legal C++: the reserved forms are `_Uppercase`, anything containing `__`, and `_lowercase` **at global scope**. A parameter is never at global scope, so `_fileName` is safe. Never introduce a reserved form — no `_Impl`, no `__helper`, no file-scope `_cache` (use `g_cache` in an anonymous namespace).
+
+**R2 — A type name carries no prefix or affix, and that includes abstract ones.** An interface is `Transport`, not `ITransport`. A base class is not `BaseTransport` or `AbstractTransport`. PascalCase means the name and nothing else. This bans `CFoo`, `SFoo`, `EFoo`, `IFoo`, `FooBase`, `FooAbstract`, `FooImpl` and `_t` suffixes. Name the concept and let the concrete types say what they are:
+
+```
+Transport             ← the concept
+├── UdpTransport      ← a socket-backed one
+└── LoopbackTransport ← in-process, for tests
+```
+
+That tree is an illustration of the rule, not a description of anything. A base class for one derived class is ceremony: name the concept, and add the layer when a second thing needs it.
+
+clang-tidy can require an *absent* prefix but cannot see a *present* suffix, so the repository checker carries the other half (§6).
+
+**R3 — Compile-time constants are `UPPER_CASE`.** `constexpr`, `inline constexpr` and `static constexpr` members: `MAX_PATH_CHARS`, `BLOCK_BYTES`, `DEFAULT_TIMEOUT_MILLISECONDS`. `sm_` is reserved for *mutable* statics, which are rare and must document their thread-safety.
+
+**R4 — Acronyms capitalize as words**: `HttpClient`, `XmlReader`, `UdpTransport` — never `HTTPClient`. Identifiers from an external SDK keep that SDK's spelling (`HRESULT`, `HANDLE`, `CreateFileW`, `WSADATA`) and are never renamed to fit.
+
+**R5 — Template parameters are PascalCase**: `T`, `Fn`, `BlockBytes`, `Ts...`.
+
+**R6 — Units belong in names; types do not.** `timeoutMilliseconds`, `sizeBytes`, `angleRadians`, `widthPixels` are encouraged — unit ambiguity is a real defect class, and it is one the compiler cannot catch for you. Never encode the type: no `iCount`, `pBuffer`, `strName`.
+
+**R7 — A file is named for its primary type**, PascalCase, `.h` / `.cpp` only. `.hpp`, `.cc` and `.inl` are not used; template implementations live in the header. Exceptions, because MSBuild and the Visual Studio wizards spell them this way: `pch.h`, `pch.cpp`, `framework.h`, `targetver.h`, `Resource.h`.
+
+**R8 — `m_` marks encapsulated state, not every field.** A `class` with invariants prefixes private members `m_`. A public aggregate — a `Desc` config struct, a wire record, a plain data struct — uses plain `camelCase` fields so brace initialization reads naturally.
+
+**R9 — One namespace per layer, and a lower layer does not know a higher one.** Reusable library code gets its own namespace; application code gets another. The split is a rule rather than a filing preference: if a library type has to know an application concept by name in order to do its job, it is in the wrong layer. Test suites use `namespace <Project>Tests`.
+
+**R10 — No `using namespace` at file scope in a header.** It leaks into every translation unit that includes it, and the failure it causes appears somewhere else. In a `.cpp` it is allowed for the unit-test framework and nothing else; otherwise qualify the name or write a local alias.
+
+**R11 — One spelling per family, and it is the SDK's.** `color`, `initialize`, `serialize`, `normalize`, `quantize`, `synchronize`, `behavior`, `neighbor`, `center`, `gray`, `canceled`. Neither spelling is wrong English; the defect is a tree where a reader has to know which half they are in and a grep for one finds half the uses. The Windows SDK spells `COLORREF` and `InitializeCriticalSection`, and that settles which half wins. Prose is not checked — a design document may spell `colour`; an identifier spells `color`.
+
+### Worked example — this is the target style
+
+```cpp
+// <Project>/FileReader.h
+#pragma once
+
+#include <cstdint>
+
+namespace Outpost
+{
+
+// R3: constant → UPPER_CASE. R6: the unit is in the name.
+inline constexpr std::uint32_t BLOCK_BYTES = 4096;
+inline constexpr std::uint32_t MAX_PATH_CHARS = 260;
+
+// Enumerator → PascalCase, unlike the constants above.
+enum class ReadFault : std::uint8_t
+{
+  NotFound,
+  AccessDenied,
+  UnexpectedEnd
+};
+
+/// Reads a file in fixed-size blocks.
+/// R2: no prefix on the type. R8: private state carries m_.
+class FileReader
+{
+public:
+  struct Desc                                            // R8: aggregate → plain fields
+  {
+    std::uint32_t blockBytes;                            // R6: unit in the name
+    std::uint32_t timeoutMilliseconds;
+    bool shareRead;
+  };
+
+  [[nodiscard]] static bool Open(const wchar_t* _fileName,       // R1: _ on parameters
+                                 const Desc& _desc,
+                                 FileReader& _outReader) noexcept;
+
+  [[nodiscard]] std::uint64_t SizeBytes() const noexcept { return m_sizeBytes; }
+
+private:
+  HANDLE m_file = nullptr;                               // R4: SDK spelling kept as-is
+  std::uint64_t m_sizeBytes = 0;
+  bool m_isOpen = false;
+};
+
+} // namespace Outpost
+```
+
+### Enforcement
+
+| Rule | Enforced by |
+|---|---|
+| The naming table, R1, R3, R5, R8 | [`.clang-tidy`](.clang-tidy), gated in CI over the whole tree |
+| R2 affixes, R7 file names and project registration, R11 spellings, §2 flat directories | `Build/CheckProjectFiles.py`, gated in CI |
+| R4, R6, R9, R10 | Review. Check your own diff against the table before handing it back. |
+
+**Neither checker exists yet** (§6). `.clang-tidy` is configured and gates the moment there is a translation unit to run it over; `Build/CheckProjectFiles.py` has to be written, and until it is, the four rules in its row are review's problem and nothing else. A rule nobody can run is a rule that rots, so writing that checker is early work rather than housekeeping.
+
+---
+
+## 2. Repository shape
+
+The concrete layout — the solution, the projects and the edges between them — is settled when the first project is created, and recorded here and in an ADR at that point. Until then, these are the standing constraints any layout has to satisfy.
+
+**Project directories are flat.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter.
+
+**The edges run one way, and a layer never reaches sideways.** Library code is built on by application code and never the reverse (R9), and two libraries at the same level share what is below them rather than each other. An edge that only exists "for now" is an edge, and it is the one that will be impossible to remove later.
+
+**The project files are part of the source.** Adding, removing or moving a file means editing the owning `.vcxproj` **and** its `.filters`. A file that compiles locally but is missing from the project fails only in CI — or worse, links a stale object nobody notices.
+
+**A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`** in the same commit that creates it. A project missing from that list has headers that nothing checks.
+
+**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, and anything a build step generates.
+
+---
+
+## 3. Build and verify
+
+**x64 is the only platform.** No Win32/x86 configuration in any project or solution; do not add one, and do not write code that only works at 32 bits.
+
+**The compiler settings are the settings.** Toolset `v145` (Visual Studio 2026), `/std:c++latest`, `/permissive-`, `/W4` with **warnings as errors**, `/fp:precise`, `/arch:AVX2`. There is no CMake. If a build error tempts you to change the toolset, lower the language standard, turn off `/permissive-` or silence a warning — **stop and report instead.**
+
+**`/fp:precise` and `/arch:AVX2` are stated explicitly in every project file**, not inherited from an MSVC default — a default is not a decision. `/arch:AVX2` sets a CPU floor (Intel Haswell, AMD Excavator); an older CPU meets an illegal instruction, not a message. It also lets MSVC contract `a*b+c` into an FMA even under `/fp:precise`, so float results can differ from a build without it. If that matters for a piece of code, it is an ADR, not a local workaround.
+
+**Debug and Release are aligned by rule, not by luck.** Every setting that is not *about* optimisation reads identically in both configurations: language standard, conformance, warning level, include directories, precompiled header, floating-point model, instruction set. The two differ in exactly four things — `Optimization`, `_DEBUG` vs `NDEBUG`, `FunctionLevelLinking`/`IntrinsicFunctions`, and the linker's folding and LTCG switches. (MSBuild spells those four through a few more properties — `UseDebugLibraries`, `RuntimeLibrary` as the debug or release CRT, `LinkIncremental`, `WholeProgramOptimization`, `EnableCOMDATFolding`, `OptimizeReferences` — and that list is the whole of what may differ.)
+
+That alignment matters more than it looks, because **CI builds Debug only** (§6). Release is compiled by whoever ships, and a Release that quietly lost an include directory or sat on an older language standard would not be discovered until then. A static check of the two configurations is what stands in for the build nobody runs.
+
+**Build through the solution, never a `.vcxproj` directly.** Output paths and cross-project include directories are anchored on `$(SolutionDir)`, and MSBuild defines `SolutionDir` only for a solution build. Building a project file directly resolves every one of those paths against the *project* folder instead of the repository root. **It does not fail — that is the problem.** Output lands in the wrong folder, so the next solution build links against whichever copy is staler, and every cross-project include path becomes a directory that does not exist. The breakage is latent: it bites the first time a file reaches across projects, which may be weeks after someone got into the habit. To build one project, use `/t:<ProjectName>` on the solution.
+
+```powershell
+# Everything, from the repository root, naming the solution.
+msbuild <Solution>.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /nologo
+
+# One project, still through the solution.
+msbuild <Solution>.slnx /t:<ProjectName> /p:Configuration=Debug /p:Platform=x64 /m /nologo
+
+# Release, before you claim anything about it.
+msbuild <Solution>.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
+```
+
+**A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
+
+**Run the tests**, through `vstest.console.exe`, over every suite the build produced.
+
+**vstest reports "no tests found" as a pass.** An empty suite is therefore worse than no suite: it is a green check mark over a library nobody exercised. Every test project ships a placeholder `SuiteSmoke` for exactly this reason; delete it when the first real test lands, never before.
+
+**Run the checkers before you push.** They are seconds of Python and they are what CI runs:
+
+```powershell
+python Build\CheckFormat.py           # clang-format, whole tree. --fix rewrites the offenders
+python Build\CheckProjectFiles.py     # build shape, project registration, R2/R7/R11
+python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE must be set)
+```
+
+**A green build says nothing about whether the program works.** For anything a user can see, hear or touch, launch the executable and try it.
+
+**Report what you actually did.** "Builds clean, not run" and "builds and runs" are different claims. Never imply the second when you only did the first, and say which configurations you built.
+
+---
+
+## 4. Layout and formatting
+
+[`.clang-format`](.clang-format) is the authority for C++ layout: 2-space indent, 140 columns, Allman braces, pointer and reference bound left, includes never reordered. [`.editorconfig`](.editorconfig) covers everything clang-format does not — CRLF, UTF-8, final newline, trailing whitespace, and the non-C++ formats — and repeats the two numbers an editor needs before the first save.
+
+**This tree is formatted, and CI keeps it that way.** A whole-tree format check here is a no-op. Format what you write; if the check fires, run `--fix` and commit the result rather than arguing with it.
+
+- **Do not reformat what your task did not touch.** The check being green tree-wide means a drive-by reformat produces pure churn and buries your actual change.
+- **Include order is load-bearing and grouped by hand**, which is why `SortIncludes` is `Never`: `pch.h`, then `<windows.h>` before any other Windows SDK header, then the rest of the SDK, then project headers, then the standard library. A formatter reordering these behind a change's back is a correctness risk, not a style preference.
+- **One header owns the Windows macro family, and nothing else defines any of it.** `NOMINMAX`, `WIN32_LEAN_AND_MEAN` and any other `NO*` switch are set in that one header, before `<windows.h>`, and the project files deliberately define none of them. Two owners of one macro is C4005, and `/WX` makes that fatal — `/D` spells a bare macro as `1` where a `#define` spells it as nothing, so the collision is guaranteed rather than possible. If you need `<windows.h>`, include that header; do not add the macros yourself.
+- Do not silence a diagnostic with `#pragma warning(disable: ...)` to make a build pass. Fix the cause, or report it.
+
+---
+
+## 5. Rules for this codebase
+
+**R12 — Memory and resource lifetimes are plain C++.** `new`/`delete` where it must be, RAII everywhere, standard containers by default. COM objects are held in `Microsoft::WRL::ComPtr`; a raw `AddRef`/`Release` pair in new code is a defect, not a style. No pool, slab or free-list allocator without a decision recorded in `Design/ADR/`.
+
+**R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
+
+**R14 and up are reserved** for project-specific rules. A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those are conformance rules with a design source, and they are written here as R14 onward when there is a design to cite, without renumbering anything above. Until then, do not invent one and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+
+---
+
+## 6. Working rules
+
+**Stay in scope.** Do what the task asks. Adjacent code that offends you is not part of the task — note it in your report and move on. Unrequested "while I was in there" changes are the main way a young tree acquires regressions it cannot bisect.
+
+**Record decisions as ADRs.** An engineering decision — a file format, a wire protocol, a subsystem's shape, a third-party dependency, an exception to a rule here — goes in `Design/ADR/` as one file per decision, numbered in order from `ADR-001-<slug>.md`, stating the context, the decision and what it forecloses, in the same commit as the change that implements it. Figures in an ADR are measured, not estimated — if you quote one, say how you measured it. A decision nobody wrote down gets re-litigated every few months by whoever forgot it.
+
+**Write the checkers early.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on, and **none of them exists yet.** Until each one lands, the rules it would enforce are review's problem — which is exactly why they are early work rather than housekeeping.
+
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step that has something to run blocks; a step whose input does not exist yet is skipped, not faked.** Each gate is guarded on the file it needs — the checker script, the solution, the built test DLLs — so the workflow is honest about an empty tree and starts gating the moment that file lands. The guards are the only concession: nothing is `continue-on-error`, and a script that exists and fails still fails the build. Remove a guard once its input is permanently there, not before, and never add one to get past a red build.
+
+**CI does not build Release.** The Windows build is the slow half of the pipeline and a second configuration roughly doubles it for a tree where the two differ only in optimisation. What stands in for it is the static alignment check on the two configurations (§3) — and, before a release, an actual `Configuration=Release` build by whoever is shipping. If you change something that could plausibly break only under optimisation, build Release yourself and say so.
+
+**Commits and PRs.** Branch off `main`; small, focused commits with an imperative subject describing the change, not the process. One change per PR. CI must be green. Never commit build output, `.vs/` or `.user` files.
+
+---
+
+## 7. Before you hand work back
+
+- [ ] Naming conforms to §1 — `_` on parameters, `m_` on class state, `UPPER_CASE` constants, `PascalCase` enumerators, no `I`/`C`/`Base` affixes.
+- [ ] Only the lines the task required were changed; no reformatting, no drive-by fixes.
+- [ ] New, removed or moved files are in the `.vcxproj` **and** the `.filters` of every project involved.
+- [ ] A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`.
+- [ ] No project's `ConformanceMode`, `LanguageStandard`, `WarningLevel` or `TreatWarningAsError` was changed, and no warning was silenced with a pragma.
+- [ ] Debug and Release still agree on everything §3 says they must.
+- [ ] The checkers pass — or, for one not yet written, the report says which and why.
+- [ ] It builds Debug|x64, and every test suite runs and passes.
+- [ ] If it changes anything a user can see, hear or touch: it was **run**, not just built.
+- [ ] `Design/ADR/` has a new file if the change *was* a decision.
+- [ ] Your report states plainly what you verified, what you assumed, and any rule here you had to bend.

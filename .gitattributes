@@ -1,0 +1,104 @@
+###############################################################################
+# Set default behavior to automatically normalize line endings.
+###############################################################################
+* text=auto
+
+###############################################################################
+# Set default behavior for command prompt diff.
+#
+# This is need for earlier builds of msysgit that does not have it on by
+# default for csharp files.
+# Note: This is only used by command line
+###############################################################################
+#*.cs     diff=csharp
+
+###############################################################################
+# Set the merge driver for project and solution files
+#
+# Merging from the command prompt will add diff markers to the files if there
+# are conflicts (Merging from VS is not affected by the settings below, in VS
+# the diff markers are never inserted). Diff markers may cause the following 
+# file extensions to fail to load in VS. An alternative would be to treat
+# these files as binary and thus will always conflict and require user
+# intervention with every merge. To do so, just uncomment the entries below
+###############################################################################
+#*.sln       merge=binary
+#*.csproj    merge=binary
+#*.vbproj    merge=binary
+#*.vcxproj   merge=binary
+#*.vcproj    merge=binary
+#*.dbproj    merge=binary
+#*.fsproj    merge=binary
+#*.lsproj    merge=binary
+#*.wixproj   merge=binary
+#*.modelproj merge=binary
+#*.sqlproj   merge=binary
+#*.wwaproj   merge=binary
+
+###############################################################################
+# behavior for image files
+#
+# image files are treated as binary by default.
+###############################################################################
+#*.jpg   binary
+#*.png   binary
+#*.gif   binary
+
+###############################################################################
+# diff behavior for common document formats
+# 
+# Convert binary document formats to text before diffing them. This feature
+# is only available from the command line. Turn it on by uncommenting the 
+# entries below.
+###############################################################################
+#*.doc   diff=astextplain
+#*.DOC   diff=astextplain
+#*.docx  diff=astextplain
+#*.DOCX  diff=astextplain
+#*.dot   diff=astextplain
+#*.DOT   diff=astextplain
+#*.pdf   diff=astextplain
+#*.PDF   diff=astextplain
+#*.rtf   diff=astextplain
+#*.RTF   diff=astextplain
+
+###############################################################################
+# Line endings, kept in step with /.editorconfig (AGENTS.md §4)
+#
+# `* text=auto` above normalizes every text file to LF in the REPOSITORY. What it does not
+# do is decide what the WORKING TREE gets -- that is core.autocrlf's business, and therefore
+# different on every machine -- while /.editorconfig states a definite answer per format and
+# every editor that honours it obeys. Two files disagreeing about one file is how a whole-file
+# diff turns up inside a one-line change, so the formats .editorconfig is explicit about are
+# explicit here too. Change one, change the other in the same commit.
+###############################################################################
+
+# CRLF in the working tree: Windows sources, and the files Visual Studio rewrites wholesale.
+*.cpp           text eol=crlf
+*.h             text eol=crlf
+*.hlsl          text eol=crlf
+*.vcxproj       text eol=crlf
+*.filters       text eol=crlf
+*.slnx          text eol=crlf
+*.sln           text eol=crlf
+*.props         text eol=crlf
+*.targets       text eol=crlf
+*.json          text eol=crlf
+.clang-format   text eol=crlf
+.clang-tidy     text eol=crlf
+.editorconfig   text eol=crlf
+.gitattributes  text eol=crlf
+.gitignore      text eol=crlf
+
+# LF in the working tree: what the Linux CI job reads, and what reads the same either way.
+*.py            text eol=lf
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.md            text eol=lf
+
+# The Visual Studio resource editor writes these as UTF-16 and rewrites them wholesale. Git's
+# own heuristic usually calls them binary on the NUL bytes; saying so outright means a
+# normalization pass can never corrupt one.
+*.rc            -text
+*.rc2           -text

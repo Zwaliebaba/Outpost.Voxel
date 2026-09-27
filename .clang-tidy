@@ -1,0 +1,160 @@
+# AGENTS.md §1 — naming and semantics, machine-readable. This file is the single source of truth
+# for the option values; AGENTS.md states the rules in prose and does not repeat the settings.
+#
+# This file owns IDENTIFIERS and semantics. /.clang-format owns whitespace, and the two never
+# overlap: clang-tidy has no check that reports a wrong brace position or an over-long line, and
+# clang-format cannot see that a parameter is missing its `_`.
+#
+# ── Status: CI gates this over the whole tree ──────────────────────────────────────────────
+#
+# `.github/workflows/build.yml` runs clang-tidy on the Windows job, after the build, over every
+# hand-written translation unit in the tree (AGENTS.md §6) -- from the moment Build/RunClangTidy.py
+# exists, which it does not yet, so the step is guarded until it does. It runs through clang's MSVC
+# driver (`--driver-mode=cl`) against the same switches the .vcxproj files set, because the
+# alternative — GNU driver mode against the Windows SDK — disagrees with MSVC in both directions
+# and reports defects that are not there.
+#
+# This repository is GREENFIELD, and at the time of writing it holds no C++ at all. Nothing is
+# grandfathered, a whole-tree pass comes back clean, and a finding is therefore a defect rather
+# than archaeology. That is a claim CI keeps true from the first translation unit onwards; it is
+# not a claim about how careful anyone was. When it breaks, fix the code — do not narrow the
+# filter.
+#
+# Run it yourself, on the files you wrote, before you push. From a Developer PowerShell (the
+# INCLUDE variable is what makes the Windows SDK visible to clang):
+#
+#   clang-tidy --quiet <Project>/YourNewFile.cpp -- --driver-mode=cl /std:c++latest /EHsc `
+#     /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_DEBUG /I <Project>
+#
+# UNICODE and _UNICODE are not optional in that command. Every project sets CharacterSet=Unicode,
+# so `IDC_ARROW` is `MAKEINTRESOURCEW`; without the defines clang-tidy reports a type error at
+# every `LoadCursorW` call that MSVC compiles without complaint.
+#
+# THE VERSION MATTERS, and the workflow PINS it -- `CLANG_TIDY_VERSION` in
+# .github/workflows/build.yml, installed from pip so that the same binary is available on any
+# machine. "Clean" is always clean *under something*, and that something now has a number.
+#
+# It is pinned because different LLVM releases report different findings on unchanged code, and
+# a runner image that moves its bundled LLVM would otherwise turn main red on its own. To bump it,
+# change the number, run it, and fix what it reports -- a new finding that is a real defect is
+# fixed in the code, not pinned away.
+#
+# To run exactly what CI runs:
+#
+#   python -m pip install clang-tidy==22.1.8
+#   python Build/RunClangTidy.py
+
+# Four rules of AGENTS.md §1 this file cannot express — R2's banned type affixes, R7's file naming
+# and .vcxproj/.filters registration, R11's standing spelling families, and §2's flat project
+# directories — are checked by Build/CheckProjectFiles.py, which runs in the same CI job that
+# builds, once somebody writes it (AGENTS.md §6). A check that exists somewhere is worth more
+# than a rule everyone is asked to remember.
+#
+# readability-identifier-length is deliberately NOT enabled. Its defaults reject the domain
+# vocabulary this codebase is built on — x, y, _a, _b — and short names here are precise, not lazy.
+
+Checks: >
+  readability-identifier-naming,
+  bugprone-*,
+  performance-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -clang-analyzer-optin.performance.Padding,
+  -performance-enum-size
+
+# `-clang-analyzer-optin.performance.Padding` is a judgement call, not a mechanical exclusion. It
+# is an OPT-IN analyzer that arrives with clang-tidy's defaults because this list does not begin
+# with `-*`. File records, network messages and GPU buffer structs have layouts that are
+# load-bearing — a record is the size its format says it is — and reordering fields to save
+# padding is exactly the change this repository must not make casually.
+#
+# `-bugprone-narrowing-conversions` is off because deliberate narrowing is routine: 64-bit sizes
+# to 32-bit API parameters, floats to integer grid coordinates, wide values to compact storage.
+# It would fire on most code that talks to a file format or an API, where the narrowing IS the
+# design.
+#
+# `-performance-enum-size` is off for the same reason as the padding check: it asks an enum to
+# shrink to the smallest type its current enumerators happen to fit in. An enum that is stored or
+# transmitted is a format value first and a C++ type second, so "no enumerator needs that many
+# bits yet" is an argument for changing a format, which is the change this repository must not
+# make casually.
+#
+# NOTE ON THE FORMAT: `Checks:` is a FOLDED scalar, so a `#` line indented under it is not a
+# comment — it folds into the value and corrupts the check list. Every comment belongs here.
+#
+# WarningsAsErrors: '*' says every enabled check is fatal, so that the gate has one answer rather
+# than two settings disagreeing about which findings matter.
+WarningsAsErrors: '*'
+
+# THIS ALTERNATION IS A PROJECT REGISTRY. It names the projects whose headers are linted, so
+# ADDING A PROJECT MEANS ADDING IT HERE -- a project missing from this list is a project whose
+# headers are checked by nothing at all, with no finding and no warning to say so. It is the
+# quietest way to lose a gate, which is why Build/CheckProjectFiles.py should be written to
+# compare this list against the solution rather than trusting anyone to remember.
+#
+# Only the `<Something>Tests` convention is seeded, because no project exists yet. When the first
+# one is created, add its folder name as another alternative, e.g. `(MyProject|[A-Za-z0-9]+Tests)`.
+#
+# [/\\], not '/'. On a Windows Clang build the paths arrive with backslashes, so a filter anchored
+# on a forward slash matches no header at all and silently suppresses every in-build diagnostic.
+# The pattern matches headers sitting DIRECTLY in a project folder, which is every hand-written
+# one (AGENTS.md §2's flat-directory rule). A bare `.*` would also match build output and the
+# Windows SDK, and most of what it reported would be from headers nobody here wrote.
+HeaderFilterRegex: '([A-Za-z0-9]+Tests)[/\\][A-Za-z0-9]+\.h$'
+
+# A `Resource.h` is written by the Visual Studio resource editor, not by hand. Its
+# `#define IDC_STATIC -1` trips bugprone-macro-parentheses, and the fix would be undone the next
+# time someone opens the dialog editor. Excluded here rather than by weakening the check for
+# everything else. (`ExcludeHeaderFilterRegex` needs clang-tidy 19 or newer; on an older one pass
+# `--exclude-header-filter='Resource\.h$'` instead.)
+ExcludeHeaderFilterRegex: 'Resource\.h$'
+
+CheckOptions:
+  # ── Types: PascalCase, no prefix of any kind (R2, R5) ──────────────────────────────
+  - { key: readability-identifier-naming.NamespaceCase,            value: CamelCase  }
+  - { key: readability-identifier-naming.ClassCase,                value: CamelCase  }
+  - { key: readability-identifier-naming.StructCase,               value: CamelCase  }
+  - { key: readability-identifier-naming.EnumCase,                 value: CamelCase  }
+  - { key: readability-identifier-naming.EnumConstantCase,         value: CamelCase  }
+  - { key: readability-identifier-naming.TypeAliasCase,            value: CamelCase  }
+  - { key: readability-identifier-naming.TypedefCase,              value: CamelCase  }
+  - { key: readability-identifier-naming.ConceptCase,              value: CamelCase  }
+  - { key: readability-identifier-naming.TemplateParameterCase,    value: CamelCase  }
+  - { key: readability-identifier-naming.AbstractClassPrefix,      value: ''         }
+
+  # ── Functions: PascalCase ──────────────────────────────────────────────────────────
+  - { key: readability-identifier-naming.FunctionCase,             value: CamelCase  }
+  - { key: readability-identifier-naming.MethodCase,               value: CamelCase  }
+
+  # ── Constants: UPPER_CASE (R3); enumerators stay PascalCase above ──────────────────
+  - { key: readability-identifier-naming.ConstexprVariableCase,    value: UPPER_CASE }
+  - { key: readability-identifier-naming.GlobalConstantCase,       value: UPPER_CASE }
+  - { key: readability-identifier-naming.ClassConstantCase,        value: UPPER_CASE }
+  - { key: readability-identifier-naming.StaticConstantCase,       value: UPPER_CASE }
+
+  # ── Storage prefixes ───────────────────────────────────────────────────────────────
+  - { key: readability-identifier-naming.PrivateMemberCase,        value: camelBack  }
+  - { key: readability-identifier-naming.PrivateMemberPrefix,      value: 'm_'       }
+  - { key: readability-identifier-naming.ProtectedMemberCase,      value: camelBack  }
+  - { key: readability-identifier-naming.ProtectedMemberPrefix,    value: 'm_'       }
+  - { key: readability-identifier-naming.ClassMemberCase,          value: camelBack  }
+  - { key: readability-identifier-naming.ClassMemberPrefix,        value: 'sm_'      }
+  - { key: readability-identifier-naming.GlobalVariableCase,       value: camelBack  }
+  - { key: readability-identifier-naming.GlobalVariablePrefix,     value: 'g_'       }
+  - { key: readability-identifier-naming.StaticVariableCase,       value: camelBack  }
+  - { key: readability-identifier-naming.StaticVariablePrefix,     value: 'g_'       }
+
+  # R8: a public aggregate uses plain camelCase fields so brace initialization reads naturally.
+  # m_ marks encapsulated state, not every field — wire records and Desc structs carry no prefix.
+  - { key: readability-identifier-naming.PublicMemberCase,         value: camelBack  }
+
+  # ── Parameters carry a leading underscore (R1) ─────────────────────────────────────
+  # Legal C++: the reserved forms are _Uppercase, anything containing __, and _lowercase at
+  # GLOBAL scope. A parameter is never at global scope.
+  - { key: readability-identifier-naming.ParameterCase,            value: camelBack  }
+  - { key: readability-identifier-naming.ParameterPrefix,          value: '_'        }
+  - { key: readability-identifier-naming.LocalVariableCase,        value: camelBack  }
+
+  - { key: readability-identifier-naming.MacroDefinitionCase,      value: UPPER_CASE }
