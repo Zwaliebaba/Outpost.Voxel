@@ -3,6 +3,7 @@
 #include "Box.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
+#include "RenderSettings.h"
 #include "TraceHit.h"
 #include "VoxFile.h"
 #include "VoxModel.h"
@@ -192,6 +193,24 @@ public:
       Assert::AreEqual(emissive ? 0.6f : 0.0f, entry.emit, what.c_str());
       Assert::AreEqual(emissive ? 2.0f : 0.0f, entry.flux, what.c_str());
     }
+  }
+
+  // Design/SampleRenderer.md §11: the lighting reads the file's own settings, which the defaults repeat.
+  TEST_METHOD(LightsAsItsSettingsSay)
+  {
+    const NeuronCore::VoxModel model = LoadMilitaryStation();
+    const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(model.renderObjects);
+    const NeuronCore::RenderSettings defaults = NeuronCore::DefaultRenderSettings();
+    Assert::AreEqual(defaults.sunElevationRadians, settings.sunElevationRadians, L"_angle 50 50");
+    Assert::AreEqual(defaults.sunAzimuthRadians, settings.sunAzimuthRadians);
+    Assert::AreEqual(0.7f, settings.sunIntensity, L"_inf _i");
+    Assert::AreEqual(0.7f, settings.skyIntensity, L"_uni _i");
+    Assert::AreEqual(1.0f, settings.sunColor.x, L"a white sun");
+    Assert::AreEqual(1.0f, settings.skyColor.z, L"a white sky");
+    Assert::AreEqual(0.0802198203f, settings.groundColor.y, 1.0e-7f, L"_ground 80 80 80, decoded");
+    Assert::AreEqual(0.0f, settings.backgroundColor.x, L"_bg 0 0 0");
+    Assert::AreEqual(1.0f, settings.exposure, L"_film _expo");
+    Assert::IsTrue(settings.groundVisible, L"_setting _ground 1");
   }
 
   TEST_METHOD(KeepsTheRenderSettings)

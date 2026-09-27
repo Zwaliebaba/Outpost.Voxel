@@ -1,0 +1,217 @@
+#include "pch.h"
+
+#include "Float3.h"
+#include "Lighting.h"
+#include "OrthographicView.h"
+#include "PerspectiveView.h"
+#include "RenderSettings.h"
+#include "TraceHit.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <string>
+#include <vector>
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace NeuronCoreTests
+{
+namespace
+{
+
+using NeuronCore::Float3;
+using NeuronCore::LightingParameters;
+
+constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
+constexpr float TOLERANCE = 1.0e-6f;
+
+// The texels of the 16 × 16 maps below.
+constexpr std::size_t MAP_TEXELS = std::size_t{16} * 16;
+
+void AreClose(Float3 _expected, Float3 _actual, float _tolerance, const wchar_t* _what)
+{
+  Assert::AreEqual(_expected.x, _actual.x, _tolerance, _what);
+  Assert::AreEqual(_expected.y, _actual.y, _tolerance, _what);
+  Assert::AreEqual(_expected.z, _actual.z, _tolerance, _what);
+}
+
+// Simple, distinct values, so that each term of §11's formula shows where it lands.
+[[nodiscard]] LightingParameters TestLighting() noexcept
+{
+  return {{0.0f, 0.0f, 1.0f}, {2.0f, 2.0f, 2.0f}, {1.0f, 1.0f, 1.0f}, 0.5f, {0.2f, 0.2f, 0.2f}, true, {0.0f, 0.0f, 0.125f}, 1.0f};
+}
+
+// A sun straight overhead on a square of 16 × 16 texels, each a unit across, whose near plane is z = 100 and whose
+// depth range is 100: depth 0.5 is the plane z = 50.
+[[nodiscard]] NeuronCore::OrthographicView OverheadView() noexcept
+{
+  return NeuronCore::MakeOrthographicView({0.0f, 0.0f, 100.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 8.0f, 8.0f, 100.0f, 16, 16);
+}
+
+} // namespace
+
+// The lighting pass's twin (Design/SampleRenderer.md §10, §11). The GPU side is compared with it in NeuronClientTests;
+// these pin the twin itself.
+TEST_CLASS(LightingTests)
+{
+public:
+  // Design/ADR/ADR-008's reading of MagicaVoxel's _angle: elevation above the horizon, azimuth from -Y towards +X.
+  TEST_METHOD(SunDirectionFollowsTheAssumedConvention)
+  {
+    const float elevation = 30.0f * RADIANS_PER_DEGREE;
+    AreClose({0.0f, -std::cos(elevation), std::sin(elevation)}, NeuronCore::SunDirection(elevation, 0.0f), TOLERANCE, L"azimuth 0 is -Y");
+    AreClose({std::cos(elevation), 0.0f, std::sin(elevation)}, NeuronCore::SunDirection(elevation, 90.0f * RADIANS_PER_DEGREE), TOLERANCE,
+             L"azimuth 90 is +X");
+    AreClose({0.0f, 0.0f, 1.0f}, NeuronCore::SunDirection(90.0f * RADIANS_PER_DEGREE, 1.0f), TOLERANCE, L"elevation 90 is overhead");
+    // The station's 50 50, from an independent double-precision evaluation.
+    AreClose({0.492403877f, -0.413175911f, 0.766044443f}, NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE),
+             TOLERANCE, L"the station's sun");
+    Assert::AreEqual(1.0f, NeuronCore::Length(NeuronCore::SunDirection(0.3f, 2.0f)), TOLERANCE, L"a unit vector");
+  }
+
+  // ADR-008's mapping: _emit × 2^_flux for an emissive entry, nothing for any other.
+  TEST_METHOD(EmitsAsTheMappingSays)
+  {
+    Assert::AreEqual(2.4f, NeuronCore::EmissiveScale({255, 255, 85, 255, true, 0.6f, 2.0f}), 1.0e-6f, L"the station's _emit 0.6, _flux 2");
+    Assert::AreEqual(0.5f, NeuronCore::EmissiveScale({255, 255, 85, 255, true, 0.5f, 0.0f}), L"_flux 0 leaves _emit as it is");
+    Assert::AreEqual(0.0f, NeuronCore::EmissiveScale({255, 255, 85, 255, false, 0.6f, 2.0f}), L"not emissive");
+  }
+
+  TEST_METHOD(ParametersCombineIntensityAndColor)
+  {
+    NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
+    settings.sunColor = {1.0f, 0.5f, 0.25f};
+    settings.groundColor = {0.2f, 0.4f, 0.6f};
+    const LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, 3.0f);
+    AreClose({0.7f, 0.35f, 0.175f}, lighting.sunRadiance, TOLERANCE, L"_i times _k");
+    AreClose({1.0f, 1.0f, 1.0f}, lighting.skyColor, TOLERANCE, L"the sky, white");
+    Assert::AreEqual(0.7f, lighting.skyIntensity, L"_uni _i");
+    AreClose({0.2f, 0.4f, 0.6f}, lighting.groundAlbedo, TOLERANCE, L"the ground plane's color");
+    Assert::AreEqual(3.0f, lighting.emissiveGain);
+    Assert::IsTrue(lighting.groundVisible);
+  }
+
+  // §11: ground below, sky above, and half of each on a vertical face.
+  TEST_METHOD(AmbientBlendsGroundAndSky)
+  {
+    const LightingParameters lighting = TestLighting();
+    AreClose({0.5f, 0.5f, 0.5f}, NeuronCore::Ambient({0.0f, 0.0f, 1.0f}, lighting), TOLERANCE, L"facing up: the sky");
+    AreClose({0.1f, 0.1f, 0.1f}, NeuronCore::Ambient({0.0f, 0.0f, -1.0f}, lighting), TOLERANCE, L"facing down: the ground");
+    AreClose({0.3f, 0.3f, 0.3f}, NeuronCore::Ambient({1.0f, 0.0f, 0.0f}, lighting), TOLERANCE, L"facing sideways");
+  }
+
+  // §11: C = albedo × (E_sun × max(0, N·S) × shadow + ambient(N)) + albedo × emissive.
+  TEST_METHOD(ShadesByTheDesignsFormula)
+  {
+    LightingParameters lighting = TestLighting();
+    const Float3 albedo{0.5f, 0.25f, 1.0f};
+    const Float3 up{0.0f, 0.0f, 1.0f};
+    AreClose(albedo * 2.5f, NeuronCore::ShadeSurface(albedo, 0.0f, up, 1.0f, lighting), TOLERANCE, L"in the sun: 2 + 0.5");
+    AreClose(albedo * 0.5f, NeuronCore::ShadeSurface(albedo, 0.0f, up, 0.0f, lighting), TOLERANCE, L"in shadow: the sky alone");
+    AreClose(albedo * 1.5f, NeuronCore::ShadeSurface(albedo, 0.0f, up, 0.5f, lighting), TOLERANCE, L"half shadowed");
+    AreClose(albedo * 0.1f, NeuronCore::ShadeSurface(albedo, 0.0f, {0.0f, 0.0f, -1.0f}, 1.0f, lighting), TOLERANCE,
+             L"facing away: the ground's light alone");
+    AreClose(albedo * 3.0f, NeuronCore::ShadeSurface(albedo, 0.5f, up, 1.0f, lighting), TOLERANCE, L"emissive adds its scale");
+    lighting.emissiveGain = 4.0f;
+    AreClose(albedo * 4.5f, NeuronCore::ShadeSurface(albedo, 0.5f, up, 1.0f, lighting), TOLERANCE, L"times the gain");
+  }
+
+  TEST_METHOD(OffsetsOneAndAHalfTexels)
+  {
+    Assert::AreEqual(1.5f, NeuronCore::ShadowNormalOffset(OverheadView()), L"a unit per texel");
+    const NeuronCore::OrthographicView station =
+      NeuronCore::MakeOrthographicView({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 512.0f, 512.0f, 1.0f, 4096, 4096);
+    Assert::AreEqual(0.375f, NeuronCore::ShadowNormalOffset(station), L"the station's map: a quarter unit per texel");
+  }
+
+  // §10 on hand-built maps: an empty map lights everything, an occluder shadows what lies beyond it and not what lies
+  // before it, the border is lit, and a point past the far plane is lit where the map is empty.
+  TEST_METHOD(ShadowFactorComparesAgainstTheMap)
+  {
+    const NeuronCore::OrthographicView view = OverheadView();
+    std::vector<float> depth(MAP_TEXELS, NeuronCore::ORTHOGRAPHIC_FAR_DEPTH);
+    const NeuronCore::ShadowMapImage empty{16, 16, depth};
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(empty, view, {0.5f, 0.5f, 20.0f}), L"nothing casts a shadow");
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(empty, view, {0.5f, 0.5f, -50.0f}), L"past the far plane, lit");
+
+    std::vector<float> roof(MAP_TEXELS, 0.5f);
+    const NeuronCore::ShadowMapImage covered{16, 16, roof};
+    Assert::AreEqual(0.0f, NeuronCore::ShadowFactor(covered, view, {0.5f, 0.5f, 20.0f}), L"under a roof at z = 50");
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(covered, view, {0.5f, 0.5f, 60.0f}), L"above the roof");
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(covered, view, {0.5f, 0.5f, 50.0f}), L"on the roof: less or equal passes");
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(covered, view, {40.0f, 0.0f, 20.0f}), L"beyond the map, the border is lit");
+    Assert::AreEqual(0.0f, NeuronCore::ShadowFactor(covered, view, {0.5f, 0.5f, -50.0f}), L"past the far plane, under the roof");
+  }
+
+  // A roof over the left half of the map: a point under the edge sees three of nine taps' worth of sky, more or less,
+  // and the fraction rises across the edge, as the linear comparison filter blends it.
+  TEST_METHOD(ShadowFactorFiltersAcrossAnEdge)
+  {
+    const NeuronCore::OrthographicView view = OverheadView();
+    std::vector<float> depth(MAP_TEXELS, NeuronCore::ORTHOGRAPHIC_FAR_DEPTH);
+    for (std::size_t row = 0; row < 16u; ++row)
+    {
+      for (std::size_t column = 0; column < 8u; ++column)
+      {
+        depth[row * 16u + column] = 0.5f;
+      }
+    }
+    const NeuronCore::ShadowMapImage map{16, 16, depth};
+    // Texel centres are at half units; world x = 0 is the edge between columns 7 and 8.
+    Assert::AreEqual(0.0f, NeuronCore::ShadowFactor(map, view, {-3.5f, 0.5f, 20.0f}), TOLERANCE, L"well under the roof");
+    Assert::AreEqual(1.0f, NeuronCore::ShadowFactor(map, view, {3.5f, 0.5f, 20.0f}), TOLERANCE, L"well clear of it");
+    Assert::AreEqual(0.5f, NeuronCore::ShadowFactor(map, view, {0.0f, 0.5f, 20.0f}), TOLERANCE, L"on the edge");
+    float previous = -1.0f;
+    for (std::int32_t step = -16; step <= 16; ++step)
+    {
+      const float x = static_cast<float>(step) * 0.125f;
+      const float lit = NeuronCore::ShadowFactor(map, view, {x, 0.5f, 20.0f});
+      Assert::IsTrue(lit >= previous, std::format(L"light rises across the edge at x = {}", x).c_str());
+      previous = lit;
+    }
+  }
+
+  // §11's three cases for a pixel: a voxel at the depth the splat wrote, the ground where no voxel was hit, and the
+  // background where the ray misses the ground too.
+  TEST_METHOD(LightsVoxelGroundAndBackground)
+  {
+    const LightingParameters lighting = TestLighting();
+    const NeuronCore::OrthographicView shadowView = OverheadView();
+    std::vector<float> depth(MAP_TEXELS, NeuronCore::ORTHOGRAPHIC_FAR_DEPTH);
+    const NeuronCore::ShadowMapImage map{16, 16, depth};
+    // Looking straight down from z = 10 at an odd size, so that the centre pixel's ray is the -Z axis.
+    const NeuronCore::PerspectiveView view =
+      NeuronCore::MakePerspectiveView({0.0f, 0.0f, 10.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 1.0f, 0.1f, 5, 5);
+    const Float3 albedo{0.5f, 0.25f, 1.0f};
+    const Float3 up{0.0f, 0.0f, 1.0f};
+
+    const float voxelDepth = NeuronCore::PerspectiveDepth(view, 4.0f);
+    AreClose(albedo * 2.5f, NeuronCore::LightPixel(view, 2, 2, 7, up, voxelDepth, albedo, 0.0f, map, shadowView, lighting), TOLERANCE,
+             L"a lit voxel");
+    AreClose(lighting.groundAlbedo * 2.5f,
+             NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, lighting), TOLERANCE,
+             L"the ground below");
+
+    LightingParameters hidden = lighting;
+    hidden.groundVisible = false;
+    AreClose(lighting.background, NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, hidden),
+             TOLERANCE, L"no ground, the background");
+
+    const NeuronCore::PerspectiveView skyward =
+      NeuronCore::MakePerspectiveView({0.0f, 0.0f, 10.0f}, {0.0f, 0.0f, 20.0f}, {0.0f, 1.0f, 0.0f}, 1.0f, 0.1f, 5, 5);
+    AreClose(lighting.background,
+             NeuronCore::LightPixel(skyward, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, lighting), TOLERANCE,
+             L"looking up, the background");
+
+    // A roof between the camera's target and the sun shadows the ground: only the sky's light is left.
+    std::vector<float> roof(MAP_TEXELS, 0.5f);
+    const NeuronCore::ShadowMapImage covered{16, 16, roof};
+    AreClose(lighting.groundAlbedo * 0.5f,
+             NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, covered, shadowView, lighting), TOLERANCE,
+             L"the ground in shadow");
+  }
+};
+
+} // namespace NeuronCoreTests

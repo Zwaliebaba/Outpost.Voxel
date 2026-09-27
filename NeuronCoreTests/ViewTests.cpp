@@ -162,6 +162,52 @@ public:
     Assert::AreEqual(0.0f, NeuronCore::OrthographicDepth(view, 0.0f), L"the near plane is 0");
     Assert::AreEqual(1.0f, NeuronCore::OrthographicDepth(view, 250.0f), L"the far plane is 1");
   }
+
+  // §7.5: the shadow map is standard Z, cleared to the far plane, and nearer is smaller.
+  TEST_METHOD(OrthographicDepthIsStandard)
+  {
+    static_assert(NeuronCore::ORTHOGRAPHIC_FAR_DEPTH == 1.0f);
+    static_assert(NeuronCore::IsNearerOrthographicDepth(0.25f, 0.5f));
+    static_assert(!NeuronCore::IsNearerOrthographicDepth(0.5f, 0.5f));
+    static_assert(!NeuronCore::IsNearerOrthographicDepth(NeuronCore::ORTHOGRAPHIC_FAR_DEPTH, 0.5f));
+  }
+
+  // §10: the sun's view is a square centred on the scene, and every corner of the box it holds lies at least a unit
+  // inside its depth range, whatever the sun's direction, straight overhead included.
+  TEST_METHOD(ShadowViewHoldsItsBoxInDepth)
+  {
+    SeededRandom random(33u);
+    const Float3 lower{-103.0f, -114.0f, 0.0f};
+    const Float3 upper{104.0f, 114.0f, 255.0f};
+    const Float3 center{0.5f, 0.0f, 127.5f};
+    for (std::uint32_t i = 0; i < 200; ++i)
+    {
+      Float3 toSun = random.Direction();
+      toSun.z = std::abs(toSun.z) + 0.01f;
+      if (i == 0)
+      {
+        toSun = {0.0f, 0.0f, 1.0f};
+      }
+      const NeuronCore::OrthographicView view = NeuronCore::MakeShadowView(toSun, center, 512.0f, lower, upper, 4096);
+      const std::wstring what = std::format(L"sun {}", i);
+      ExpectOrthonormalRightHanded(view.right, view.up, view.forward, what.c_str());
+      Assert::AreEqual(-1.0f, NeuronCore::Dot(view.forward, NeuronCore::Normalize(toSun)), 1.0e-6f, what.c_str());
+      Assert::AreEqual(0.0f, NeuronCore::Dot(center - view.origin, view.right), 1.0e-3f, L"the square is centred across");
+      Assert::AreEqual(0.0f, NeuronCore::Dot(center - view.origin, view.up), 1.0e-3f, L"the square is centred up and down");
+      Assert::AreEqual(512.0f, view.halfWidth, what.c_str());
+      Assert::AreEqual(512.0f, view.halfHeight, what.c_str());
+      Assert::AreEqual(4096u, view.widthPixels, what.c_str());
+      Assert::AreEqual(4096u, view.heightPixels, what.c_str());
+      for (std::uint32_t corner = 0; corner < 8; ++corner)
+      {
+        const Float3 point{(corner & 1u) != 0u ? upper.x : lower.x, (corner & 2u) != 0u ? upper.y : lower.y,
+                           (corner & 4u) != 0u ? upper.z : lower.z};
+        const float distance = NeuronCore::Dot(point - view.origin, view.forward);
+        Assert::IsTrue(distance >= 1.0f - 1.0e-3f && distance <= view.depthRange - 1.0f + 1.0e-3f,
+                       std::format(L"{}: corner {} at {} of {}", what, corner, distance, view.depthRange).c_str());
+      }
+    }
+  }
 };
 
 } // namespace NeuronCoreTests

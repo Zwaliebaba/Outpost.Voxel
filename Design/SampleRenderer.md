@@ -329,7 +329,7 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
 
 ## 10. Shadow pass
 
-The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter. The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
+The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter (ADR-008). The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
 
 The splat shaders run in their orthographic permutation. The rays share one direction and start on the light's near plane; depth is *t* / range, written as `SV_DepthGreaterEqual` = max(*t* / range, `SV_Position.z`); the depth test is `LESS`; and the pipeline has no render target.
 
@@ -341,7 +341,7 @@ For each pixel, the lighting pass first checks the visibility buffer. Where no v
 
 *C* = albedo × (*E*sun × max(0, *N*·*S*) × shadow + ambient(*N*)) + albedo × emissive
 
-where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*z) from `_uni`. Emissive voxels light only themselves: nothing blooms, and nothing receives their light (D4). Without ambient occlusion the result will look flatter than MagicaVoxel's path tracer; D4 accepted that.
+where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*z) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: nothing blooms, and nothing receives their light (D4). Without ambient occlusion the result will look flatter than MagicaVoxel's path tracer; D4 accepted that.
 
 Tone mapping applies the exposure (`_film` `_expo` 1), then Stephen Hill's fit of the ACES reference and output transforms, and writes through an sRGB render-target view. The sRGB curve stands in for the file's gamma 2.2.
 
@@ -361,7 +361,7 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 **Permutations.** At *t* = 0 every rotation is the identity, and the axis-aligned permutation draws. For *t* > 0 the oriented one does. The two must agree at *t* = 0 (§14).
 
-**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-008.
+**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-009.
 
 ## 13. Application
 
@@ -422,8 +422,8 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
 | M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
 | M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
-| M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-008 | Explosion tests green; the owner has detonated and reassembled the station |
+| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
@@ -469,7 +469,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-005, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
 - ADR-006, depth conventions (M2);
 - ADR-007, Shader Model 6.7 and shader file names (M2), which amends ADR-005;
-- ADR-008, explosion motion model and its defaults (M4).
+- ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
+- ADR-009, explosion motion model and its defaults (M4).
 
 ## 18. References
 
