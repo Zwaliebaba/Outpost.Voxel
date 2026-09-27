@@ -37,6 +37,16 @@ struct PerspectiveView
   return _view.nearPlane / _viewDepth;
 }
 
+// The two facts of reversed-Z that code outside this header may rely on (§7.5): the far plane, at infinity, has depth 0,
+// which is what a view is cleared to, and a nearer point has the greater depth. Nothing compares perspective depths
+// another way; the view splat pass clears to the one and tests with the other.
+inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
+
+[[nodiscard]] constexpr bool IsNearerPerspectiveDepth(float _depth, float _than) noexcept
+{
+  return _depth > _than;
+}
+
 // Normalized device coordinates of a pixel's centre: x right and y up, both in [-1, 1].
 [[nodiscard]] Float2 PixelCenterNdc(std::uint32_t _pixelX, std::uint32_t _pixelY, std::uint32_t _widthPixels,
                                     std::uint32_t _heightPixels) noexcept;
