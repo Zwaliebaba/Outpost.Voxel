@@ -2,7 +2,7 @@
 """Runs the pinned clang-tidy over every hand-written translation unit, with the switches its project sets.
 
   python Build/RunClangTidy.py                            # every .cpp in the tree
-  python Build/RunClangTidy.py VoxelCore/Foo.cpp          # only the files named
+  python Build/RunClangTidy.py NeuronCore/Foo.cpp          # only the files named
   python Build/RunClangTidy.py --dry-run                  # print the commands, run nothing
   python Build/RunClangTidy.py --configuration Release
 

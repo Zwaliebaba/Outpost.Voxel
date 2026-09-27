@@ -4,11 +4,11 @@
 
 ## Context
 
-The design fixes the shape of a voxel on the GPU (§7.1, D5) and the owner fixed the palette at sixteen entries (R14). It also asks the reader to refuse, by name, every `.vox` feature it has no tested answer for (§7.1, and the owner's answer 3 in §16). M1 builds the record, the reader and the model in `VoxelCore`, so this is where those choices become code, and where the handful of choices the design leaves open are made.
+The design fixes the shape of a voxel on the GPU (§7.1, D5) and the owner fixed the palette at sixteen entries (R14). It also asks the reader to refuse, by name, every `.vox` feature it has no tested answer for (§7.1, and the owner's answer 3 in §16). M1 builds the record, the reader and the model in `NeuronCore` (then named `VoxelCore`; ADR-003), so this is where those choices become code, and where the handful of choices the design leaves open are made.
 
 ## Decision
 
-**The record is one `uint32`.** Bits 0–23 hold the model coordinates x, y and z at eight bits each; bits 24–27 hold the palette entry minus one; bits 28–31 are zero. `PackVoxelRecord` and `UnpackVoxelRecord` in `VoxelCore/VoxelRecord.h` are `constexpr` and are the C++ half of the pair R15 requires; the HLSL half lands with the first shader in M2. The file's entries 1–16 become 0–15, so entry 0, which MagicaVoxel never draws, cannot be expressed at all.
+**The record is one `uint32`.** Bits 0–23 hold the model coordinates x, y and z at eight bits each; bits 24–27 hold the palette entry minus one; bits 28–31 are zero. `PackVoxelRecord` and `UnpackVoxelRecord` in `NeuronCore/VoxelRecord.h` are `constexpr` and are the C++ half of the pair R15 requires; the HLSL half lands with the first shader in M2. The file's entries 1–16 become 0–15, so entry 0, which MagicaVoxel never draws, cannot be expressed at all.
 
 **A model's placement travels per instance, not per voxel.** Each placed model is a `ModelInstance`: a range of the record buffer, the model's size, and its origin, the translation minus ⌊size / 2⌋ (§3). Records are stored instance after instance, in scene-graph order, and a model placed twice is stored twice: every drawn voxel has its own record index, which the visibility buffer reports and the explosion moves as its own piece.
 
@@ -40,7 +40,7 @@ The design fixes the shape of a voxel on the GPU (§7.1, D5) and the owner fixed
 
 Two of these go beyond the list in §7.1, and are decided here. Refusing bytes in or after `MAIN` is the design's "any size or count that disagrees with its chunk" applied to the outermost chunk. `TranslationOutOfRange` is new: without it, a file could overflow the integer sums of nested translations, which is undefined behavior, and beyond 2²³ a voxel centre, an integer plus a half, is no longer exact in single precision. 2²⁰ is four thousand times the extent of any one model and leaves every centre exact.
 
-**Every rule has a test.** `VoxelCoreTests/VoxModelTests.cpp` builds a file in memory for each acceptance and each refusal above, and checks every truncation of a valid file. `VoxelCoreTests/MilitaryStationTests.cpp` loads the real asset and pins the figures of §3.
+**Every rule has a test.** `NeuronCoreTests/VoxModelTests.cpp` builds a file in memory for each acceptance and each refusal above, and checks every truncation of a valid file. `NeuronCoreTests/MilitaryStationTests.cpp` loads the real asset and pins the figures of §3.
 
 ## Figures
 

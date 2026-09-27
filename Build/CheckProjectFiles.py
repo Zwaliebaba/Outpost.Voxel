@@ -18,7 +18,8 @@ It checks, over the whole tree:
   - edges: no cycles, and nothing references an application or a test suite (§2, R9);
   - registration: every source file is in its project's .vcxproj and .filters, the two agree, and nothing
     listed is missing (§2);
-  - flat directories: no source file below a project folder or outside one (§2);
+  - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
+    anywhere else (§2, R17);
   - R2 type affixes, R7 file names, R11 spellings, R17 HLSL files;
   - every *Tests project holds at least one TEST_METHOD, because vstest reports an empty suite as a pass (§3).
 
@@ -39,6 +40,7 @@ CPP_EXTENSIONS = {'.cpp', '.h'}
 HLSL_EXTENSIONS = {'.hlsl', '.hlsli'}
 SOURCE_EXTENSIONS = CPP_EXTENSIONS | HLSL_EXTENSIONS
 ITEM_TYPE_FOR_EXTENSION = {'.cpp': 'ClCompile', '.h': 'ClInclude', '.hlsl': 'FxCompile', '.hlsli': 'None'}
+SHADER_FOLDER = 'Shader'  # AGENTS.md §2: a library's HLSL lives in <Project>/Shader; C++ stays flat
 BANNED_EXTENSIONS = {'.hpp', '.hh', '.hxx', '.h++', '.cc', '.cxx', '.c++', '.inl', '.ipp', '.tpp', '.ixx', '.cppm',
                      '.fx', '.fxh'}
 R7_EXCEPTIONS = {'pch.h', 'pch.cpp', 'framework.h', 'targetver.h', 'Resource.h'}
@@ -424,6 +426,11 @@ def check_edges(projects, findings):
     visit(project.name, [])
 
 
+def home_of(project_folder, suffix):
+  """The one folder a source file of this kind may live in (AGENTS.md §2)."""
+  return f'{project_folder}/{SHADER_FOLDER}' if suffix in HLSL_EXTENSIONS else project_folder
+
+
 def check_registration(projects, files, findings):
   folders = {project.folder: project for project in projects}
   for project in projects:
@@ -432,8 +439,9 @@ def check_registration(projects, files, findings):
         findings.add(project.path, '§2', f'lists {path} ({item_type}), which does not exist')
       suffix = PurePosixPath(path).suffix.lower()
       if suffix in SOURCE_EXTENSIONS:
-        if PurePosixPath(path).parent.as_posix() != project.folder:
-          findings.add(project.path, '§2', f'compiles {path}, which is not in its own folder')
+        home = home_of(project.folder, suffix)
+        if PurePosixPath(path).parent.as_posix() != home:
+          findings.add(project.path, '§2', f'lists {path}, which does not live in {home}')
         elif item_type != ITEM_TYPE_FOR_EXTENSION[suffix]:
           findings.add(project.path, '§2', f'lists {path} as {item_type}; a {suffix} file is '
                        f'{ITEM_TYPE_FOR_EXTENSION[suffix]}')
@@ -454,10 +462,14 @@ def check_registration(projects, files, findings):
     if suffix not in SOURCE_EXTENSIONS:
       continue
     top = posix.parts[0]
-    if len(posix.parts) != 2 or top not in folders:
-      where = 'below its project folder' if top in folders else 'outside every project folder'
-      findings.add(path, '§2', f'is {where}; source lives directly in its project\'s folder, where '
-                   '.clang-tidy\'s HeaderFilterRegex can see it')
+    if top not in folders or posix.parent.as_posix() != home_of(top, suffix):
+      if suffix in HLSL_EXTENSIONS:
+        findings.add(path, '§2', f'is not in a project\'s {SHADER_FOLDER} folder; HLSL lives in '
+                     f'<Project>/{SHADER_FOLDER}, beside nothing but other HLSL (R17)')
+      else:
+        where = 'below its project folder' if top in folders else 'outside every project folder'
+        findings.add(path, '§2', f'is {where}; C++ lives directly in its project\'s folder, where '
+                     '.clang-tidy\'s HeaderFilterRegex can see it')
     elif path not in listed:
       findings.add(path, '§2', f'is not listed in {folders[top].path}; a file the project does not list is not built')
     if suffix in CPP_EXTENSIONS and posix.name in R7_EXCEPTIONS:
