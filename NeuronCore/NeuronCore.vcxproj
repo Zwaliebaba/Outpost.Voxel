@@ -88,6 +88,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Box.h" />
+    <ClInclude Include="ColorSpace.h" />
+    <ClInclude Include="DebugView.h" />
     <ClInclude Include="Float3.h" />
     <ClInclude Include="OctahedralNormal.h" />
     <ClInclude Include="OrthographicView.h" />
@@ -101,6 +103,8 @@
     <ClInclude Include="VoxModel.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ColorSpace.cpp" />
+    <ClCompile Include="DebugView.cpp" />
     <ClCompile Include="OctahedralNormal.cpp" />
     <ClCompile Include="OrthographicView.cpp" />
     <ClCompile Include="pch.cpp">

@@ -25,6 +25,9 @@
     <ClCompile Include="BoxTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DebugViewTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="MilitaryStationTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
