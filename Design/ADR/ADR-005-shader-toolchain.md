@@ -21,7 +21,7 @@ M2 brings the first shaders: the view splat and the debug view in `NeuronClient`
 
 **The language version is not pinned.** The SDK's DXC defaults to HLSL 2021. The code means the same under 2018: no function that writes an `out` parameter stands on the right of `&&` or `||`, which 2018 evaluates in full.
 
-**HLSL is formatted by `.clang-format`, as C++, and `Build/CheckFormat.py` checks it.** Measured with clang-format 18.1.3 on the M2 shaders, it lays out HLSL correctly: register bindings, semantics on struct members and parameters, `[unroll]`, `#if` blocks. The one exception is a semantic after a parameter list, `float4 F(...) : SV_Position`, which it breaks across lines as if it were a constructor's initializer list. So an entry point returns a struct whose members carry the output semantics (`AGENTS.md` §4).
+**HLSL is formatted by `.clang-format`, as C++, and `Build/CheckFormat.py` checks it.** Measured with clang-format 18.1.3 on the M2 shaders, it lays out HLSL correctly: register bindings, semantics on struct members and parameters, `[unroll]`, `#if` blocks. The one exception is a semantic after a parameter list, `float4 F(...) : SV_Position`, which it breaks across lines as if it were a constructor's initializer list. So an entry point returns a struct whose members carry the output semantics (`AGENTS.md` §4). M3's lighting pass, the first compute entry point with an input, found a second: a semantic on a parameter of a function that carries an attribute, `[numthreads(8, 8, 1)] void F(uint3 _id : SV_DispatchThreadID)`, is broken the same way. Such an entry point takes a struct whose members carry the input semantics. `Build/CheckFormat.py` accepts the broken layout, so `Build/CheckProjectFiles.py` catches it: a system-value semantic starting a line.
 
 **One rule DXIL validation adds.** A pixel shader that writes conservative depth must read `SV_Position` with `noperspective centroid` interpolation. `Shader/Splat.hlsli` declares it so; without MSAA, the centroid is the pixel's centre.
 
@@ -30,4 +30,4 @@ M2 brings the first shaders: the view splat and the debug view in `NeuronClient`
 - Compiling shaders at run time, and `.cso` files beside the executable.
 - `fast` floating point in any shader, until an ADR measures a gain and shows Listing 5 still correct under it.
 - A shader built with flags other than these, or differently in Debug and Release.
-- A semantic after a function's parameter list.
+- A semantic after a function's parameter list, or on a parameter of a function that carries an attribute.
