@@ -95,6 +95,8 @@
     <ClInclude Include="PerspectiveView.h" />
     <ClInclude Include="Ray.h" />
     <ClInclude Include="SplatBounds.h" />
+    <ClInclude Include="TraceHit.h" />
+    <ClInclude Include="VoxelGrid.h" />
     <ClInclude Include="VoxelRecord.h" />
     <ClInclude Include="VoxModel.h" />
   </ItemGroup>
@@ -106,6 +108,7 @@
     </ClCompile>
     <ClCompile Include="PerspectiveView.cpp" />
     <ClCompile Include="SplatBounds.cpp" />
+    <ClCompile Include="VoxelGrid.cpp" />
     <ClCompile Include="VoxModel.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

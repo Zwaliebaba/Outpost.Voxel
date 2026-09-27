@@ -119,6 +119,7 @@
     </ClCompile>
     <ClCompile Include="SplatBoundsTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />
+    <ClCompile Include="VoxelGridTests.cpp" />
     <ClCompile Include="VoxFile.cpp" />
     <ClCompile Include="VoxModelTests.cpp" />
   </ItemGroup>

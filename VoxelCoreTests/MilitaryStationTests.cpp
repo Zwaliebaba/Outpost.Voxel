@@ -1,11 +1,17 @@
 #include "pch.h"
 
+#include "Box.h"
+#include "OrthographicView.h"
+#include "PerspectiveView.h"
+#include "TraceHit.h"
 #include "VoxFile.h"
 #include "VoxModel.h"
+#include "VoxelGrid.h"
 #include "VoxelRecord.h"
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -14,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -22,6 +29,7 @@ namespace VoxelCoreTests
 namespace
 {
 
+using VoxelCore::Float3;
 using VoxelCore::Int3;
 
 constexpr Int3 MODEL_SIZE{207, 228, 255};
@@ -92,6 +100,19 @@ void ExpectAttribute(const VoxelCore::VoxAttributes& _attributes, std::string_vi
   const std::wstring what = std::format(L"{} = {}", std::wstring(_key.begin(), _key.end()), std::wstring(_value.begin(), _value.end()));
   Assert::IsTrue(found != _attributes.end(), what.c_str());
   Assert::AreEqual(std::string(_value), found->second, what.c_str());
+}
+
+// Brute force and the grid must agree exactly: they run the same IntersectBox on the same boxes.
+void ExpectSameHit(const VoxelCore::TraceHit& _expected, const VoxelCore::TraceHit& _actual, const std::wstring& _ray)
+{
+  Assert::AreEqual(_expected.voxel, _actual.voxel, _ray.c_str());
+  if (_expected.voxel != VoxelCore::NO_VOXEL)
+  {
+    Assert::AreEqual(_expected.distance, _actual.distance, _ray.c_str());
+    Assert::AreEqual(_expected.normal.x, _actual.normal.x, _ray.c_str());
+    Assert::AreEqual(_expected.normal.y, _actual.normal.y, _ray.c_str());
+    Assert::AreEqual(_expected.normal.z, _actual.normal.z, _ray.c_str());
+  }
 }
 
 } // namespace
@@ -190,6 +211,96 @@ public:
     ExpectAttribute(RenderObject(model, "_bg"), "_color", "0 0 0");
     ExpectAttribute(RenderObject(model, "_ibl"), "_path", "HDR_041_Path_Env.hdr");
     ExpectAttribute(RenderObject(model, "_setting"), "_ground", "1");
+  }
+
+  TEST_METHOD(RestsOnTheGround)
+  {
+    const VoxelCore::VoxModel model = LoadMilitaryStation();
+    const VoxelCore::VoxelGrid grid(model);
+
+    // The occupied cells, in world space: the lowest layer sits exactly on z = 0.
+    AreEqualInt3({-102, -113, 0}, grid.Origin(), L"grid origin");
+    AreEqualInt3({205, 227, 255}, grid.Size(), L"grid size");
+
+    // The default view frames this box's bounding sphere: radius about 199 around (0.5, 0.5, 127.5).
+    const Int3 size = grid.Size();
+    const double radius = 0.5 * std::hypot(static_cast<double>(size.x), static_cast<double>(size.y), static_cast<double>(size.z));
+    Assert::AreEqual(199.1, radius, 0.05, L"bounding sphere radius");
+    Assert::AreEqual(0.5, grid.Origin().x + 0.5 * size.x, 0.0, L"centre x");
+    Assert::AreEqual(0.5, grid.Origin().y + 0.5 * size.y, 0.0, L"centre y");
+    Assert::AreEqual(127.5, grid.Origin().z + 0.5 * size.z, 0.0, L"centre z");
+  }
+
+  TEST_METHOD(GridHoldsEveryVoxel)
+  {
+    const VoxelCore::VoxModel model = LoadMilitaryStation();
+    const VoxelCore::VoxelGrid grid(model);
+    const VoxelCore::ModelInstance& instance = model.instances.front();
+    for (std::uint32_t i = 0; i < instance.recordCount; ++i)
+    {
+      const VoxelCore::VoxelRecord voxel = VoxelCore::UnpackVoxelRecord(model.records[i]);
+      const Int3 position = instance.origin + Int3{voxel.x, voxel.y, voxel.z};
+      if (grid.VoxelAt(position) != i)
+      {
+        Assert::Fail(std::format(L"record {} is not at {} {} {}", i, position.x, position.y, position.z).c_str());
+      }
+    }
+    Assert::AreEqual(VoxelCore::NO_VOXEL, grid.VoxelAt({0, 0, 300}), L"above the station");
+  }
+
+  TEST_METHOD(GridTracesAsBruteForceDoes)
+  {
+    const VoxelCore::VoxModel model = LoadMilitaryStation();
+    const VoxelCore::VoxelGrid grid(model);
+    const VoxelCore::ModelInstance& instance = model.instances.front();
+    std::vector<VoxelCore::Box> boxes;
+    boxes.reserve(model.records.size());
+    for (const std::uint32_t record : model.records)
+    {
+      boxes.push_back(VoxelCore::VoxelBox(instance, record));
+    }
+
+    // Three views of the bounding sphere at the design's distance, in the file's 45-degree field of view, and the sun
+    // straight overhead, each sampled on a lattice over the station's silhouette. The level view's centre row and column
+    // and every ray of the sun have exactly-zero components.
+    const Float3 center{0.5f, 0.5f, 127.5f};
+    constexpr float DISTANCE = 520.3f;
+    const std::array<Float3, 3> offsets{Float3{0.0f, -1.0f, 0.0f}, VoxelCore::Normalize({1.0f, -1.2f, 0.8f}),
+                                        VoxelCore::Normalize({1.0f, 0.3f, -0.1f})};
+    std::uint32_t hits = 0;
+    std::uint32_t rays = 0;
+    for (const Float3& offset : offsets)
+    {
+      const VoxelCore::PerspectiveView view =
+        VoxelCore::MakePerspectiveView(center + offset * DISTANCE, center, {0.0f, 0.0f, 1.0f}, 0.785398163f, 0.1f, 161, 91);
+      for (const std::uint32_t pixelY : {40u, 45u, 52u, 58u, 66u})
+      {
+        for (const std::uint32_t pixelX : {70u, 76u, 80u, 86u, 92u})
+        {
+          const VoxelCore::Ray ray = VoxelCore::PerspectiveRay(view, pixelX, pixelY);
+          const VoxelCore::TraceHit expected = VoxelCore::TraceBoxes<false>(boxes, ray, view.nearPlane);
+          ExpectSameHit(expected, grid.Trace(ray, view.nearPlane), std::format(L"pixel {} {}", pixelX, pixelY));
+          hits += expected.voxel != VoxelCore::NO_VOXEL ? 1u : 0u;
+          ++rays;
+        }
+      }
+    }
+
+    const VoxelCore::OrthographicView sun =
+      VoxelCore::MakeOrthographicView({0.5f, 0.5f, 300.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 120.0f, 120.0f, 310.0f, 64, 64);
+    for (const std::uint32_t pixelY : {14u, 26u, 34u, 44u, 52u})
+    {
+      for (const std::uint32_t pixelX : {12u, 24u, 32u, 40u, 52u})
+      {
+        const VoxelCore::Ray ray = VoxelCore::OrthographicRay(sun, pixelX, pixelY);
+        const VoxelCore::TraceHit expected = VoxelCore::TraceBoxes<false>(boxes, ray, 0.0f);
+        ExpectSameHit(expected, grid.Trace(ray, 0.0f), std::format(L"sun pixel {} {}", pixelX, pixelY));
+        hits += expected.voxel != VoxelCore::NO_VOXEL ? 1u : 0u;
+        ++rays;
+      }
+    }
+    Logger::WriteMessage(std::format(L"{} of {} rays hit the station", hits, rays).c_str());
+    Assert::IsTrue(2 * hits > rays, L"most rays hit, or the comparison says little");
   }
 };
 

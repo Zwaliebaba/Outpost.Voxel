@@ -40,6 +40,9 @@
     <ClCompile Include="ViewTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VoxelGridTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="VoxFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
