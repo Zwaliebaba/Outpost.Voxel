@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks, or with --fix rewrites, the layout of every hand-written C++ file against /.clang-format.
+"""Checks, or with --fix rewrites, the layout of every hand-written C++ and HLSL file against /.clang-format.
 
   python Build/CheckFormat.py                                   # check; exit 1 if any file is unformatted
   python Build/CheckFormat.py --fix                             # rewrite the offenders in place
@@ -7,8 +7,8 @@
 
 CI runs it in its own Linux job on a pinned clang-format (AGENTS.md §4, §6): 18.1.3 exactly, because releases
 disagree about where a long argument list breaks. The script prints the version it used and says so when it is not
-the pinned one; if a local run disagrees with CI, compare that line first. HLSL is not checked yet: whether
-clang-format formats it acceptably is decided when the first shader lands (Design/SampleRenderer.md, ADR-005).
+the pinned one; if a local run disagrees with CI, compare that line first. HLSL is formatted as C++, which it is
+close enough to for everything but a semantic after a parameter list, so entry points return structs (ADR-005).
 """
 
 import argparse
@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PINNED_VERSION = '18.1.3'
-EXTENSIONS = ('.cpp', '.h')
+EXTENSIONS = ('.cpp', '.h', '.hlsl', '.hlsli')
 DIFF_LINES_PER_FILE = 40
 
 

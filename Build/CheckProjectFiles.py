@@ -20,7 +20,8 @@ It checks, over the whole tree:
     listed is missing (§2);
   - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
     anywhere else (§2, R17);
-  - R2 type affixes, R7 file names, R11 spellings, R17 HLSL files;
+  - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
+  - shader compilation: every project that compiles HLSL does it with the flags ADR-005 fixes;
   - every *Tests project holds at least one TEST_METHOD, because vstest reports an empty suite as a pass (§3).
 
 Exit status 0 when clean, 1 with one line per finding otherwise. It needs only Python 3.10+ and git.
@@ -58,6 +59,21 @@ REQUIRED_SETTINGS = {
   ('ClCompile', 'EnableEnhancedInstructionSet'): 'AdvancedVectorExtensions2',
 }
 
+# Design/ADR/ADR-005: how every shader is compiled, in both configurations. -Gis keeps DXC from marking float operations
+# `fast`, which lets a driver assume no infinity or NaN, and Listing 5 is correct only because of both; -Qembed_debug
+# puts the debug information PIX reads into the shader, where DXC otherwise prints a warning MSBuild promotes.
+REQUIRED_SHADER_SETTINGS = {
+  'ShaderModel': '6.0',
+  'DisableOptimizations': 'false',
+  'EnableDebuggingInformation': 'true',
+  'TreatWarningAsError': 'true',
+  'ObjectFileOutput': '',
+  'HeaderFileOutput': '$(IntDir)Shaders\\%(Filename).h',
+}
+REQUIRED_SHADER_OPTIONS = ('-Gis', '-Qembed_debug')
+SHADER_TYPES = {'Vertex', 'Pixel', 'Compute'}
+UPPER_CASE_NAME = re.compile(r'^[A-Z][A-Z0-9_]*$')
+
 # AGENTS.md §3: the whole list of what may differ between Debug and Release, besides _DEBUG against NDEBUG.
 MAY_DIFFER = {'Optimization', 'FunctionLevelLinking', 'IntrinsicFunctions', 'UseDebugLibraries', 'RuntimeLibrary',
               'LinkIncremental', 'WholeProgramOptimization', 'EnableCOMDATFolding', 'OptimizeReferences'}
@@ -86,6 +102,9 @@ R11_SPELLINGS = {
   'cancelled': 'canceled', 'cancelling': 'canceling',
 }
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+# R12: COM objects are held in winrt::com_ptr, so WRL has no place here: not its header, its namespace or its pointer.
+R12_WRL = re.compile(r'#\s*include\s*[<"]wrl[/.\\]|\bMicrosoft::WRL\b|\bComPtr\s*<')
 
 
 class Findings:
@@ -149,6 +168,15 @@ def strip_comments_and_literals(text):
       out.append(c)
       i += 1
   return ''.join(out)
+
+
+def strip_comments_and_literals_keep_includes(text):
+  """strip_comments_and_literals, except that an #include keeps the header it names, which is a string literal."""
+  stripped = strip_comments_and_literals(text).split('\n')
+  for number, line in enumerate(text.split('\n')):
+    if re.match(r'\s*#\s*include\b', line) and number < len(stripped):
+      stripped[number] = line
+  return '\n'.join(stripped)
 
 
 def line_of(text, index):
@@ -365,6 +393,7 @@ def check_settings(project, findings):
       if not value.startswith('$(SolutionDir)'):
         findings.add(project.path, '§3', f'{configuration} {directory} is "{value}"; it must be anchored on '
                      '$(SolutionDir)')
+    check_shader_settings(project, configuration, settings, findings)
 
   debug = project.settings['Debug|x64']
   release = project.settings['Release|x64']
@@ -380,6 +409,35 @@ def check_settings(project, findings):
     elif name not in MAY_DIFFER and debug.get(key) != release.get(key):
       findings.add(project.path, '§3', f'{group} {name} differs between Debug ({debug.get(key, "absent")}) and '
                    f'Release ({release.get(key, "absent")}); only the properties AGENTS.md §3 lists may')
+
+
+def check_shader_settings(project, configuration, settings, findings):
+  """ADR-005: a project that compiles HLSL compiles all of it one way, and names each shader's stage, entry point and
+  header variable."""
+  shaders = sorted(group[len('FxCompile:'):] for group, name in settings if group.startswith('FxCompile:') and
+                   name == '(listed)')
+  if not shaders:
+    return
+  for name, expected in REQUIRED_SHADER_SETTINGS.items():
+    actual = settings.get(('FxCompile', name))
+    if actual != expected:
+      findings.add(project.path, 'ADR-005', f'{configuration} FxCompile {name} is '
+                   f'{"not stated" if actual is None else repr(actual)}; must be stated as {expected!r}')
+  options = (settings.get(('FxCompile', 'AdditionalOptions')) or '').split()
+  for option in REQUIRED_SHADER_OPTIONS:
+    if option not in options:
+      findings.add(project.path, 'ADR-005', f'{configuration} FxCompile AdditionalOptions lacks {option}')
+  for shader in shaders:
+    shader_type = settings.get((f'FxCompile:{shader}', 'ShaderType'))
+    entry = settings.get((f'FxCompile:{shader}', 'EntryPointName'))
+    variable = settings.get((f'FxCompile:{shader}', 'VariableName'))
+    if shader_type not in SHADER_TYPES:
+      findings.add(project.path, 'ADR-005', f'{shader} has ShaderType {shader_type}; one of {sorted(SHADER_TYPES)}')
+    if not entry:
+      findings.add(project.path, 'ADR-005', f'{shader} names no EntryPointName')
+    if not variable or not UPPER_CASE_NAME.match(variable):
+      findings.add(project.path, 'ADR-005', f'{shader} has VariableName {variable}; the header array is a constant, '
+                   'UPPER_CASE (R3)')
 
 
 def check_edges(projects, findings):
@@ -504,6 +562,11 @@ def check_sources(projects, files, findings):
         if british in lowered:
           findings.add(f'{path}:{line_of(code, match.start())}', 'R11', f'{match.group(0)} spells "{british}"; '
                        f'identifiers use the SDK\'s "{american}"')
+    if suffix in CPP_EXTENSIONS:
+      code_and_includes = strip_comments_and_literals_keep_includes(raw)
+      for match in R12_WRL.finditer(code_and_includes):
+        findings.add(f'{path}:{line_of(code_and_includes, match.start())}', 'R12', f'uses WRL ({match.group(0).strip()}); '
+                     'COM objects are held in winrt::com_ptr')
     if suffix == '.hlsl':
       check_hlsl_entry_file(path, code, findings)
 

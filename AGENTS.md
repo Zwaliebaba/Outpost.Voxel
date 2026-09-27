@@ -126,7 +126,7 @@ private:
 | Rule | Enforced by |
 |---|---|
 | The naming table, R1, R3, R5, R8 | [`.clang-tidy`](.clang-tidy), gated in CI over the whole tree |
-| R2 affixes, R7 file names and project registration, R11 spellings, R17 HLSL files, §2 directory shape, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
+| R2 affixes, R7 file names and project registration, R11 spellings, R12's ban on WRL, R17 HLSL files, §2 directory shape, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
 | R4, R6, R9, R10 | Review. Check your own diff against the table before handing it back. |
 
 **Both checkers run in CI on every change** (§6): `Build/RunClangTidy.py` drives clang-tidy over every hand-written translation unit with the switches its project sets, and `Build/CheckProjectFiles.py` carries what clang-tidy cannot express. Run them yourself before you push (§3). A rule that one of them could carry and does not is a gap in the checker; close it in the change that finds it.
@@ -214,7 +214,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 ## 4. Layout and formatting
 
-[`.clang-format`](.clang-format) is the authority for C++ layout: 2-space indent, 140 columns, Allman braces, pointer and reference bound left, includes never reordered. [`.editorconfig`](.editorconfig) covers everything clang-format does not — CRLF, UTF-8, final newline, trailing whitespace, and the non-C++ formats — and repeats the two numbers an editor needs before the first save.
+[`.clang-format`](.clang-format) is the authority for C++ layout: 2-space indent, 140 columns, Allman braces, pointer and reference bound left, includes never reordered. HLSL is laid out by the same file, as C++; the one construct clang-format misreads is a semantic after a function's parameter list, so an entry point returns a struct whose members carry the output semantics ([ADR-005](Design/ADR/ADR-005-shader-toolchain.md)). [`.editorconfig`](.editorconfig) covers everything clang-format does not — CRLF, UTF-8, final newline, trailing whitespace, and the non-C++ formats — and repeats the two numbers an editor needs before the first save.
 
 **This tree is formatted, and CI keeps it that way.** A whole-tree format check here is a no-op. Format what you write; if the check fires, run `--fix` and commit the result rather than arguing with it.
 
@@ -227,7 +227,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 ## 5. Rules for this codebase
 
-**R12 — Memory and resource lifetimes are plain C++.** `new`/`delete` where it must be, RAII everywhere, standard containers by default. COM objects are held in `Microsoft::WRL::ComPtr`; a raw `AddRef`/`Release` pair in new code is a defect, not a style. No pool, slab or free-list allocator without a decision recorded in `Design/ADR/`.
+**R12 — Memory and resource lifetimes are plain C++.** `new`/`delete` where it must be, RAII everywhere, standard containers by default. COM objects are held in `winrt::com_ptr` and Windows handles in `winrt::handle`, both from C++/WinRT's `<winrt/base.h>` in the Windows SDK. `Microsoft::WRL::ComPtr` is not used, and a raw `AddRef`/`Release` pair in new code is a defect, not a style. An `HRESULT` that means failure is checked with `winrt::check_hresult`, which throws `winrt::hresult_error` and hands C++/WinRT the file and line it was checked at; one the code expects and handles on the spot, such as the end of an enumeration or an optional feature that is absent, is tested with `FAILED` and handled there. `WindowsSdk.h` includes `<unknwn.h>` before `<winrt/base.h>`, which is what makes `com_ptr` work with classic COM interfaces such as `ID3D12Device`, and every program links `WindowsApp.lib`, which C++/WinRT needs. No pool, slab or free-list allocator without a decision recorded in `Design/ADR/`.
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
