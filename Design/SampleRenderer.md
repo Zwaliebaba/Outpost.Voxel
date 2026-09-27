@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** draft for owner review · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 
@@ -22,6 +22,8 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D8 | Reversed-Z with an infinite far plane; conservative depth output through `SV_DepthLessEqual`. | §7.5, §9.3 |
 | D9 | Shader Model 6.0, compiled by DXC at build time. No third-party code. | §5 |
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
+| D11 | Rendering is 1:1 at the window's size; the default window is 1920 × 1080, and `--bench` always renders at 1920 × 1080. | §13; owner's display, 2026-09-27 |
+| D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
 
 ## 2. Scope
 
@@ -65,7 +67,7 @@ The splat workload is 225,048 rectangles — 450,096 triangles and about 900,000
 
 Sixteen colours fit in four bits (D5), and emissiveness belongs to a palette entry, not to a voxel.
 
-Placement: voxel *v* of a model of size *s* placed at translation *T* is taken to occupy the unit cube whose minimum corner is *T* + *v* − ⌊*s*/2⌋. For this file that puts the lowest layer exactly on z = 0, the height of MagicaVoxel's ground plane (enabled in `_setting`). That is corroboration, not proof; the comparison with a MagicaVoxel render in M3 settles it.
+Placement: voxel *v* of a model of size *s* placed at translation *T* is taken to occupy the unit cube whose minimum corner is *T* + *v* − ⌊*s*/2⌋. For this file that puts the lowest layer exactly on z = 0, the height of MagicaVoxel's ground plane (enabled in `_setting`). That is corroboration, not proof, and with no MagicaVoxel comparison planned (D12) it stays a stated default.
 
 The file stores no usable camera. The default view frames the occupied box's bounding sphere — radius ≈ 199 units about (0.5, 0.5, 127.5) — in the file's 45° vertical field of view. That puts the camera about 520 units out, where a voxel spans about 2.5 pixels of a 1,080-line image.
 
@@ -97,7 +99,7 @@ The intersection (Listing 5) moves the ray into the box's frame and picks the th
 
 The renderer uses Direct3D 12 with the device created at minimum feature level 12_1 (D1), and Shader Model 6.0. DXR is never used; the renderer does not even query `D3D12_FEATURE_D3D12_OPTIONS5`. Mesh and amplification shaders are required only at FL 12_2 and are not used either.
 
-The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and rasterizer-ordered views — have no job in this design. Rays go through pixel centres, so ordinary rasterization of the bounding rectangle already reaches every pixel whose ray can hit the box; conservative rasterization would only add invocations that miss. Nothing in the model is transparent for ROVs to order. In fact nothing here needs more than FL 11_0 plus SM 6.0 — conservative depth output is a Shader Model 5 feature. FL 12_1 stays because it is the owner's contract, and its only practical effect is to refuse FL 11_x and 12_0 hardware that could run the sample; §16 asks whether that is intended.
+The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and rasterizer-ordered views — have no job in this design. Rays go through pixel centres, so ordinary rasterization of the bounding rectangle already reaches every pixel whose ray can hit the box; conservative rasterization would only add invocations that miss. Nothing in the model is transparent for ROVs to order. In fact nothing here needs more than FL 11_0 plus SM 6.0 — conservative depth output is a Shader Model 5 feature. FL 12_1 stays because it is the owner's contract, and its only practical effect is to refuse FL 11_x and 12_0 hardware that could run the sample. The owner confirmed that on 2026-09-27.
 
 In-box WARP implements FL 12_1 on Windows 10 1709 and later, so CI can run the real renderer (§14).
 
@@ -134,7 +136,7 @@ There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it.
 
 ### 6.2 Shader sources
 
-HLSL lives flat in `VoxelRender`. A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` needs adding to `.editorconfig` and `.gitattributes`, and `AGENTS.md` R7 needs a sentence on HLSL (R17, §17).
+HLSL lives flat in `VoxelRender`. A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
 
 ### 6.3 Data flow
 
@@ -176,7 +178,7 @@ The loader accepts VOX versions 150 and 200, skips chunks it does not know (this
 
 ### 7.2 Palette and materials
 
-The palette is sixteen entries, each a linear albedo (converted from the file's sRGB bytes with the exact sRGB curve) and an emissive scale: 256 bytes of constants. MagicaVoxel does not document how `_emit` and `_flux` become radiance, so the sample defines its own mapping — one multiplier per entry, tuned in M3 against a MagicaVoxel render — and says so where it is implemented.
+The palette is sixteen entries, each a linear albedo (converted from the file's sRGB bytes with the exact sRGB curve) and an emissive scale: 256 bytes of constants. MagicaVoxel does not document how `_emit` and `_flux` become radiance, so the sample defines its own mapping — one multiplier per entry, tuned by eye in M3 (D12) — and says so where it is implemented.
 
 ### 7.3 Visibility buffer
 
@@ -320,7 +322,7 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
 
 ## 10. Shadow pass
 
-The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention that M3 checks. The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
+The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter. The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
 
 The splat shaders run in their orthographic permutation. The rays share one direction and start on the light's near plane; depth is *t* / range, written as `SV_DepthGreaterEqual` = max(*t* / range, `SV_Position.z`); the depth test is `LESS`; and the pipeline has no render target.
 
@@ -358,6 +360,10 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 The application is a resizable Win32 window, Unicode and per-monitor DPI aware, with a flip-model swap chain of two buffers and a frame-latency waitable object; vsync is on by default.
 
+Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The default window has a 1920 × 1080 client area, shrunk to the largest 16:9 size that fits the monitor's work area — which on the owner's 1920 × 1080 display it always is, since the title bar and taskbar take room. Alt+Enter toggles borderless fullscreen at the monitor's resolution, which on that display is exactly the benchmark resolution. `--size WxH` overrides the window size. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
+
+At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
+
 The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F). Tab toggles a fly mode (WASD and mouse) for getting in among the debris. The other keys are:
 
 - E detonate, R reassemble, Space pause, +/− time scale;
@@ -369,6 +375,7 @@ The title bar carries the frame time, GPU milliseconds per pass, and `PSInvocati
 Command line:
 
 - `--vox <path>` — the model; default `GameData\MilitaryStation.vox` beside the executable, copied there by the build;
+- `--size WxH` — the window's client size;
 - `--warp`, `--adapter <n>` — adapter choice;
 - `--d3d-debug` — the debug layer in Release (Debug builds always enable it);
 - `--gbv` — GPU-based validation;
@@ -397,7 +404,7 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 
 Comparison rule: CPU and GPU agree to rounding, not bit for bit. MSVC contracts to FMA under `/arch:AVX2` (`AGENTS.md` §3) and GPUs round division differently, so no test assumes bit equality across devices. Away from silhouettes, any mismatch fails the test. On silhouettes, each test carries an explicit bound, set from the first measured run and written down with its reason.
 
-Manual acceptance covers what CI cannot. From M2 on, the owner runs the sample on hardware at every milestone, and at M3 compares it with a MagicaVoxel render of the file from a matched camera.
+Manual acceptance covers what CI cannot. From M2 on, the owner runs the sample on hardware at every milestone, and at M3 judges the lighting by eye; there is no comparison against MagicaVoxel renders (D12).
 
 Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pixels, which is the tightness of the bounds in one number; the overdraw view; and `--bench`. Figures quoted in ADRs say how they were measured.
 
@@ -405,10 +412,10 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 
 | | Delivers | Done when |
 |---|---|---|
-| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; ADR-001 | CI is green with every gate running |
+| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
 | M1 | `VoxelCore`: reader, model, maths, CPU twins, reference tracer; ADR-003 | `VoxelCoreTests` green; §3's pinned figures reproduced |
 | M2 | Window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-002, ADR-004 | `VoxelRenderTests` green on WARP in CI; the owner sees the station on hardware |
-| M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the MagicaVoxel comparison |
+| M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
 | M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-005 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
@@ -418,7 +425,7 @@ M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed 
 
 **HLSL floating point and Listing 5** (§4.2, item 6). The paper's robustness argument assumes IEEE behaviour the compiler may not provide. The tests hit the exact cases, and a failure is fixed by an explicit guard.
 
-**MagicaVoxel conventions the file cannot settle**: the pivot's rounding, the reference direction of the sun angles, and the emissive mapping. All of them are parameters with stated defaults, and M3's comparison settles them.
+**MagicaVoxel conventions the file cannot settle**: the pivot's rounding, the reference direction of the sun angles, and the emissive mapping. All of them are parameters with stated defaults. With no MagicaVoxel comparison (D12) they stay unverified; a wrong default shows up as a station half a voxel off the ground, a sun from a different azimuth, or emissives that glow too much or too little, and each is a one-line parameter change.
 
 **Early rejection under conservative depth** is hardware behaviour. M5 measures it; nothing assumes it.
 
@@ -428,15 +435,16 @@ M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed 
 
 **Flat lighting and interpenetrating piles** are accepted consequences of D4 and D3.
 
-Questions for the owner, each with the default that applies until it is answered:
+The owner answered the open questions on 2026-09-27:
 
-1. FL 12_1 refuses FL 11_x and 12_0 hardware that could run this design (§5). Is that intended? *Default: yes, as specified.*
-2. Will you supply the MagicaVoxel screenshots for M3's comparison? *Default: M3 stays open until they exist.*
-3. Should the sample accept `.vox` features this file does not use, such as rotated nodes or more than 16 colours? *Default: no; the loader rejects them by name.*
+1. FL 12_1 stays a hard floor, although it refuses FL 11_x and 12_0 hardware that could run this design (§5).
+2. There is no comparison against MagicaVoxel renders (D12); M3 is accepted by eye.
+3. The loader rejects `.vox` features this file does not use, such as rotated nodes or more than 16 colours, by name (§7.1).
+4. The owner's display is 1920 × 1080, and the resolution policy of §13 (D11) applies.
 
-## 17. Proposed rules and expected ADRs
+## 17. Conformance rules and expected ADRs
 
-`AGENTS.md` reserves R14 onward for rules with a design source. This document proposes four, to be moved there once the owner accepts it:
+`AGENTS.md` reserves R14 onward for rules with a design source. The owner accepted these four on 2026-09-27, and they are R14–R17 in `AGENTS.md`, which is where they are maintained:
 
 - **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per coordinate and four for colour (D5). Widening either is a format change and needs an ADR.
 - **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `VoxelCore`, and a test compares the two.
@@ -446,7 +454,7 @@ Questions for the owner, each with the default that applies until it is answered
 Each expected ADR lands in the commit that implements it:
 
 - ADR-001, repository layout (M0);
-- ADR-002, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations, `.hlsli` (M2);
+- ADR-002, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
 - ADR-003, voxel record and palette (M1);
 - ADR-004, depth conventions (M2);
 - ADR-005, explosion motion model and its defaults (M4).
