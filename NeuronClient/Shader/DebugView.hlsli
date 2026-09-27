@@ -3,20 +3,13 @@
 // What the debug view pass shows in place of the lit image (Design/SampleRenderer.md §11). The C++ twins are in
 // NeuronCore/DebugView.h (R15), and these values are NeuronCore::DebugView's.
 
+#include "Hash.hlsli"
 #include "Packing.hlsli"
 
 static const uint DEBUG_VIEW_ALBEDO = 0;
 static const uint DEBUG_VIEW_NORMAL = 1;
 static const uint DEBUG_VIEW_VOXEL_INDEX = 2;
 static const uint DEBUG_VIEW_SHADOW_MAP = 3;
-
-// The PCG hash of Jarzynski and Olano, "Hash Functions for GPU Rendering", JCGT 9(3), 2020.
-uint PcgHash(uint _value)
-{
-  uint state = _value * 747796405u + 2891336453u;
-  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return (word >> 22u) ^ word;
-}
 
 // A linear color for a pixel of the visibility buffer in the views that show it: albedo, normal and voxel index. A pixel
 // no voxel covers is black.

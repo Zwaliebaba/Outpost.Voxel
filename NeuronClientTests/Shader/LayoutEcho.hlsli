@@ -4,6 +4,7 @@
 // order, written back as the 32-bit words the C++ struct holds them in. A mirror that places a field anywhere else reads
 // another field's word, and LayoutEchoTests sees it.
 
+#include "ExplosionConstants.hlsli"
 #include "InstanceConstants.hlsli"
 #include "LightingConstants.hlsli"
 #include "PaletteConstants.hlsli"
@@ -15,6 +16,7 @@ ConstantBuffer<InstanceConstants> g_instance : register(b1);
 ConstantBuffer<PaletteConstants> g_palette : register(b2);
 ConstantBuffer<ShadowViewConstants> g_shadowView : register(b3);
 ConstantBuffer<LightingConstants> g_lighting : register(b4);
+ConstantBuffer<ExplosionConstants> g_explosion : register(b5);
 RWByteAddressBuffer g_echo : register(u0);
 
 void Echo(inout uint _word, uint _value)
@@ -72,4 +74,16 @@ void Echo3(inout uint _word, uint3 _value)
   Echo3(word, asuint(g_lighting.groundAlbedo));
   Echo(word, g_lighting.groundVisible);
   Echo3(word, asuint(g_lighting.background));
+
+  Echo3(word, asuint(g_explosion.blastOrigin));
+  Echo(word, asuint(g_explosion.timeSeconds));
+  Echo(word, asuint(g_explosion.gravity));
+  Echo(word, asuint(g_explosion.launchSpeed));
+  Echo(word, asuint(g_explosion.falloffDistance));
+  Echo(word, asuint(g_explosion.upwardBias));
+  Echo(word, asuint(g_explosion.directionJitter));
+  Echo(word, asuint(g_explosion.speedJitter));
+  Echo(word, asuint(g_explosion.restitution));
+  Echo(word, asuint(g_explosion.horizontalDamping));
+  Echo(word, g_explosion.maxQuarterTurns);
 }

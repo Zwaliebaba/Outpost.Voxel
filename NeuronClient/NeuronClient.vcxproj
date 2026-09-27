@@ -103,6 +103,7 @@
     <ClInclude Include="Clock.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
+    <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FailureReport.h" />
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
@@ -129,6 +130,7 @@
   <ItemGroup>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
+    <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FailureReport.cpp" />
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
@@ -178,6 +180,16 @@
       <EntryPointName>SplatVertex</EntryPointName>
       <VariableName>SHADOW_SPLAT_ALIGNED_VS</VariableName>
     </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ORIENTED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ORIENTED_VS</VariableName>
+    </FxCompile>
     <FxCompile Include="Shader\ToneMapPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>ToneMapPixel</EntryPointName>
@@ -198,6 +210,16 @@
       <EntryPointName>SplatVertex</EntryPointName>
       <VariableName>VIEW_SPLAT_ALIGNED_VS</VariableName>
     </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_VS</VariableName>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
@@ -208,7 +230,10 @@
     <None Include="packages.config" />
     <None Include="Shader\DebugView.hlsli" />
     <None Include="Shader\DebugViewPass.hlsli" />
+    <None Include="Shader\Explosion.hlsli" />
+    <None Include="Shader\ExplosionConstants.hlsli" />
     <None Include="Shader\FullScreen.hlsli" />
+    <None Include="Shader\Hash.hlsli" />
     <None Include="Shader\InstanceConstants.hlsli" />
     <None Include="Shader\Lighting.hlsli" />
     <None Include="Shader\LightingConstants.hlsli" />

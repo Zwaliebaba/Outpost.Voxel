@@ -26,6 +26,7 @@ enum RootParameter : std::uint8_t
 {
   ViewConstantsParameter,
   InstanceConstantsParameter,
+  ExplosionConstantsParameter,
   RecordsParameter,
   RootParameterCount
 };
@@ -57,7 +58,8 @@ constexpr D3D12_COMPARISON_FUNC SHADOW_NEARER = D3D12_COMPARISON_FUNC_LESS;
 
 } // namespace
 
-SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind)
+SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutation)
+  : m_permutation(_permutation)
 {
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -66,6 +68,9 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind)
   parameters[InstanceConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[InstanceConstantsParameter].Descriptor = {1, 0};
   parameters[InstanceConstantsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  parameters[ExplosionConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+  parameters[ExplosionConstantsParameter].Descriptor = {2, 0};
+  parameters[ExplosionConstantsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   parameters[RecordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[RecordsParameter].Descriptor = {0, 0};
   parameters[RecordsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -80,10 +85,11 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind)
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline = DefaultGraphicsPipeline();
   pipeline.pRootSignature = m_rootSignature.get();
   pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  const bool oriented = _permutation == Permutation::Oriented;
   if (_kind == Kind::View)
   {
-    pipeline.VS = ViewSplatAlignedVertexShader();
-    pipeline.PS = ViewSplatAlignedPixelShader();
+    pipeline.VS = oriented ? ViewSplatOrientedVertexShader() : ViewSplatAlignedVertexShader();
+    pipeline.PS = oriented ? ViewSplatOrientedPixelShader() : ViewSplatAlignedPixelShader();
     pipeline.DepthStencilState.DepthFunc = VIEW_NEARER;
     pipeline.NumRenderTargets = 1;
     pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
@@ -92,27 +98,39 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind)
   else
   {
     // Depth alone, into the map (§10).
-    pipeline.VS = ShadowSplatAlignedVertexShader();
-    pipeline.PS = ShadowSplatAlignedPixelShader();
+    pipeline.VS = oriented ? ShadowSplatOrientedVertexShader() : ShadowSplatAlignedVertexShader();
+    pipeline.PS = oriented ? ShadowSplatOrientedPixelShader() : ShadowSplatAlignedPixelShader();
     pipeline.DepthStencilState.DepthFunc = SHADOW_NEARER;
     pipeline.NumRenderTargets = 0;
     pipeline.DSVFormat = ShadowMap::DEPTH_FORMAT;
   }
   winrt::check_hresult(_device.Device()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(m_pipeline.put())));
-  m_pipeline->SetName(_kind == Kind::View ? L"View splat, aligned" : L"Shadow splat, aligned");
+  if (_kind == Kind::View)
+  {
+    m_pipeline->SetName(oriented ? L"View splat, oriented" : L"View splat, aligned");
+  }
+  else
+  {
+    m_pipeline->SetName(oriented ? L"Shadow splat, oriented" : L"Shadow splat, aligned");
+  }
 
   const std::array<std::uint16_t, RECTANGLE_INDEX_COUNT> indices = RectangleIndices();
   m_rectangleIndices = CreateStaticBuffer(_device, std::as_bytes(std::span(indices)), L"Splat rectangle indices");
   m_indexView = {m_rectangleIndices->GetGPUVirtualAddress(), static_cast<UINT>(sizeof(indices)), DXGI_FORMAT_R16_UINT};
 }
 
-void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants) const
+void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
+                       D3D12_GPU_VIRTUAL_ADDRESS _explosionConstants) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
   _list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   _list->IASetIndexBuffer(&m_indexView);
   _list->SetGraphicsRootConstantBufferView(ViewConstantsParameter, _viewConstants);
+  if (m_permutation == Permutation::Oriented)
+  {
+    _list->SetGraphicsRootConstantBufferView(ExplosionConstantsParameter, _explosionConstants);
+  }
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
   for (const SceneInstance& instance : _scene.Instances())
   {

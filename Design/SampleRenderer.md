@@ -371,14 +371,14 @@ Rendering is 1:1 at the window's client size, in physical pixels; there is no in
 
 At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
 
-The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F). Tab toggles a fly mode (WASD and mouse) for getting in among the debris. The other keys are:
+The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F), or the explosion's envelope once it has started (§12). Tab toggles a fly mode (WASD and mouse, Page Up and Page Down to rise and sink) for getting in among the debris. The other keys are:
 
 - E detonate, R reassemble, Space pause, +/− time scale;
 - 1 the lit image, 2–6 debug views (§11), G ground, V vsync;
 - [ and ] the emissive gain (ADR-008);
 - F1 key map, Alt+F4 quit.
 
-The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, and the emissive scale that [ and ] tune; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, the emissive scale that [ and ] tune, and the explosion's time and scale; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
 
 Command line:
 

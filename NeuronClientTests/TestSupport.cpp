@@ -11,6 +11,8 @@
 #include "ViewConstants.h"
 #include "ViewTargets.h"
 
+#include "VoxelRecord.h"
+
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -97,7 +99,7 @@ void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body)
 }
 
 SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene, const NeuronClient::SplatPass& _pass,
-                       const NeuronCore::PerspectiveView& _view)
+                       const NeuronCore::PerspectiveView& _view, const std::optional<NeuronClient::ExplosionConstants>& _explosion)
 {
   NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
@@ -107,6 +109,7 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
   targets.Resize(_device, _view.widthPixels, _view.heightPixels);
   NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(_view));
+  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants = _explosion ? constants.Push(*_explosion) : 0;
 
   _device.Execute(
     [&](ID3D12GraphicsCommandList* _list)
@@ -114,7 +117,7 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       targets.BeginSplat(_list);
-      _pass.Record(_list, _scene, viewConstants);
+      _pass.Record(_list, _scene, viewConstants, explosionConstants);
       targets.EndSplat(_list);
     });
 
@@ -130,13 +133,15 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
 }
 
 std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
-                                     const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view)
+                                     const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view,
+                                     const std::optional<NeuronClient::ExplosionConstants>& _explosion)
 {
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
   NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
   const NeuronClient::ShadowMap map(_device, dsvHeap, shaderHeap, _view.widthPixels);
   NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeShadowViewConstants(_view));
+  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants = _explosion ? constants.Push(*_explosion) : 0;
 
   _device.Execute(
     [&](ID3D12GraphicsCommandList* _list)
@@ -144,7 +149,7 @@ std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, cons
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       map.BeginSplat(_list);
-      _pass.Record(_list, _scene, viewConstants);
+      _pass.Record(_list, _scene, viewConstants, explosionConstants);
       map.EndSplat(_list);
     });
 
@@ -190,6 +195,34 @@ NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, 
   const NeuronCore::Float3 center = (lower + upper) * 0.5f;
   lower.z = std::min(lower.z, 0.0f);
   return NeuronCore::MakeShadowView(_toSun, center, _halfExtent, lower, upper, _sizePixels);
+}
+
+NeuronCore::VoxModel RandomBlock()
+{
+  NeuronCore::VoxModel model{};
+  model.version = 150;
+  std::uint32_t state = 12345u;
+  for (std::uint32_t z = 0; z < 8; ++z)
+  {
+    for (std::uint32_t y = 0; y < 8; ++y)
+    {
+      for (std::uint32_t x = 0; x < 8; ++x)
+      {
+        state = state * 1664525u + 1013904223u;
+        if ((state >> 24u) < 96u)
+        {
+          model.records.push_back(NeuronCore::PackVoxelRecord({static_cast<std::uint8_t>(x), static_cast<std::uint8_t>(y),
+                                                               static_cast<std::uint8_t>(z), static_cast<std::uint8_t>(x % 16u)}));
+        }
+      }
+    }
+  }
+  model.instances.push_back({{0, 0, 0}, {8, 8, 8}, 0, static_cast<std::uint32_t>(model.records.size())});
+  for (NeuronCore::PaletteEntry& entry : model.palette)
+  {
+    entry = {128, 128, 128, 255, false, 0.0f, 0.0f};
+  }
+  return model;
 }
 
 NeuronCore::Box RecordBox(const NeuronCore::VoxModel& _model, std::uint32_t _record)

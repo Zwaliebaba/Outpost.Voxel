@@ -13,10 +13,14 @@ namespace
 #include "Shaders/LightingCS.h"
 #include "Shaders/ShadowSplatAlignedPS.h"
 #include "Shaders/ShadowSplatAlignedVS.h"
+#include "Shaders/ShadowSplatOrientedPS.h"
+#include "Shaders/ShadowSplatOrientedVS.h"
 #include "Shaders/ToneMapPS.h"
 #include "Shaders/ToneMapVS.h"
 #include "Shaders/ViewSplatAlignedPS.h"
 #include "Shaders/ViewSplatAlignedVS.h"
+#include "Shaders/ViewSplatOrientedPS.h"
+#include "Shaders/ViewSplatOrientedVS.h"
 
 } // namespace
 
@@ -38,6 +42,26 @@ D3D12_SHADER_BYTECODE ShadowSplatAlignedVertexShader() noexcept
 D3D12_SHADER_BYTECODE ShadowSplatAlignedPixelShader() noexcept
 {
   return {SHADOW_SPLAT_ALIGNED_PS, sizeof(SHADOW_SPLAT_ALIGNED_PS)};
+}
+
+D3D12_SHADER_BYTECODE ViewSplatOrientedVertexShader() noexcept
+{
+  return {VIEW_SPLAT_ORIENTED_VS, sizeof(VIEW_SPLAT_ORIENTED_VS)};
+}
+
+D3D12_SHADER_BYTECODE ViewSplatOrientedPixelShader() noexcept
+{
+  return {VIEW_SPLAT_ORIENTED_PS, sizeof(VIEW_SPLAT_ORIENTED_PS)};
+}
+
+D3D12_SHADER_BYTECODE ShadowSplatOrientedVertexShader() noexcept
+{
+  return {SHADOW_SPLAT_ORIENTED_VS, sizeof(SHADOW_SPLAT_ORIENTED_VS)};
+}
+
+D3D12_SHADER_BYTECODE ShadowSplatOrientedPixelShader() noexcept
+{
+  return {SHADOW_SPLAT_ORIENTED_PS, sizeof(SHADOW_SPLAT_ORIENTED_PS)};
 }
 
 D3D12_SHADER_BYTECODE LightingComputeShader() noexcept

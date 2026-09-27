@@ -17,6 +17,7 @@
 #include "VoxelScene.h"
 
 #include "DebugView.h"
+#include "Explosion.h"
 #include "Lighting.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
@@ -37,20 +38,23 @@ struct RendererDesc
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
   NeuronCore::OrthographicView shadowView; // the sun's, fitted once to the scene (§10); its size is the shadow map's
+  NeuronCore::ExplosionParameters explosion;
 };
 
-// What a frame shows (§11, §13).
+// What a frame shows (§11, §12, §13).
 struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
   NeuronCore::LightingParameters lighting;
   float exposure;
+  float explosionSeconds; // since the detonation; 0 is the intact model
   bool vsync;
 };
 
 // The frame of Design/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
 // visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
-// their place. Two frames are in flight, each with its own allocator, constants and fence value.
+// their place. Both splats draw the aligned permutation while the model is intact and the oriented one once the
+// explosion has started (§12). Two frames are in flight, each with its own allocator, constants and fence value.
 class Renderer
 {
 public:
@@ -102,10 +106,13 @@ private:
   SwapChain m_swapChain;
   ViewTargets m_targets;
   NeuronCore::OrthographicView m_shadowView;
+  NeuronCore::ExplosionParameters m_explosion;
   ShadowMap m_shadowMap;
   VoxelScene m_scene;
   SplatPass m_shadowSplat;
   SplatPass m_viewSplat;
+  SplatPass m_shadowSplatOriented;
+  SplatPass m_viewSplatOriented;
   LightingPass m_lighting;
   ToneMapPass m_toneMap;
   DebugViewPass m_debugView;

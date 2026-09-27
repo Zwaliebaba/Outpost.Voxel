@@ -125,6 +125,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="ExplosionSplatTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="pch.cpp">

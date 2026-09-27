@@ -4,6 +4,7 @@
 
 #include <d3d12.h>
 
+#include "ExplosionConstants.h"
 #include "GraphicsDevice.h"
 #include "SplatPass.h"
 #include "VoxelScene.h"
@@ -15,6 +16,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace NeuronClientTests
@@ -38,17 +40,23 @@ struct SplatImage
   std::vector<float> depth;
 };
 
-// Clears, splats _scene for _view with a view splat pass and reads both targets back.
+// Clears, splats _scene for _view with a view splat pass and reads both targets back. An oriented pass reads _explosion.
 [[nodiscard]] SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
-                                     const NeuronClient::SplatPass& _pass, const NeuronCore::PerspectiveView& _view);
+                                     const NeuronClient::SplatPass& _pass, const NeuronCore::PerspectiveView& _view,
+                                     const std::optional<NeuronClient::ExplosionConstants>& _explosion = std::nullopt);
 
 // Clears a shadow map as wide as _view, splats _scene into it with a shadow splat pass and reads it back: standard
-// depth per texel, row by row. _view must be square.
+// depth per texel, row by row. _view must be square. An oriented pass reads _explosion.
 [[nodiscard]] std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
-                                                   const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view);
+                                                   const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view,
+                                                   const std::optional<NeuronClient::ExplosionConstants>& _explosion = std::nullopt);
 
 // The number a half-precision word holds, as an R16G16B16A16_FLOAT texture stores it.
 [[nodiscard]] float HalfToFloat(std::uint16_t _half) noexcept;
+
+// A seeded, random 8 × 8 × 8 block of voxels, a little over a third of the cells full, standing on the ground: small
+// enough to check by brute force.
+[[nodiscard]] NeuronCore::VoxModel RandomBlock();
 
 // The box a record index is drawn as while the model is intact.
 [[nodiscard]] NeuronCore::Box RecordBox(const NeuronCore::VoxModel& _model, std::uint32_t _record);

@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 
+#include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "LightingConstants.h"
 #include "ShadowViewConstants.h"
@@ -34,10 +35,13 @@ Renderer::Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model
     m_swapChain(m_device, _desc.window, _desc.widthPixels, _desc.heightPixels, FRAMES_IN_FLIGHT, m_rtvHeap),
     m_targets(m_rtvHeap, m_dsvHeap, m_shaderHeap, m_cpuHeap),
     m_shadowView(_desc.shadowView),
+    m_explosion(_desc.explosion),
     m_shadowMap(m_device, m_dsvHeap, m_shaderHeap, _desc.shadowView.widthPixels),
     m_scene(m_device, _model),
     m_shadowSplat(m_device, SplatPass::Kind::Shadow),
     m_viewSplat(m_device, SplatPass::Kind::View),
+    m_shadowSplatOriented(m_device, SplatPass::Kind::Shadow, SplatPass::Permutation::Oriented),
+    m_viewSplatOriented(m_device, SplatPass::Kind::View, SplatPass::Permutation::Oriented),
     m_lighting(m_device),
     m_toneMap(m_device, SwapChain::VIEW_FORMAT),
     m_debugView(m_device, SwapChain::VIEW_FORMAT)
@@ -90,15 +94,22 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = frame.constants->Push(MakeViewConstants(_view));
   const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = frame.constants->Push(MakeShadowViewConstants(m_shadowView));
   const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants = frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView));
+  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants =
+    frame.constants->Push(MakeExplosionConstants(m_explosion, _settings.explosionSeconds));
+
+  // At time 0 every rotation is the identity, and the aligned permutation draws; after it, the oriented one (§12).
+  const bool exploding = _settings.explosionSeconds > 0.0f;
+  const SplatPass& shadowSplat = exploding ? m_shadowSplatOriented : m_shadowSplat;
+  const SplatPass& viewSplat = exploding ? m_viewSplatOriented : m_viewSplat;
 
   ID3D12GraphicsCommandList* list = m_list.get();
   std::array<ID3D12DescriptorHeap*, 1> heaps{m_shaderHeap.Heap()};
   list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
   m_shadowMap.BeginSplat(list);
-  m_shadowSplat.Record(list, m_scene, shadowViewConstants);
+  shadowSplat.Record(list, m_scene, shadowViewConstants, explosionConstants);
   m_shadowMap.EndSplat(list);
   m_targets.BeginSplat(list);
-  m_viewSplat.Record(list, m_scene, viewConstants);
+  viewSplat.Record(list, m_scene, viewConstants, explosionConstants);
   m_targets.EndSplat(list);
   if (!_settings.debugView)
   {

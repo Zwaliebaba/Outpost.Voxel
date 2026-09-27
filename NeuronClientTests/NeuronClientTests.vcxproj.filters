@@ -12,6 +12,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="ExplosionSplatTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="LightingPassTests.cpp">
       <Filter>Source Files</Filter>

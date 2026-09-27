@@ -3,7 +3,8 @@
 // The splat pass (Design/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
 // and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
-// aligned perspective permutation, the shadow splat the aligned orthographic one.
+// perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes while the model is intact
+// and oriented ones, posed by the explosion, once it is not (§12).
 
 #ifndef ORIENTED
 #   error "the entry-point file sets ORIENTED"
@@ -11,10 +12,6 @@
 #ifndef ORTHOGRAPHIC
 #   error "the entry-point file sets ORTHOGRAPHIC"
 #endif
-#if ORIENTED
-#   error "the oriented permutation lands with the explosion (M4)"
-#endif
-
 // Every ray the pass casts starts outside the box it tests (§9.3).
 #define CAN_START_IN_BOX 0
 
@@ -27,6 +24,9 @@
 #include "ShadowViewConstants.hlsli"
 #include "SplatBounds.hlsli"
 #include "ViewConstants.hlsli"
+#if ORIENTED
+#   include "Explosion.hlsli"
+#endif
 
 #if ORTHOGRAPHIC
 ConstantBuffer<ShadowViewConstants> g_view : register(b0);
@@ -34,6 +34,9 @@ ConstantBuffer<ShadowViewConstants> g_view : register(b0);
 ConstantBuffer<ViewConstants> g_view : register(b0);
 #endif
 ConstantBuffer<InstanceConstants> g_instance : register(b1);
+#if ORIENTED
+ConstantBuffer<ExplosionConstants> g_explosion : register(b2);
+#endif
 StructuredBuffer<uint> g_records : register(t0);
 
 // An instance of the draw covers this many voxels: the static index buffer holds this many rectangles (§9.1). The C++
@@ -41,10 +44,17 @@ StructuredBuffer<uint> g_records : register(t0);
 static const uint RECTANGLES_PER_INSTANCE = 256;
 
 // A pixel shader that writes conservative depth reads SV_Position at the centroid; without MSAA that is the pixel's centre.
+// An oriented box travels with its voxel's pose: the center and the three axes of its rotation (§9.2, step 5).
 struct SplatVaryings
 {
   noperspective centroid float4 position : SV_Position;
   nointerpolation uint voxel : VOXEL;
+#if ORIENTED
+  nointerpolation float3 center : CENTER;
+  nointerpolation float3 axisX : AXIS_X;
+  nointerpolation float3 axisY : AXIS_Y;
+  nointerpolation float3 axisZ : AXIS_Z;
+#endif
 };
 
 #if ORTHOGRAPHIC
@@ -76,6 +86,12 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   SplatVaryings varyings;
   varyings.position = float4(-2.0, -2.0, 0.0, 1.0);
   varyings.voxel = NO_VOXEL;
+#if ORIENTED
+  varyings.center = float3(0.0, 0.0, 0.0);
+  varyings.axisX = float3(1.0, 0.0, 0.0);
+  varyings.axisY = float3(0.0, 1.0, 0.0);
+  varyings.axisZ = float3(0.0, 0.0, 1.0);
+#endif
 
   uint local = _instance * RECTANGLES_PER_INSTANCE + _vertex / 4u;
   if (local >= g_instance.recordCount)
@@ -83,10 +99,16 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
     return varyings;
   }
   uint voxel = g_instance.firstRecord + local;
+  Box box = VoxelBox(voxel);
+#if ORIENTED
+  // §12: the explosion replaces the center and supplies a rotation.
+  VoxelPose pose = ExplosionPose(voxel, box.center, g_explosion);
+  box = MakeOrientedBox(pose.center, box.radius, pose.axisX, pose.axisY, pose.axisZ);
+#endif
 #if ORTHOGRAPHIC
-  SplatBounds bounds = OrthographicSplatBounds(VoxelBox(voxel), g_view);
+  SplatBounds bounds = OrthographicSplatBounds(box, g_view);
 #else
-  SplatBounds bounds = PerspectiveSplatBounds(VoxelBox(voxel), g_view);
+  SplatBounds bounds = PerspectiveSplatBounds(box, g_view);
 #endif
   if (!bounds.visible)
   {
@@ -97,7 +119,23 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   float y = (corner & 2u) != 0u ? bounds.maxNdc.y : bounds.minNdc.y;
   varyings.position = float4(x, y, bounds.depth, 1.0);
   varyings.voxel = voxel;
+#if ORIENTED
+  varyings.center = box.center;
+  varyings.axisX = box.axisX;
+  varyings.axisY = box.axisY;
+  varyings.axisZ = box.axisZ;
+#endif
   return varyings;
+}
+
+// The box the pixel's voxel is drawn as: where it lies intact, or where the vertex shader posed it.
+Box SplatBox(SplatVaryings _varyings)
+{
+#if ORIENTED
+  return MakeOrientedBox(_varyings.center, float3(0.5, 0.5, 0.5), _varyings.axisX, _varyings.axisY, _varyings.axisZ);
+#else
+  return VoxelBox(_varyings.voxel);
+#endif
 }
 
 #if ORTHOGRAPHIC
@@ -109,7 +147,7 @@ SplatTargets SplatPixel(SplatVaryings _varyings)
   Ray ray = OrthographicRay(g_view, _varyings.position.xy);
   float distance = 0.0;
   float3 normal = float3(0.0, 0.0, 0.0);
-  bool hit = IntersectBox(VoxelBox(_varyings.voxel), ray.origin, ray.direction, InverseDirection(ray), distance, normal);
+  bool hit = IntersectBox(SplatBox(_varyings), ray.origin, ray.direction, InverseDirection(ray), distance, normal);
   if (!hit || distance < 0.0)
   {
     discard;
@@ -126,7 +164,7 @@ SplatTargets SplatPixel(SplatVaryings _varyings)
   Ray ray = PerspectiveRay(g_view, _varyings.position.xy);
   float distance = 0.0;
   float3 normal = float3(0.0, 0.0, 0.0);
-  bool hit = IntersectBox(VoxelBox(_varyings.voxel), ray.origin, ray.direction, InverseDirection(ray), distance, normal);
+  bool hit = IntersectBox(SplatBox(_varyings), ray.origin, ray.direction, InverseDirection(ray), distance, normal);
   if (!hit || distance < g_view.nearPlane)
   {
     discard;

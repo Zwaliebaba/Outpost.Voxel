@@ -13,7 +13,6 @@
 #include "TraceHit.h"
 #include "VoxModel.h"
 #include "VoxelGrid.h"
-#include "VoxelRecord.h"
 
 #include <algorithm>
 #include <cmath>
@@ -90,35 +89,6 @@ void Report(const wchar_t* _map, const Comparison& _comparison)
     boxes.push_back(NeuronCore::MakeAxisAlignedBox(box.center, box.radius + Float3{_change, _change, _change}));
   }
   return boxes;
-}
-
-// A seeded, random 8 × 8 × 8 block of voxels, a little over a third of the cells full, standing on the ground.
-[[nodiscard]] NeuronCore::VoxModel RandomBlock()
-{
-  NeuronCore::VoxModel model{};
-  model.version = 150;
-  std::uint32_t state = 12345u;
-  for (std::uint32_t z = 0; z < 8; ++z)
-  {
-    for (std::uint32_t y = 0; y < 8; ++y)
-    {
-      for (std::uint32_t x = 0; x < 8; ++x)
-      {
-        state = state * 1664525u + 1013904223u;
-        if ((state >> 24u) < 96u)
-        {
-          model.records.push_back(NeuronCore::PackVoxelRecord({static_cast<std::uint8_t>(x), static_cast<std::uint8_t>(y),
-                                                               static_cast<std::uint8_t>(z), static_cast<std::uint8_t>(x % 16u)}));
-        }
-      }
-    }
-  }
-  model.instances.push_back({{0, 0, 0}, {8, 8, 8}, 0, static_cast<std::uint32_t>(model.records.size())});
-  for (NeuronCore::PaletteEntry& entry : model.palette)
-  {
-    entry = {128, 128, 128, 255, false, 0.0f, 0.0f};
-  }
-  return model;
 }
 
 } // namespace

@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "InstanceConstants.h"
@@ -35,6 +36,7 @@ enum RootParameter : std::uint8_t
   PaletteParameter,
   ShadowViewParameter,
   LightingParameter,
+  ExplosionParameter,
   EchoParameter,
   RootParameterCount
 };
@@ -77,12 +79,14 @@ public:
         const auto palette = Sentinel<NeuronClient::PaletteConstants>(3);
         const auto shadowView = Sentinel<NeuronClient::ShadowViewConstants>(4);
         const auto lighting = Sentinel<NeuronClient::LightingConstants>(5);
+        const auto explosion = Sentinel<NeuronClient::ExplosionConstants>(6);
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, instance);
         AppendWords(expected, palette);
         AppendWords(expected, shadowView);
         AppendWords(expected, lighting);
+        AppendWords(expected, explosion);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
@@ -90,6 +94,7 @@ public:
         const D3D12_GPU_VIRTUAL_ADDRESS paletteAddress = constants.Push(palette);
         const D3D12_GPU_VIRTUAL_ADDRESS shadowViewAddress = constants.Push(shadowView);
         const D3D12_GPU_VIRTUAL_ADDRESS lightingAddress = constants.Push(lighting);
+        const D3D12_GPU_VIRTUAL_ADDRESS explosionAddress = constants.Push(explosion);
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -107,6 +112,8 @@ public:
         parameters[ShadowViewParameter].Descriptor = {3, 0};
         parameters[LightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[LightingParameter].Descriptor = {4, 0};
+        parameters[ExplosionParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[ExplosionParameter].Descriptor = {5, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -132,6 +139,7 @@ public:
             _list->SetComputeRootConstantBufferView(PaletteParameter, paletteAddress);
             _list->SetComputeRootConstantBufferView(ShadowViewParameter, shadowViewAddress);
             _list->SetComputeRootConstantBufferView(LightingParameter, lightingAddress);
+            _list->SetComputeRootConstantBufferView(ExplosionParameter, explosionAddress);
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

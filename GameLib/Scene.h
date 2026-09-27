@@ -8,8 +8,9 @@
 namespace GameLib
 {
 
-// What the client shows: the model, the box around its voxels, which the sun's view is fitted to, and the sphere around
-// that box, which the camera frames (Design/SampleRenderer.md §3, §10).
+// What the client shows: the model, the box around its voxels, which the explosion's envelope and so the sun's view are
+// fitted around, and the sphere around that box, which the camera frames while the model is intact
+// (Design/SampleRenderer.md §3, §10, §12).
 struct Scene
 {
   NeuronCore::VoxModel model;

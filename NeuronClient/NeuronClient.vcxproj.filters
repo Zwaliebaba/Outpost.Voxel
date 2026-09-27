@@ -10,6 +10,9 @@
     <ClInclude Include="Clock.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
+    <ClInclude Include="ExplosionConstants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="FailureReport.h" />
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
@@ -48,6 +51,9 @@
   <ItemGroup>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
+    <ClCompile Include="ExplosionConstants.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FailureReport.cpp" />
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
@@ -89,7 +95,16 @@
     <None Include="Shader\DebugViewPass.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\Explosion.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\ExplosionConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\FullScreen.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\Hash.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\InstanceConstants.hlsli">
@@ -157,6 +172,12 @@
     <FxCompile Include="Shader\ShadowSplatAlignedVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\ToneMapPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
@@ -167,6 +188,12 @@
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
   </ItemGroup>
