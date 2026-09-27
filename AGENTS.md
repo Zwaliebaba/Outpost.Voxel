@@ -4,7 +4,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 
 *Outpost.Voxel* is a C++23 project built on Windows with MSVC. This file is about **how code is written here** — naming, layout, build settings and the standing rules of the codebase. It is not the design: what the project *is* belongs in a design document.
 
-**The tree starts empty.** Until the first project lands, this repository holds this file, the root configuration files, `.gitignore` and `.github/` — no solution, no projects, no source. Nothing below is a target to migrate towards; it describes the code as it must be written from the first line. There is no legacy here and nothing is grandfathered, so a whole-tree run of any checker comes back clean — trivially today, and by conformance from then on.
+**The tree started empty.** Every file in it was written to these rules from its first line. Nothing below is a target to migrate towards; there is no legacy here and nothing is grandfathered, so a whole-tree run of any checker comes back clean, and a finding is a defect rather than archaeology.
 
 **What is authoritative, in order:**
 
@@ -12,7 +12,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
 3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
 
-A design document, when there is one, sits alongside rather than above: it says what is built and this file says how. Until it exists there is no design authority, and a task that needs a design answer asks the owner and gets the answer written down before the code is.
+The design document, [`Design/SampleRenderer.md`](Design/SampleRenderer.md), sits alongside rather than above: it says what is built and this file says how. A task that needs a design answer the document does not give asks the owner, and gets the answer written down there before the code is.
 
 If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
 
@@ -126,16 +126,26 @@ private:
 | Rule | Enforced by |
 |---|---|
 | The naming table, R1, R3, R5, R8 | [`.clang-tidy`](.clang-tidy), gated in CI over the whole tree |
-| R2 affixes, R7 file names and project registration, R11 spellings, §2 flat directories | `Build/CheckProjectFiles.py`, gated in CI |
+| R2 affixes, R7 file names and project registration, R11 spellings, R17 HLSL files, §2 flat directories, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
 | R4, R6, R9, R10 | Review. Check your own diff against the table before handing it back. |
 
-**Neither checker exists yet** (§6). `.clang-tidy` is configured and gates the moment there is a translation unit to run it over; `Build/CheckProjectFiles.py` has to be written, and until it is, the four rules in its row are review's problem and nothing else. A rule nobody can run is a rule that rots, so writing that checker is early work rather than housekeeping.
+**Both checkers run in CI on every change** (§6): `Build/RunClangTidy.py` drives clang-tidy over every hand-written translation unit with the switches its project sets, and `Build/CheckProjectFiles.py` carries what clang-tidy cannot express. Run them yourself before you push (§3). A rule that one of them could carry and does not is a gap in the checker; close it in the change that finds it.
 
 ---
 
 ## 2. Repository shape
 
-The concrete layout — the solution, the projects and the edges between them — is settled when the first project is created, and recorded here and in an ADR at that point. Until then, these are the standing constraints any layout has to satisfy.
+The layout was settled when the first project landed, and [ADR-001](Design/ADR/ADR-001-repository-layout.md) records why. One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
+
+| Project | Kind | References | Holds |
+|---|---|---|---|
+| `VoxelCore` | static library | — | The `.vox` reader, the voxel model, maths, and the C++ twins of every GPU algorithm (R15). No Windows or Direct3D header. |
+| `VoxelRender` | static library | `VoxelCore` | Direct3D 12, passes and shaders. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
+| `VoxelSample` | Win32 application | `VoxelRender`, `VoxelCore` | Window, input, camera, clock, command line. |
+| `VoxelCoreTests` | test DLL | `VoxelCore` | CPU tests. |
+| `VoxelRenderTests` | test DLL | `VoxelRender`, `VoxelCore` | GPU tests on WARP. |
+
+Everything builds to `x64\<Configuration>\` at the root, which is where CI looks for the test DLLs, with intermediates under `x64\<Configuration>\obj\<Project>\`. Adding a project changes this table and needs an ADR of its own, as the layout did. The constraints below hold for every project, present and future.
 
 **Project directories are flat.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter.
 
@@ -165,13 +175,13 @@ That alignment matters more than it looks, because **CI builds Debug only** (§6
 
 ```powershell
 # Everything, from the repository root, naming the solution.
-msbuild <Solution>.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /nologo
+msbuild Outpost.Voxel.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /nologo
 
 # One project, still through the solution.
-msbuild <Solution>.slnx /t:<ProjectName> /p:Configuration=Debug /p:Platform=x64 /m /nologo
+msbuild Outpost.Voxel.slnx /t:<ProjectName> /p:Configuration=Debug /p:Platform=x64 /m /nologo
 
 # Release, before you claim anything about it.
-msbuild <Solution>.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
+msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
 ```
 
 **A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
@@ -213,7 +223,15 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
-**R14 and up are reserved** for project-specific rules. A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those are conformance rules with a design source, and they are written here as R14 onward when there is a design to cite, without renumbering anything above. Until then, do not invent one and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing [`Design/SampleRenderer.md`](Design/SampleRenderer.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+
+**R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
+
+**R15 — No algorithm exists only on the GPU.** Every algorithm a shader runs — the ray-box intersection, the screen-space bounds, the explosion pose, the packing — has a C++ twin in `VoxelCore` under the same name, and a test compares the two (design D10, §14). The twin is the reference; a shader that disagrees with it is the defect until shown otherwise.
+
+**R16 — A layout shared with HLSL has one source.** The C++ struct is the truth, with `static_assert`s on its size and on every member's offset; its HLSL mirror is written once, in a `.hlsli`; and the echo test in `VoxelRenderTests` proves the two agree (design §7.4). Nothing else redeclares the layout.
+
+**R17 — HLSL follows §1.** A `.hlsl` file is one entry point: nothing but `#define` switches and exactly one `#include`. Algorithms live in `.hlsli` files. Both are PascalCase and flat in their project's folder; `.hlsl` is built as `FxCompile` and `.hlsli` is listed as `None`. The naming table of §1 applies to HLSL identifiers, and semantics and intrinsics keep the SDK's spelling (`SV_Position`, `SampleCmpLevelZero`) (design §6.2). `Build/CheckProjectFiles.py` enforces the files; review enforces the names.
 
 ---
 
@@ -223,9 +241,9 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **Record decisions as ADRs.** An engineering decision — a file format, a wire protocol, a subsystem's shape, a third-party dependency, an exception to a rule here — goes in `Design/ADR/` as one file per decision, numbered in order from `ADR-001-<slug>.md`, stating the context, the decision and what it forecloses, in the same commit as the change that implements it. Figures in an ADR are measured, not estimated — if you quote one, say how you measured it. A decision nobody wrote down gets re-litigated every few months by whoever forgot it.
 
-**Write the checkers early.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on, and **none of them exists yet.** Until each one lands, the rules it would enforce are review's problem — which is exactly why they are early work rather than housekeeping.
+**The checkers are part of the build.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on. Each prints what it checked and exits non-zero on a finding; run them before you push, and extend one rather than working around it.
 
-**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step that has something to run blocks; a step whose input does not exist yet is skipped, not faked.** Each gate is guarded on the file it needs — the checker script, the solution, the built test DLLs — so the workflow is honest about an empty tree and starts gating the moment that file lands. The guards are the only concession: nothing is `continue-on-error`, and a script that exists and fails still fails the build. Remove a guard once its input is permanently there, not before, and never add one to get past a red build.
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
 **CI does not build Release.** The Windows build is the slow half of the pipeline and a second configuration roughly doubles it for a tree where the two differ only in optimisation. What stands in for it is the static alignment check on the two configurations (§3) — and, before a release, an actual `Configuration=Release` build by whoever is shipping. If you change something that could plausibly break only under optimisation, build Release yourself and say so.
 
@@ -241,7 +259,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 - [ ] A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`.
 - [ ] No project's `ConformanceMode`, `LanguageStandard`, `WarningLevel` or `TreatWarningAsError` was changed, and no warning was silenced with a pragma.
 - [ ] Debug and Release still agree on everything §3 says they must.
-- [ ] The checkers pass — or, for one not yet written, the report says which and why.
+- [ ] The checkers pass: `Build/CheckFormat.py`, `Build/CheckProjectFiles.py`, `Build/RunClangTidy.py`.
 - [ ] It builds Debug|x64, and every test suite runs and passes.
 - [ ] If it changes anything a user can see, hear or touch: it was **run**, not just built.
 - [ ] `Design/ADR/` has a new file if the change *was* a decision.

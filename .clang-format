@@ -14,9 +14,9 @@
 # (AGENTS.md §6), on clang-format 18.1.3 exactly -- the output changes between releases, so if a
 # local run disagrees with CI, compare the version line first. Run it yourself before you push.
 #
-# THAT SCRIPT IS NOT WRITTEN YET, and the CI step is guarded until it is. Nothing about the
-# settings below is provisional, though: they are what the tree is formatted to from its first
-# line, and the guard comes off the moment Build/CheckFormat.py lands.
+# `python Build/CheckFormat.py --fix` rewrites the offenders, and `--clang-format <binary>` names
+# the binary when the pinned one is not first on PATH. It checks .cpp and .h; whether HLSL is
+# formatted by this file too is decided when the first shader lands (Design/SampleRenderer.md).
 #
 # On Windows the clang-format you have is almost certainly NOT 18: Visual Studio 2026 bundles 22
 # at VC\Tools\Llvm\x64\bin, and 22 breaks a long call argument list in a different place than 18

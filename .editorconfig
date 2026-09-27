@@ -21,7 +21,7 @@ indent_size = 2
 max_line_length = 140
 
 # Shaders are hand-written source and read best at the same width as the C++ that drives them.
-[*.hlsl]
+[*.{hlsl,hlsli}]
 indent_size = 2
 max_line_length = 140
 

@@ -2,17 +2,15 @@ name: Build
 
 # CI for Outpost.Voxel (AGENTS.md §6).
 #
-# ── What blocks, and what is merely skipped ────────────────────────────────────────────────
+# ── What blocks ────────────────────────────────────────────────────────────────────────────
 #
-# Every step that has something to run BLOCKS. Nothing here is `continue-on-error`, and a script
-# that exists and fails fails the build.
+# Every step BLOCKS. Nothing here is `continue-on-error`, and a checker that fails fails the build.
 #
-# But this repository is a clean start: there is no solution, no project and no checker script in
-# it yet, and a gate that cannot run must not be dressed up as a gate that passed. So each step is
-# guarded on the file it needs -- the checker script, the solution, the built test binaries -- and
-# a step whose input is absent is SKIPPED and says so in the log. The moment the file lands, the
-# step starts gating with no edit here. Remove a guard once its input is permanently there; never
-# add one to get past a red build.
+# While the tree was empty, each step was guarded on the file it needed -- the checker script, the
+# solution, the built test binaries -- so that a gate which could not run was skipped rather than
+# dressed up as a gate that passed. Those inputs are now permanently there (Design/ADR/ADR-001),
+# so the guards are gone and a missing solution, checker or test suite is a FAILURE. Never add a
+# guard back to get past a red build.
 #
 # Nothing is discovered by name. The solution is whatever single .slnx/.sln sits at the root, and
 # the test suites are whatever *Tests.vcxproj the tree contains -- so adding a project does not
@@ -123,34 +121,26 @@ jobs:
           Write-Output "--- python ---"
           python --version
 
-      # The solution is found, not named. Exactly one at the root, or none while the tree is still
-      # empty; two is a mistake worth failing on rather than picking between.
+      # The solution is found, not named. Exactly one at the root; none or two is a mistake worth
+      # failing on rather than guessing about.
       - name: Locate the solution
         id: solution
         shell: pwsh
         run: |
           $found = @(Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.slnx', '.sln' })
-          if ($found.Count -gt 1) { throw "More than one solution at the repository root: $($found.Name -join ', ')." }
-          if ($found.Count -eq 0) {
-            Write-Output "::notice::No solution at the repository root yet. The build and test steps will be skipped."
-            "path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          }
-          else {
-            Write-Output "Solution: $($found[0].Name)"
-            "path=$($found[0].Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          }
+          if ($found.Count -ne 1) { throw "Expected exactly one solution at the repository root, found $($found.Count): $($found.Name -join ', ')." }
+          Write-Output "Solution: $($found[0].Name)"
+          "path=$($found[0].Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       # First, because it is two seconds and it catches the class of mistake that would otherwise
       # surface as a confusing build failure: a file missing from a project, a header in a
       # subdirectory clang-tidy will never see, or Debug and Release drifting apart.
       - name: Check the build shape and the project registries
-        if: hashFiles('Build/CheckProjectFiles.py') != ''
         shell: pwsh
         run: python Build\CheckProjectFiles.py
 
       # /warnaserror covers MSBuild's own warnings; /WX for the compiler is set in the projects.
       - name: Build
-        if: steps.solution.outputs.path != ''
         shell: pwsh
         run: |
           msbuild "${{ steps.solution.outputs.path }}" `
@@ -160,16 +150,12 @@ jobs:
 
       # One suite per *Tests.vcxproj in the tree, and every one of them must have produced a DLL:
       # vstest reports "no tests found" as a pass, so a suite that did not build is not a suite
-      # that passed. No suites at all is a state this repository is still legitimately in.
+      # that passed. No suites at all is a failure too: the tree has had them since ADR-001.
       - name: Run the tests
-        if: steps.solution.outputs.path != ''
         shell: pwsh
         run: |
           $projects = @(Get-ChildItem -Path . -Recurse -Filter '*Tests.vcxproj' -File)
-          if ($projects.Count -eq 0) {
-            Write-Output "::notice::No *Tests.vcxproj in the tree yet. Nothing to run."
-            exit 0
-          }
+          if ($projects.Count -eq 0) { throw "No *Tests.vcxproj in the tree; there is nothing for vstest to fail." }
           $suites = foreach ($project in $projects) {
             $dll = "x64\$env:CONFIGURATION\$($project.BaseName).dll"
             if (-not (Test-Path $dll)) { throw "$dll was not built. A suite that does not exist is not a suite that passed." }
@@ -184,7 +170,6 @@ jobs:
       # After the build, so that a compile error is reported as a compile error rather than as
       # forty linter findings about a file that does not parse.
       - name: Run clang-tidy
-        if: hashFiles('Build/RunClangTidy.py') != ''
         shell: pwsh
         run: python Build\RunClangTidy.py
 
@@ -218,11 +203,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install clang-format 18
-        if: hashFiles('Build/CheckFormat.py') != ''
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format-18
 
       - name: Check formatting
-        if: hashFiles('Build/CheckFormat.py') != ''
         run: python3 Build/CheckFormat.py --clang-format clang-format-18
