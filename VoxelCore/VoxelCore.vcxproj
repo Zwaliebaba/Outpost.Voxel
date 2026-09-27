@@ -87,12 +87,24 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Box.h" />
+    <ClInclude Include="Float3.h" />
+    <ClInclude Include="OctahedralNormal.h" />
+    <ClInclude Include="OrthographicView.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PerspectiveView.h" />
+    <ClInclude Include="Ray.h" />
+    <ClInclude Include="SplatBounds.h" />
+    <ClInclude Include="VoxelRecord.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="OctahedralNormal.cpp" />
+    <ClCompile Include="OrthographicView.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PerspectiveView.cpp" />
+    <ClCompile Include="SplatBounds.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
