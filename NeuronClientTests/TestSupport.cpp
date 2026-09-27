@@ -5,16 +5,20 @@
 #include "DescriptorHeap.h"
 #include "FailureReport.h"
 #include "GpuResources.h"
+#include "ShadowMap.h"
+#include "ShadowViewConstants.h"
 #include "UploadRing.h"
 #include "ViewConstants.h"
 #include "ViewTargets.h"
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
 #include <format>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <source_location>
@@ -92,12 +96,12 @@ void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body)
   }
 }
 
-SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
-                       const NeuronClient::ViewSplatPass& _pass, const NeuronCore::PerspectiveView& _view)
+SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene, const NeuronClient::SplatPass& _pass,
+                       const NeuronCore::PerspectiveView& _view)
 {
   NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
-  NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, true, L"Test shader views");
+  NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 8, true, L"Test shader views");
   NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, false, L"Test CPU-only views");
   NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);
   targets.Resize(_device, _view.widthPixels, _view.heightPixels);
@@ -114,15 +118,78 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
       targets.EndSplat(_list);
     });
 
-  const std::vector<std::byte> visibility = NeuronClient::ReadTexture2D(
-    _device, targets.Visibility(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, NeuronClient::ViewTargets::VISIBILITY_BYTES_PER_PIXEL);
+  const std::vector<std::byte> visibility = NeuronClient::ReadTexture2D(_device, targets.Visibility(), NeuronClient::ViewTargets::READABLE,
+                                                                        NeuronClient::ViewTargets::VISIBILITY_BYTES_PER_PIXEL);
   const std::vector<std::byte> depth =
-    NeuronClient::ReadTexture2D(_device, targets.Depth(), D3D12_RESOURCE_STATE_DEPTH_WRITE, sizeof(float));
+    NeuronClient::ReadTexture2D(_device, targets.Depth(), NeuronClient::ViewTargets::READABLE, sizeof(float));
   SplatImage image{_view.widthPixels, _view.heightPixels, std::vector<std::uint32_t>(visibility.size() / sizeof(std::uint32_t)),
                    std::vector<float>(depth.size() / sizeof(float))};
   std::memcpy(image.visibility.data(), visibility.data(), visibility.size());
   std::memcpy(image.depth.data(), depth.data(), depth.size());
   return image;
+}
+
+std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
+                                     const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view)
+{
+  NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
+  NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
+  const NeuronClient::ShadowMap map(_device, dsvHeap, shaderHeap, _view.widthPixels);
+  NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
+  const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeShadowViewConstants(_view));
+
+  _device.Execute(
+    [&](ID3D12GraphicsCommandList* _list)
+    {
+      std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
+      _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+      map.BeginSplat(_list);
+      _pass.Record(_list, _scene, viewConstants);
+      map.EndSplat(_list);
+    });
+
+  const std::vector<std::byte> bytes =
+    NeuronClient::ReadTexture2D(_device, map.Depth(), NeuronClient::ShadowMap::READABLE, NeuronClient::ShadowMap::BYTES_PER_TEXEL);
+  std::vector<float> depth(bytes.size() / sizeof(float));
+  std::memcpy(depth.data(), bytes.data(), bytes.size());
+  return depth;
+}
+
+float HalfToFloat(std::uint16_t _half) noexcept
+{
+  const std::uint32_t sign = static_cast<std::uint32_t>(_half & 0x8000u) << 16u;
+  const std::uint32_t exponent = (_half >> 10u) & 0x1Fu;
+  const std::uint32_t mantissa = _half & 0x3FFu;
+  if (exponent == 0u)
+  {
+    // Zero or subnormal: mantissa × 2^-24, exact in single precision.
+    const float magnitude = static_cast<float>(mantissa) * 5.9604644775390625e-8f;
+    return sign != 0u ? -magnitude : magnitude;
+  }
+  const std::uint32_t bits =
+    exponent == 0x1Fu ? (sign | 0x7F800000u | (mantissa << 13u)) : (sign | ((exponent + 112u) << 23u) | (mantissa << 13u));
+  return std::bit_cast<float>(bits);
+}
+
+NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, NeuronCore::Float3 _toSun, float _halfExtent,
+                                            std::uint32_t _sizePixels)
+{
+  constexpr float NONE = std::numeric_limits<float>::infinity();
+  NeuronCore::Float3 lower{NONE, NONE, NONE};
+  NeuronCore::Float3 upper{-NONE, -NONE, -NONE};
+  for (const NeuronCore::ModelInstance& instance : _model.instances)
+  {
+    const NeuronCore::Float3 minimum{static_cast<float>(instance.origin.x), static_cast<float>(instance.origin.y),
+                                     static_cast<float>(instance.origin.z)};
+    const NeuronCore::Float3 maximum =
+      minimum +
+      NeuronCore::Float3{static_cast<float>(instance.size.x), static_cast<float>(instance.size.y), static_cast<float>(instance.size.z)};
+    lower = {std::min(lower.x, minimum.x), std::min(lower.y, minimum.y), std::min(lower.z, minimum.z)};
+    upper = {std::max(upper.x, maximum.x), std::max(upper.y, maximum.y), std::max(upper.z, maximum.z)};
+  }
+  const NeuronCore::Float3 center = (lower + upper) * 0.5f;
+  lower.z = std::min(lower.z, 0.0f);
+  return NeuronCore::MakeShadowView(_toSun, center, _halfExtent, lower, upper, _sizePixels);
 }
 
 NeuronCore::Box RecordBox(const NeuronCore::VoxModel& _model, std::uint32_t _record)

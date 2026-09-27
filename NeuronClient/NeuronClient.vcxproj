@@ -108,14 +108,19 @@
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="InstanceConstants.h" />
+    <ClInclude Include="LightingConstants.h" />
+    <ClInclude Include="LightingPass.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
+    <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="ShadowViewConstants.h" />
+    <ClInclude Include="SplatPass.h" />
     <ClInclude Include="SwapChain.h" />
+    <ClInclude Include="ToneMapPass.h" />
     <ClInclude Include="UploadRing.h" />
     <ClInclude Include="ViewConstants.h" />
-    <ClInclude Include="ViewSplatPass.h" />
     <ClInclude Include="ViewTargets.h" />
     <ClInclude Include="VoxelScene.h" />
     <ClInclude Include="Window.h" />
@@ -128,16 +133,21 @@
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
+    <ClCompile Include="LightingConstants.cpp" />
+    <ClCompile Include="LightingPass.cpp" />
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
+    <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="ShadowViewConstants.cpp" />
+    <ClCompile Include="SplatPass.cpp" />
     <ClCompile Include="SwapChain.cpp" />
+    <ClCompile Include="ToneMapPass.cpp" />
     <ClCompile Include="UploadRing.cpp" />
     <ClCompile Include="ViewConstants.cpp" />
-    <ClCompile Include="ViewSplatPass.cpp" />
     <ClCompile Include="ViewTargets.cpp" />
     <ClCompile Include="VoxelScene.cpp" />
     <ClCompile Include="Window.cpp" />
@@ -152,6 +162,31 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>FullScreenVertex</EntryPointName>
       <VariableName>DEBUG_VIEW_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\LightingCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <EntryPointName>LightPixels</EntryPointName>
+      <VariableName>LIGHTING_CS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ALIGNED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ALIGNED_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ToneMapPixel</EntryPointName>
+      <VariableName>TONE_MAP_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>FullScreenVertex</EntryPointName>
+      <VariableName>TONE_MAP_VS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -173,14 +208,22 @@
     <None Include="packages.config" />
     <None Include="Shader\DebugView.hlsli" />
     <None Include="Shader\DebugViewPass.hlsli" />
+    <None Include="Shader\FullScreen.hlsli" />
     <None Include="Shader\InstanceConstants.hlsli" />
+    <None Include="Shader\Lighting.hlsli" />
+    <None Include="Shader\LightingConstants.hlsli" />
+    <None Include="Shader\LightingPass.hlsli" />
+    <None Include="Shader\OrthographicView.hlsli" />
     <None Include="Shader\Packing.hlsli" />
     <None Include="Shader\PaletteConstants.hlsli" />
     <None Include="Shader\PerspectiveView.hlsli" />
     <None Include="Shader\Ray.hlsli" />
     <None Include="Shader\RayBox.hlsli" />
+    <None Include="Shader\ShadowViewConstants.hlsli" />
     <None Include="Shader\Splat.hlsli" />
     <None Include="Shader\SplatBounds.hlsli" />
+    <None Include="Shader\ToneMap.hlsli" />
+    <None Include="Shader\ToneMapPass.hlsli" />
     <None Include="Shader\ViewConstants.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

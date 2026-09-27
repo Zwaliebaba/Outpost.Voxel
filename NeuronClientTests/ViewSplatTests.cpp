@@ -1,8 +1,8 @@
 #include "pch.h"
 
 #include "GraphicsDevice.h"
+#include "SplatPass.h"
 #include "TestSupport.h"
-#include "ViewSplatPass.h"
 #include "VoxelScene.h"
 
 #include "Box.h"
@@ -218,7 +218,7 @@ public:
         const NeuronCore::VoxModel model = LoadMilitaryStation();
         const NeuronCore::VoxelGrid grid(model);
         const NeuronClient::VoxelScene scene(_device, model);
-        const NeuronClient::ViewSplatPass pass(_device);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
 
         const Float3 center{0.5f, 0.5f, 127.5f};
         const Float3 wall = SouthernmostVoxel(model);
@@ -261,7 +261,7 @@ public:
         const NeuronCore::VoxModel model = Wall(SIDE);
         const NeuronCore::VoxelGrid grid(model);
         const NeuronClient::VoxelScene scene(_device, model);
-        const NeuronClient::ViewSplatPass pass(_device);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronCore::PerspectiveView view = TestView({4.0f, -20.0f, 4.0f}, {4.0f, 0.0f, 4.0f}, IMAGE_PIXELS, IMAGE_PIXELS);
         const SplatImage image = RenderSplat(_device, scene, pass, view);
         Report(L"wall", Compare(view, model, grid, image));

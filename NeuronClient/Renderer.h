@@ -7,19 +7,25 @@
 #include "DebugViewPass.h"
 #include "DescriptorHeap.h"
 #include "GraphicsDevice.h"
+#include "LightingPass.h"
+#include "ShadowMap.h"
+#include "SplatPass.h"
 #include "SwapChain.h"
+#include "ToneMapPass.h"
 #include "UploadRing.h"
-#include "ViewSplatPass.h"
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
 #include "DebugView.h"
+#include "Lighting.h"
+#include "OrthographicView.h"
 #include "PerspectiveView.h"
 #include "VoxModel.h"
 
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace NeuronClient
 {
@@ -30,11 +36,21 @@ struct RendererDesc
   HWND window;
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
+  NeuronCore::OrthographicView shadowView; // the sun's, fitted once to the scene (§10); its size is the shadow map's
 };
 
-// The frame of Design/SampleRenderer.md §8 as far as M2 builds it: the view splat into the visibility buffer, then the
-// debug view of it into the back buffer. Two frames are in flight, each with its own allocator, constants and fence
-// value.
+// What a frame shows (§11, §13).
+struct FrameSettings
+{
+  std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
+  NeuronCore::LightingParameters lighting;
+  float exposure;
+  bool vsync;
+};
+
+// The frame of Design/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
+// visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
+// their place. Two frames are in flight, each with its own allocator, constants and fence value.
 class Renderer
 {
 public:
@@ -53,7 +69,7 @@ public:
 
   // Renders and presents one frame. _view must be the size the renderer was last resized to. On a failure, the catch
   // block adds Device().DescribeRemoval() to its message while the device still exists (§13).
-  void Render(const NeuronCore::PerspectiveView& _view, NeuronCore::DebugView _debugView, bool _vsync);
+  void Render(const NeuronCore::PerspectiveView& _view, const FrameSettings& _settings);
 
   [[nodiscard]] const GraphicsDevice& Device() const noexcept
   {
@@ -85,8 +101,13 @@ private:
   DescriptorHeap m_cpuHeap;
   SwapChain m_swapChain;
   ViewTargets m_targets;
+  NeuronCore::OrthographicView m_shadowView;
+  ShadowMap m_shadowMap;
   VoxelScene m_scene;
-  ViewSplatPass m_viewSplat;
+  SplatPass m_shadowSplat;
+  SplatPass m_viewSplat;
+  LightingPass m_lighting;
+  ToneMapPass m_toneMap;
   DebugViewPass m_debugView;
   std::array<Frame, FRAMES_IN_FLIGHT> m_frames;
   winrt::com_ptr<ID3D12GraphicsCommandList> m_list;

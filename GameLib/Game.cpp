@@ -11,10 +11,15 @@
 #include "Scene.h"
 
 #include "DebugView.h"
+#include "Lighting.h"
+#include "OrthographicView.h"
+#include "RenderSettings.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -32,22 +37,37 @@ constexpr float FLY_BOOST = 4.0f;
 // How often the title's figures are brought up to date; the frame time it shows is the mean over that interval.
 constexpr double TITLE_INTERVAL_SECONDS = 0.5;
 
-constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> VIEW_NAMES{L"headlight", L"albedo", L"normal", L"voxel index"};
+// The shadow map of §10: 4096 texels across a 1,024-unit square, four to a voxel's edge.
+constexpr std::uint32_t SHADOW_MAP_PIXELS = 4096;
+constexpr float SHADOW_HALF_EXTENT = 512.0f;
+
+// [ and ] scale the emissive gain by this much, within these bounds (§7.2: the multiplier is tuned by eye).
+constexpr float EMISSIVE_STEP = 1.1f;
+constexpr float EMISSIVE_GAIN_MINIMUM = 0.01f;
+constexpr float EMISSIVE_GAIN_MAXIMUM = 100.0f;
+
+// Keys 2 to 5 choose these debug views; key 1 returns to the lit image.
+constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NAMES{L"albedo", L"normal", L"voxel index", L"shadow map"};
 
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
                                    L"Wheel\tdolly\n"
-                                   L"F\tframe the station\n"
+                                   L"F\tframe the model\n"
                                    L"Tab\tfly mode: W A S D move, Q E down and up, Shift faster\n"
-                                   L"1 - 4\theadlight, albedo, normal, voxel index\n"
+                                   L"1\tthe lit image\n"
+                                   L"2 - 5\talbedo, normal, voxel index, shadow map\n"
+                                   L"[ ]\temissive glow down, up\n"
+                                   L"G\tground\n"
                                    L"V\tvsync\n"
                                    L"F1\tthis key map\n"
                                    L"Alt+F4\tquit";
 
 struct Controls
 {
-  NeuronCore::DebugView view = NeuronCore::DebugView::Headlight;
+  std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
+  bool ground = true;
   bool vsync = true;
+  float emissiveGain = 1.0f;
 };
 
 void Steer(OrbitCamera& _camera, const Scene& _scene, const InputState& _input, std::uint32_t _heightPixels, float _seconds)
@@ -80,12 +100,29 @@ void Steer(OrbitCamera& _camera, const Scene& _scene, const InputState& _input, 
 
 void Choose(Controls& _controls, const InputState& _input, HWND _window)
 {
+  if (_input.WasKeyPressed('1'))
+  {
+    _controls.debugView.reset();
+  }
   for (std::uint32_t view = 0; view < NeuronCore::DEBUG_VIEW_COUNT; ++view)
   {
-    if (_input.WasKeyPressed('1' + view))
+    if (_input.WasKeyPressed('2' + view))
     {
-      _controls.view = static_cast<NeuronCore::DebugView>(view);
+      _controls.debugView = static_cast<NeuronCore::DebugView>(view);
     }
+  }
+  // [ and ] on a US layout, where most keyboards put them.
+  if (_input.WasKeyPressed(VK_OEM_4))
+  {
+    _controls.emissiveGain = std::max(_controls.emissiveGain / EMISSIVE_STEP, EMISSIVE_GAIN_MINIMUM);
+  }
+  if (_input.WasKeyPressed(VK_OEM_6))
+  {
+    _controls.emissiveGain = std::min(_controls.emissiveGain * EMISSIVE_STEP, EMISSIVE_GAIN_MAXIMUM);
+  }
+  if (_input.WasKeyPressed('G'))
+  {
+    _controls.ground = !_controls.ground;
   }
   if (_input.WasKeyPressed('V'))
   {
@@ -97,11 +134,30 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   }
 }
 
-[[nodiscard]] std::wstring Title(const NeuronClient::GraphicsDevice& _device, const Controls& _controls, double _frameSeconds)
+// The largest emissive scale in the palette: what the title reports, times the gain, as the glow the viewer tunes.
+[[nodiscard]] float BrightestEmissiveScale(const NeuronCore::VoxModel& _model) noexcept
 {
-  std::wstring title =
-    std::format(L"Outpost - {} - {} - {:.2f} ms{}", _device.AdapterName(), VIEW_NAMES[static_cast<std::size_t>(_controls.view)],
-                _frameSeconds * 1000.0, _controls.vsync ? L"" : L" - vsync off");
+  float brightest = 0.0f;
+  for (const NeuronCore::PaletteEntry& entry : _model.palette)
+  {
+    brightest = std::max(brightest, NeuronCore::EmissiveScale(entry));
+  }
+  return brightest;
+}
+
+[[nodiscard]] std::wstring Title(const NeuronClient::GraphicsDevice& _device, const Controls& _controls, double _frameSeconds,
+                                 float _brightestEmissive)
+{
+  const wchar_t* view = _controls.debugView ? DEBUG_VIEW_NAMES[static_cast<std::size_t>(*_controls.debugView)] : L"lit";
+  std::wstring title = std::format(L"Outpost - {} - {} - {:.2f} ms", _device.AdapterName(), view, _frameSeconds * 1000.0);
+  if (_brightestEmissive > 0.0f)
+  {
+    title += std::format(L" - emissive {:.2f}", _brightestEmissive * _controls.emissiveGain);
+  }
+  if (!_controls.vsync)
+  {
+    title += L" - vsync off";
+  }
   if (_device.DebugLayer() == NeuronClient::DebugLayerState::Unavailable)
   {
     title += L" - debug layer unavailable";
@@ -109,14 +165,25 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   return title;
 }
 
+// The sun's view (§10): fitted once to the model's box, grown down to the ground, so that it never moves.
+[[nodiscard]] NeuronCore::OrthographicView FitShadowView(const Scene& _scene, const NeuronCore::RenderSettings& _settings) noexcept
+{
+  const NeuronCore::Float3 toSun = NeuronCore::SunDirection(_settings.sunElevationRadians, _settings.sunAzimuthRadians);
+  const NeuronCore::Float3 lower{_scene.lower.x, _scene.lower.y, std::min(_scene.lower.z, 0.0f)};
+  return NeuronCore::MakeShadowView(toSun, _scene.center, SHADOW_HALF_EXTENT, lower, _scene.upper, SHADOW_MAP_PIXELS);
+}
+
 } // namespace
 
 void RunGame(const GameOptions& _options)
 {
   const Scene scene = LoadScene(_options.voxPath);
+  const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(scene.model.renderObjects);
+  const float brightestEmissive = BrightestEmissiveScale(scene.model);
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
-  NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels}, scene.model);
+  NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, FitShadowView(scene, settings)},
+                                  scene.model);
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -126,6 +193,7 @@ void RunGame(const GameOptions& _options)
     }
     OrbitCamera camera(scene.center, scene.radius);
     Controls controls;
+    controls.ground = settings.groundVisible;
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
@@ -144,12 +212,15 @@ void RunGame(const GameOptions& _options)
         continue;
       }
       renderer.Resize(current.widthPixels, current.heightPixels);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels), controls.view, controls.vsync);
+      NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
+      lighting.groundVisible = controls.ground;
+      renderer.Render(camera.View(current.widthPixels, current.heightPixels),
+                      {controls.debugView, lighting, settings.exposure, controls.vsync});
       sinceTitleSeconds += seconds;
       ++framesSinceTitle;
       if (sinceTitleSeconds >= TITLE_INTERVAL_SECONDS)
       {
-        window.SetTitle(Title(renderer.Device(), controls, sinceTitleSeconds / framesSinceTitle));
+        window.SetTitle(Title(renderer.Device(), controls, sinceTitleSeconds / framesSinceTitle, brightestEmissive));
         sinceTitleSeconds = 0.0;
         framesSinceTitle = 0;
       }

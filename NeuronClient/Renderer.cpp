@@ -3,6 +3,8 @@
 #include "Renderer.h"
 
 #include "GpuResources.h"
+#include "LightingConstants.h"
+#include "ShadowViewConstants.h"
 #include "ViewConstants.h"
 
 namespace NeuronClient
@@ -10,8 +12,9 @@ namespace NeuronClient
 namespace
 {
 
-// Descriptors the renderer needs, with room to spare: the visibility RTV and the back buffers; the depth DSV; the
-// visibility SRV and UAV; and the UAV's CPU-only twin for its clear.
+// Descriptors the renderer needs, with room to spare: the visibility RTV and the back buffers; the view's and the
+// shadow map's DSVs; the visibility SRV and UAV, the depth SRV, the HDR color's SRV and UAV and the shadow map's SRV;
+// and the visibility UAV's CPU-only twin for its clear.
 constexpr std::uint32_t RTV_CAPACITY = 8;
 constexpr std::uint32_t DSV_CAPACITY = 4;
 constexpr std::uint32_t SHADER_CAPACITY = 16;
@@ -30,8 +33,13 @@ Renderer::Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model
     m_cpuHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, CPU_CAPACITY, false, L"CPU-only views"),
     m_swapChain(m_device, _desc.window, _desc.widthPixels, _desc.heightPixels, FRAMES_IN_FLIGHT, m_rtvHeap),
     m_targets(m_rtvHeap, m_dsvHeap, m_shaderHeap, m_cpuHeap),
+    m_shadowView(_desc.shadowView),
+    m_shadowMap(m_device, m_dsvHeap, m_shaderHeap, _desc.shadowView.widthPixels),
     m_scene(m_device, _model),
-    m_viewSplat(m_device),
+    m_shadowSplat(m_device, SplatPass::Kind::Shadow),
+    m_viewSplat(m_device, SplatPass::Kind::View),
+    m_lighting(m_device),
+    m_toneMap(m_device, SwapChain::VIEW_FORMAT),
     m_debugView(m_device, SwapChain::VIEW_FORMAT)
 {
   m_targets.Resize(m_device, _desc.widthPixels, _desc.heightPixels);
@@ -71,7 +79,7 @@ void Renderer::Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels)
   m_targets.Resize(m_device, _widthPixels, _heightPixels);
 }
 
-void Renderer::Render(const NeuronCore::PerspectiveView& _view, NeuronCore::DebugView _debugView, bool _vsync)
+void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSettings& _settings)
 {
   Frame& frame = m_frames[m_frameIndex];
   m_swapChain.WaitForFrame();
@@ -80,27 +88,45 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, NeuronCore::Debu
   winrt::check_hresult(m_list->Reset(frame.allocator.get(), nullptr));
   frame.constants->Reset();
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = frame.constants->Push(MakeViewConstants(_view));
+  const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = frame.constants->Push(MakeShadowViewConstants(m_shadowView));
+  const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants = frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView));
 
   ID3D12GraphicsCommandList* list = m_list.get();
   std::array<ID3D12DescriptorHeap*, 1> heaps{m_shaderHeap.Heap()};
   list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+  m_shadowMap.BeginSplat(list);
+  m_shadowSplat.Record(list, m_scene, shadowViewConstants);
+  m_shadowMap.EndSplat(list);
   m_targets.BeginSplat(list);
   m_viewSplat.Record(list, m_scene, viewConstants);
   m_targets.EndSplat(list);
+  if (!_settings.debugView)
+  {
+    m_targets.BeginLighting(list);
+    m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants);
+    m_targets.EndLighting(list);
+  }
 
   ID3D12Resource* backBuffer = m_swapChain.CurrentBuffer();
   const D3D12_RESOURCE_BARRIER toDraw = Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
   list->ResourceBarrier(1, &toDraw);
   const D3D12_CPU_DESCRIPTOR_HANDLE target = m_swapChain.CurrentView();
   list->OMSetRenderTargets(1, &target, FALSE, nullptr);
-  m_debugView.Record(list, m_targets, m_scene, viewConstants, _debugView);
+  if (_settings.debugView)
+  {
+    m_debugView.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, *_settings.debugView);
+  }
+  else
+  {
+    m_toneMap.Record(list, m_targets, _settings.exposure);
+  }
   const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
   list->ResourceBarrier(1, &toPresent);
   winrt::check_hresult(list->Close());
 
   std::array<ID3D12CommandList*, 1> lists{list};
   m_device.Queue()->ExecuteCommandLists(static_cast<UINT>(lists.size()), lists.data());
-  m_swapChain.Present(_vsync);
+  m_swapChain.Present(_settings.vsync);
   frame.fenceValue = m_device.Signal();
   m_frameIndex = (m_frameIndex + 1) % FRAMES_IN_FLIGHT;
 }

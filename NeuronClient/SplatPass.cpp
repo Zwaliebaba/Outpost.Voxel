@@ -1,13 +1,15 @@
 #include "pch.h"
 
-#include "ViewSplatPass.h"
+#include "SplatPass.h"
 
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "Shaders.h"
+#include "ShadowMap.h"
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
+#include "OrthographicView.h"
 #include "PerspectiveView.h"
 
 #include <array>
@@ -28,15 +30,18 @@ enum RootParameter : std::uint8_t
   RootParameterCount
 };
 
-// Reversed-Z: the pass clears to the far plane and keeps the nearer depth, which is the greater one (§7.5).
+// The view is reversed-Z: it clears to the far plane and keeps the nearer depth, which is the greater one. The shadow
+// map is standard Z, where the nearer depth is the smaller one (§7.5, Design/ADR/ADR-006).
 static_assert(NeuronCore::IsNearerPerspectiveDepth(1.0f, 0.5f), "the view splat keeps the greater depth");
-constexpr D3D12_COMPARISON_FUNC NEARER = D3D12_COMPARISON_FUNC_GREATER;
+constexpr D3D12_COMPARISON_FUNC VIEW_NEARER = D3D12_COMPARISON_FUNC_GREATER;
+static_assert(NeuronCore::IsNearerOrthographicDepth(0.5f, 1.0f), "the shadow splat keeps the smaller depth");
+constexpr D3D12_COMPARISON_FUNC SHADOW_NEARER = D3D12_COMPARISON_FUNC_LESS;
 
 // Rectangle r is vertices 4r to 4r + 3, corners (min, min), (max, min), (min, max) and (max, max), as two triangles.
-[[nodiscard]] std::array<std::uint16_t, ViewSplatPass::RECTANGLE_INDEX_COUNT> RectangleIndices() noexcept
+[[nodiscard]] std::array<std::uint16_t, SplatPass::RECTANGLE_INDEX_COUNT> RectangleIndices() noexcept
 {
-  std::array<std::uint16_t, ViewSplatPass::RECTANGLE_INDEX_COUNT> indices{};
-  for (std::uint32_t rectangle = 0; rectangle < ViewSplatPass::RECTANGLES_PER_INSTANCE; ++rectangle)
+  std::array<std::uint16_t, SplatPass::RECTANGLE_INDEX_COUNT> indices{};
+  for (std::uint32_t rectangle = 0; rectangle < SplatPass::RECTANGLES_PER_INSTANCE; ++rectangle)
   {
     const auto first = static_cast<std::uint16_t>(rectangle * 4u);
     const std::size_t at = static_cast<std::size_t>(rectangle) * 6u;
@@ -52,7 +57,7 @@ constexpr D3D12_COMPARISON_FUNC NEARER = D3D12_COMPARISON_FUNC_GREATER;
 
 } // namespace
 
-ViewSplatPass::ViewSplatPass(GraphicsDevice& _device)
+SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind)
 {
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -68,28 +73,40 @@ ViewSplatPass::ViewSplatPass(GraphicsDevice& _device)
                                                 D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
                                                   D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
                                                   D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS};
-  m_rootSignature = CreateRootSignature(_device, rootSignature, L"View splat root signature");
+  m_rootSignature = CreateRootSignature(_device, rootSignature, L"Splat root signature");
 
   // No input layout: the vertex shader pulls everything by index. Culling is off, since a rectangle's winding means
   // nothing, and depth clipping is on (§9.1).
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline = DefaultGraphicsPipeline();
   pipeline.pRootSignature = m_rootSignature.get();
-  pipeline.VS = ViewSplatAlignedVertexShader();
-  pipeline.PS = ViewSplatAlignedPixelShader();
   pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  pipeline.DepthStencilState.DepthFunc = NEARER;
-  pipeline.NumRenderTargets = 1;
-  pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
-  pipeline.DSVFormat = ViewTargets::DEPTH_FORMAT;
+  if (_kind == Kind::View)
+  {
+    pipeline.VS = ViewSplatAlignedVertexShader();
+    pipeline.PS = ViewSplatAlignedPixelShader();
+    pipeline.DepthStencilState.DepthFunc = VIEW_NEARER;
+    pipeline.NumRenderTargets = 1;
+    pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
+    pipeline.DSVFormat = ViewTargets::DEPTH_FORMAT;
+  }
+  else
+  {
+    // Depth alone, into the map (§10).
+    pipeline.VS = ShadowSplatAlignedVertexShader();
+    pipeline.PS = ShadowSplatAlignedPixelShader();
+    pipeline.DepthStencilState.DepthFunc = SHADOW_NEARER;
+    pipeline.NumRenderTargets = 0;
+    pipeline.DSVFormat = ShadowMap::DEPTH_FORMAT;
+  }
   winrt::check_hresult(_device.Device()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(m_pipeline.put())));
-  m_pipeline->SetName(L"View splat, aligned");
+  m_pipeline->SetName(_kind == Kind::View ? L"View splat, aligned" : L"Shadow splat, aligned");
 
   const std::array<std::uint16_t, RECTANGLE_INDEX_COUNT> indices = RectangleIndices();
   m_rectangleIndices = CreateStaticBuffer(_device, std::as_bytes(std::span(indices)), L"Splat rectangle indices");
   m_indexView = {m_rectangleIndices->GetGPUVirtualAddress(), static_cast<UINT>(sizeof(indices)), DXGI_FORMAT_R16_UINT};
 }
 
-void ViewSplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants) const
+void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());

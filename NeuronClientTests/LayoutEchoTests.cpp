@@ -3,7 +3,9 @@
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "InstanceConstants.h"
+#include "LightingConstants.h"
 #include "PaletteConstants.h"
+#include "ShadowViewConstants.h"
 #include "TestSupport.h"
 #include "UploadRing.h"
 #include "ViewConstants.h"
@@ -31,6 +33,8 @@ enum RootParameter : std::uint8_t
   ViewParameter,
   InstanceParameter,
   PaletteParameter,
+  ShadowViewParameter,
+  LightingParameter,
   EchoParameter,
   RootParameterCount
 };
@@ -71,15 +75,21 @@ public:
         const auto view = Sentinel<NeuronClient::ViewConstants>(1);
         const auto instance = Sentinel<NeuronClient::InstanceConstants>(2);
         const auto palette = Sentinel<NeuronClient::PaletteConstants>(3);
+        const auto shadowView = Sentinel<NeuronClient::ShadowViewConstants>(4);
+        const auto lighting = Sentinel<NeuronClient::LightingConstants>(5);
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, instance);
         AppendWords(expected, palette);
+        AppendWords(expected, shadowView);
+        AppendWords(expected, lighting);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
         const D3D12_GPU_VIRTUAL_ADDRESS instanceAddress = constants.Push(instance);
         const D3D12_GPU_VIRTUAL_ADDRESS paletteAddress = constants.Push(palette);
+        const D3D12_GPU_VIRTUAL_ADDRESS shadowViewAddress = constants.Push(shadowView);
+        const D3D12_GPU_VIRTUAL_ADDRESS lightingAddress = constants.Push(lighting);
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -93,6 +103,10 @@ public:
         parameters[InstanceParameter].Descriptor = {1, 0};
         parameters[PaletteParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[PaletteParameter].Descriptor = {2, 0};
+        parameters[ShadowViewParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[ShadowViewParameter].Descriptor = {3, 0};
+        parameters[LightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[LightingParameter].Descriptor = {4, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -116,6 +130,8 @@ public:
             _list->SetComputeRootConstantBufferView(ViewParameter, viewAddress);
             _list->SetComputeRootConstantBufferView(InstanceParameter, instanceAddress);
             _list->SetComputeRootConstantBufferView(PaletteParameter, paletteAddress);
+            _list->SetComputeRootConstantBufferView(ShadowViewParameter, shadowViewAddress);
+            _list->SetComputeRootConstantBufferView(LightingParameter, lightingAddress);
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

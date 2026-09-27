@@ -374,10 +374,11 @@ At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With
 The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F). Tab toggles a fly mode (WASD and mouse) for getting in among the debris. The other keys are:
 
 - E detonate, R reassemble, Space pause, +/− time scale;
-- 1–6 debug views, G ground, V vsync;
+- 1 the lit image, 2–6 debug views (§11), G ground, V vsync;
+- [ and ] the emissive gain (ADR-008);
 - F1 key map, Alt+F4 quit.
 
-The window's title carries the frame time, GPU milliseconds per pass, and `PSInvocations`; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, and the emissive scale that [ and ] tune; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
 
 Command line:
 

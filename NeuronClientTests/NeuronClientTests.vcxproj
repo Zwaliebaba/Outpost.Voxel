@@ -126,9 +126,11 @@
   <ItemGroup>
     <ClCompile Include="DebugViewPassTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
+    <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ShadowSplatTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
   </ItemGroup>

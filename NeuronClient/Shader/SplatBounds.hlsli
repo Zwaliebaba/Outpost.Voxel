@@ -6,15 +6,17 @@
 // A call whose out parameters matter is never the right-hand side of && or ||: HLSL 2018 evaluates both sides, and the
 // port must mean the same under 2018 and 2021.
 
+#include "OrthographicView.hlsli"
 #include "PerspectiveView.hlsli"
 #include "RayBox.hlsli"
+#include "ShadowViewConstants.hlsli"
 #include "ViewConstants.hlsli"
 
 struct SplatBounds
 {
   float2 minNdc; // normalized device coordinates: x right, y up
   float2 maxNdc;
-  float depth;  // the voxel's nearest point, reversed-Z
+  float depth;  // the voxel's nearest point: reversed-Z in a perspective view, standard Z in an orthographic one
   bool visible; // false: the vertex shader emits a degenerate rectangle
 };
 
@@ -214,6 +216,47 @@ SplatBounds PerspectiveSplatBounds(Box _box, ViewConstants _view)
   bounds.minNdc = minNdc;
   bounds.maxNdc = maxNdc;
   bounds.depth = PerspectiveDepth(_view, max(nearestViewDepth, _view.nearPlane));
+  bounds.visible = true;
+  return bounds;
+}
+
+// The box's exact half-extent along a view axis: |R^T| times the radius.
+float BoxExtent(Box _box, float3 _axis)
+{
+  return abs(dot(_box.axisX, _axis)) * _box.radius.x + abs(dot(_box.axisY, _axis)) * _box.radius.y +
+         abs(dot(_box.axisZ, _axis)) * _box.radius.z;
+}
+
+// The orthographic case of §9.2: exact extents, with the rectangle at the box's nearest point along the view.
+SplatBounds OrthographicSplatBounds(Box _box, ShadowViewConstants _view)
+{
+  SplatBounds bounds;
+  bounds.minNdc = float2(0.0, 0.0);
+  bounds.maxNdc = float2(0.0, 0.0);
+  bounds.depth = 0.0;
+  bounds.visible = false;
+
+  float3 offset = _box.center - _view.origin;
+  float x = dot(offset, _view.right);
+  float y = dot(offset, _view.up);
+  float depth = dot(offset, _view.forward);
+  float extentX = BoxExtent(_box, _view.right);
+  float extentY = BoxExtent(_box, _view.up);
+  float extentDepth = BoxExtent(_box, _view.forward);
+  if (depth + extentDepth < 0.0 || depth - extentDepth > _view.depthRange)
+  {
+    return bounds;
+  }
+
+  float2 minNdc = float2((x - extentX) / _view.halfWidth, (y - extentY) / _view.halfHeight);
+  float2 maxNdc = float2((x + extentX) / _view.halfWidth, (y + extentY) / _view.halfHeight);
+  if (!ClampAndGrow(minNdc, maxNdc, _view.widthPixels, _view.heightPixels))
+  {
+    return bounds;
+  }
+  bounds.minNdc = minNdc;
+  bounds.maxNdc = maxNdc;
+  bounds.depth = OrthographicDepth(_view, max(depth - extentDepth, 0.0));
   bounds.visible = true;
   return bounds;
 }

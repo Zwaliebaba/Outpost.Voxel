@@ -46,10 +46,10 @@ public:
   {
     for (std::uint32_t view = 0; view < NeuronCore::DEBUG_VIEW_COUNT; ++view)
     {
-      AreEqualFloat3({0.0f, 0.0f, 0.0f},
-                     NeuronCore::DebugViewColor(static_cast<DebugView>(view), NeuronCore::NO_VOXEL, {0.0f, 0.0f, 1.0f}, {0.5f, 0.25f, 1.0f},
-                                                {0.0f, 0.0f, -1.0f}),
-                     L"a pixel no voxel covers");
+      AreEqualFloat3(
+        {0.0f, 0.0f, 0.0f},
+        NeuronCore::DebugViewColor(static_cast<DebugView>(view), NeuronCore::NO_VOXEL, {0.0f, 0.0f, 1.0f}, {0.5f, 0.25f, 1.0f}),
+        L"a pixel no voxel covers");
     }
   }
 
@@ -57,21 +57,41 @@ public:
   {
     const Float3 normal{0.0f, -1.0f, 0.0f};
     const Float3 albedo{0.5f, 0.25f, 1.0f};
-    const Float3 forward{0.0f, 1.0f, 0.0f};
-    AreEqualFloat3(albedo, NeuronCore::DebugViewColor(DebugView::Albedo, 7u, normal, albedo, forward), L"albedo");
-    AreEqualFloat3({0.5f, 0.0f, 0.5f}, NeuronCore::DebugViewColor(DebugView::Normal, 7u, normal, albedo, forward), L"normal");
-
-    // A face turned to the camera gets the whole headlight, and one turned away only the quarter that stands in for
-    // ambient light.
-    AreEqualFloat3(albedo, NeuronCore::DebugViewColor(DebugView::Headlight, 7u, normal, albedo, forward), L"facing the camera");
-    AreEqualFloat3(albedo * 0.25f, NeuronCore::DebugViewColor(DebugView::Headlight, 7u, {0.0f, 1.0f, 0.0f}, albedo, forward),
-                   L"facing away");
+    AreEqualFloat3(albedo, NeuronCore::DebugViewColor(DebugView::Albedo, 7u, normal, albedo), L"albedo");
+    AreEqualFloat3({0.5f, 0.0f, 0.5f}, NeuronCore::DebugViewColor(DebugView::Normal, 7u, normal, albedo), L"normal");
 
     const std::uint32_t hash = NeuronCore::PcgHash(7u);
     const Float3 expected =
       Float3{static_cast<float>(hash & 0xFFu), static_cast<float>((hash >> 8u) & 0xFFu), static_cast<float>((hash >> 16u) & 0xFFu)} /
       Float3{255.0f, 255.0f, 255.0f};
-    AreEqualFloat3(expected, NeuronCore::DebugViewColor(DebugView::VoxelIndex, 7u, normal, albedo, forward), L"voxel index");
+    AreEqualFloat3(expected, NeuronCore::DebugViewColor(DebugView::VoxelIndex, 7u, normal, albedo), L"voxel index");
+
+    // The shadow map is not the visibility buffer's to show: its view comes from ShadowMapViewColor.
+    AreEqualFloat3({0.0f, 0.0f, 0.0f}, NeuronCore::DebugViewColor(DebugView::ShadowMap, 7u, normal, albedo), L"shadow map");
+    AreEqualFloat3({0.25f, 0.25f, 0.25f}, NeuronCore::ShadowMapViewColor(0.25f), L"a depth as gray");
+  }
+
+  // The map as a square as tall as the view, in the middle of a 16:9 view: the first and last pixels of the square reach
+  // the first and last texels, and the bands either side show nothing.
+  TEST_METHOD(ShowsTheShadowMapAsACenteredSquare)
+  {
+    std::uint32_t texelX = 0;
+    std::uint32_t texelY = 0;
+    Assert::IsFalse(NeuronCore::ShadowMapViewTexel(419, 500, 1920, 1080, 4096, 4096, texelX, texelY), L"left of the square");
+    Assert::IsFalse(NeuronCore::ShadowMapViewTexel(1500, 500, 1920, 1080, 4096, 4096, texelX, texelY), L"right of the square");
+
+    Assert::IsTrue(NeuronCore::ShadowMapViewTexel(420, 0, 1920, 1080, 4096, 4096, texelX, texelY), L"the first pixel");
+    Assert::AreEqual(1u, texelX, L"the texel under its centre, 0.5 × 4096 / 1080");
+    Assert::AreEqual(1u, texelY);
+    Assert::IsTrue(NeuronCore::ShadowMapViewTexel(1499, 1079, 1920, 1080, 4096, 4096, texelX, texelY), L"the last pixel");
+    Assert::AreEqual(4094u, texelX, L"1079.5 × 4096 / 1080");
+    Assert::AreEqual(4094u, texelY);
+
+    // A tall view centres the square vertically instead.
+    Assert::IsFalse(NeuronCore::ShadowMapViewTexel(50, 49, 100, 300, 4096, 4096, texelX, texelY), L"above the square");
+    Assert::IsTrue(NeuronCore::ShadowMapViewTexel(50, 150, 100, 300, 4096, 4096, texelX, texelY), L"the square's middle pixel");
+    Assert::AreEqual(2068u, texelX, L"50.5 × 4096 / 100");
+    Assert::AreEqual(2068u, texelY, L"the square starts 100 rows down");
   }
 
   // The exact sRGB curve: linear below 0.04045, a 2.4 power above, and the ends exact.

@@ -1,8 +1,9 @@
 #pragma once
 
-// The splat pass (Design/SampleRenderer.md §9). SplatVertex bounds each voxel's projection with a screen-space rectangle,
-// and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth, index and
-// normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC; the view splat is the aligned perspective permutation.
+// The splat pass (Design/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
+// rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
+// and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
+// aligned perspective permutation, the shadow splat the aligned orthographic one.
 
 #ifndef ORIENTED
 #   error "the entry-point file sets ORIENTED"
@@ -13,22 +14,25 @@
 #if ORIENTED
 #   error "the oriented permutation lands with the explosion (M4)"
 #endif
-#if ORTHOGRAPHIC
-#   error "the orthographic permutation lands with the shadow pass (M3)"
-#endif
 
 // Every ray the pass casts starts outside the box it tests (§9.3).
 #define CAN_START_IN_BOX 0
 
 #include "InstanceConstants.hlsli"
+#include "OrthographicView.hlsli"
 #include "Packing.hlsli"
 #include "PerspectiveView.hlsli"
 #include "Ray.hlsli"
 #include "RayBox.hlsli"
+#include "ShadowViewConstants.hlsli"
 #include "SplatBounds.hlsli"
 #include "ViewConstants.hlsli"
 
+#if ORTHOGRAPHIC
+ConstantBuffer<ShadowViewConstants> g_view : register(b0);
+#else
 ConstantBuffer<ViewConstants> g_view : register(b0);
+#endif
 ConstantBuffer<InstanceConstants> g_instance : register(b1);
 StructuredBuffer<uint> g_records : register(t0);
 
@@ -43,11 +47,19 @@ struct SplatVaryings
   nointerpolation uint voxel : VOXEL;
 };
 
+#if ORTHOGRAPHIC
+// The shadow splat writes depth alone, standard Z, and has no render target (§10).
+struct SplatTargets
+{
+  float depth : SV_DepthGreaterEqual;
+};
+#else
 struct SplatTargets
 {
   uint2 visibility : SV_Target0;
   float depth : SV_DepthLessEqual;
 };
+#endif
 
 // The box an intact voxel is drawn as. The C++ twin is VoxelBox in NeuronCore/VoxModel.h (R15).
 Box VoxelBox(uint _voxel)
@@ -71,7 +83,11 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
     return varyings;
   }
   uint voxel = g_instance.firstRecord + local;
+#if ORTHOGRAPHIC
+  SplatBounds bounds = OrthographicSplatBounds(VoxelBox(voxel), g_view);
+#else
   SplatBounds bounds = PerspectiveSplatBounds(VoxelBox(voxel), g_view);
+#endif
   if (!bounds.visible)
   {
     return varyings;
@@ -84,6 +100,25 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   return varyings;
 }
 
+#if ORTHOGRAPHIC
+// §10: the ray from the pixel's centre on the sun's near plane against the voxel's box. The written depth can only move
+// away from the sun, which in standard Z is larger, so it stays within the promise SV_DepthGreaterEqual makes; max()
+// keeps a rounding error from breaking it.
+SplatTargets SplatPixel(SplatVaryings _varyings)
+{
+  Ray ray = OrthographicRay(g_view, _varyings.position.xy);
+  float distance = 0.0;
+  float3 normal = float3(0.0, 0.0, 0.0);
+  bool hit = IntersectBox(VoxelBox(_varyings.voxel), ray.origin, ray.direction, InverseDirection(ray), distance, normal);
+  if (!hit || distance < 0.0)
+  {
+    discard;
+  }
+  SplatTargets targets;
+  targets.depth = max(OrthographicDepth(g_view, distance), _varyings.position.z);
+  return targets;
+}
+#else
 // §9.3: the ray through the pixel's centre against the voxel's box. The written depth can only move away from the
 // camera, so it stays within the promise SV_DepthLessEqual makes; min() keeps a rounding error from breaking it.
 SplatTargets SplatPixel(SplatVaryings _varyings)
@@ -101,3 +136,4 @@ SplatTargets SplatPixel(SplatVaryings _varyings)
   targets.depth = min(PerspectiveDepth(g_view, distance), _varyings.position.z);
   return targets;
 }
+#endif

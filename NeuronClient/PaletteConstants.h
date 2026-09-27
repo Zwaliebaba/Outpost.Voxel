@@ -11,7 +11,7 @@ namespace NeuronClient
 {
 
 // One palette entry as the shaders read it (Design/SampleRenderer.md §7.2): linear albedo, and the scale that turns it
-// into emitted light. The emissive scale is the lighting's to define (M3, D12); until then it is zero.
+// into emitted light, NeuronCore::EmissiveScale's reading of the file's _emit and _flux (Design/ADR/ADR-008).
 struct PaletteMaterial
 {
   NeuronCore::Float3 albedo;
@@ -31,7 +31,7 @@ static_assert(offsetof(PaletteMaterial, emissiveScale) == 12);
 static_assert(sizeof(PaletteConstants) == 256);
 static_assert(offsetof(PaletteConstants, materials) == 0);
 
-// The file's sRGB bytes as linear albedo, by the exact curve.
+// The file's sRGB bytes as linear albedo, by the exact curve, and each entry's emissive scale.
 [[nodiscard]] PaletteConstants
 MakePaletteConstants(const std::array<NeuronCore::PaletteEntry, NeuronCore::PALETTE_ENTRY_COUNT>& _palette) noexcept;
 
