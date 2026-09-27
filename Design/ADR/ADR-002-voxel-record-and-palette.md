@@ -24,7 +24,7 @@ The design fixes the shape of a voxel on the GPU (§7.1, D5) and the owner fixed
 |---|---|
 | `NotAVoxFile` | the magic is not `VOX `, or the first chunk is not `MAIN` |
 | `UnsupportedVersion` | the version is neither 150 nor 200 |
-| `Truncated` | a chunk runs past the end of the data that holds it |
+| `Truncated` | a chunk header is cut short or gives a negative size, or a chunk runs past the end of the data that holds it |
 | `MalformedChunk` | a size or count disagrees with its chunk: content in `MAIN` or bytes after it, a `SIZE` without an `XYZI` or the reverse, a count the content cannot hold or does not fill, a palette that is not 256 entries, a `_t` that is not three integers, an `_emit` or `_flux` that is not a number |
 | `ModelTooLarge` | a model dimension exceeds 256 |
 | `VoxelOutOfBounds` | a voxel lies outside its model's `SIZE` |
