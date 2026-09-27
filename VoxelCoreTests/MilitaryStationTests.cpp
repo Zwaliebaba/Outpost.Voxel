@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -36,30 +37,36 @@ constexpr Int3 MODEL_SIZE{207, 228, 255};
 constexpr Int3 MODEL_ORIGIN{-103, -114, 0}; // the translation 0 0 127, minus floor(size / 2)
 constexpr std::uint32_t VOXEL_COUNT = 225048;
 
+// _relative in _start or the nearest directory above it that holds it.
+[[nodiscard]] std::optional<std::filesystem::path> FindAbove(const std::filesystem::path& _start, const std::filesystem::path& _relative)
+{
+  for (std::filesystem::path directory = _start; !directory.empty(); directory = directory.parent_path())
+  {
+    if (std::filesystem::exists(directory / _relative))
+    {
+      return directory / _relative;
+    }
+    if (directory == directory.parent_path())
+    {
+      break;
+    }
+  }
+  return std::nullopt;
+}
+
 // Where the tests look for the repository's copy of the asset: above the working directory, which is the repository
 // root under CI and the output directory under Test Explorer, then above this source file. A missing asset fails the
 // test rather than skipping it.
 [[nodiscard]] std::filesystem::path FindMilitaryStation()
 {
   const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.vox";
-  const std::array<std::filesystem::path, 2> starts{std::filesystem::current_path(),
-                                                    std::filesystem::path(std::source_location::current().file_name()).parent_path()};
-  for (const std::filesystem::path& start : starts)
+  std::optional<std::filesystem::path> found = FindAbove(std::filesystem::current_path(), relative);
+  if (!found)
   {
-    for (std::filesystem::path directory = start; !directory.empty(); directory = directory.parent_path())
-    {
-      if (std::filesystem::exists(directory / relative))
-      {
-        return directory / relative;
-      }
-      if (directory == directory.parent_path())
-      {
-        break;
-      }
-    }
+    found = FindAbove(std::filesystem::path(std::source_location::current().file_name()).parent_path(), relative);
   }
-  Assert::Fail(L"GameData/MilitaryStation.vox is not above the working directory or the test sources");
-  return {};
+  Assert::IsTrue(found.has_value(), L"GameData/MilitaryStation.vox is not above the working directory or the test sources");
+  return found.value_or(std::filesystem::path());
 }
 
 [[nodiscard]] VoxelCore::VoxModel LoadMilitaryStation()
@@ -82,16 +89,14 @@ void AreEqualInt3(Int3 _expected, Int3 _actual, const wchar_t* _what)
 
 [[nodiscard]] const VoxelCore::VoxAttributes& RenderObject(const VoxelCore::VoxModel& _model, std::string_view _type)
 {
-  for (const VoxelCore::VoxAttributes& attributes : _model.renderObjects)
-  {
-    const auto type = attributes.find("_type");
-    if (type != attributes.end() && type->second == _type)
-    {
-      return attributes;
-    }
-  }
-  Assert::Fail(std::format(L"no rOBJ of type {}", std::wstring(_type.begin(), _type.end())).c_str());
-  return _model.renderObjects.front();
+  const auto found = std::ranges::find_if(_model.renderObjects,
+                                          [_type](const VoxelCore::VoxAttributes& _attributes)
+                                          {
+                                            const auto type = _attributes.find("_type");
+                                            return type != _attributes.end() && type->second == _type;
+                                          });
+  Assert::IsTrue(found != _model.renderObjects.end(), std::format(L"no rOBJ of type {}", std::wstring(_type.begin(), _type.end())).c_str());
+  return *found;
 }
 
 void ExpectAttribute(const VoxelCore::VoxAttributes& _attributes, std::string_view _key, std::string_view _value)
