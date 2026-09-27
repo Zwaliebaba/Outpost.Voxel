@@ -9,6 +9,7 @@
 #include <fstream>
 #include <optional>
 #include <set>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -119,13 +120,17 @@ struct Chunk
   std::span<const std::uint8_t> children;
 };
 
+// A transform keeps only the two attributes placement reads, unparsed, so that nothing of a hidden node is parsed. It
+// does not keep its frame's dictionary: moving an MSVC std::map can allocate, and so throw, and a move that can throw
+// is one clang-tidy's bugprone-exception-escape refuses.
 struct TransformNode
 {
   std::int32_t child;
   std::int32_t layer;
   bool hidden;
   std::size_t frameCount;
-  VoxAttributes frame; // the first frame, which holds _t and _r
+  std::optional<std::string> translation; // the first frame's _t
+  std::optional<std::string> rotation;    // the first frame's _r
 };
 
 struct GroupNode
@@ -182,6 +187,12 @@ struct SceneParts
 {
   const auto hidden = _attributes.find("_hidden");
   return hidden != _attributes.end() && hidden->second == "1";
+}
+
+[[nodiscard]] std::optional<std::string> Attribute(const VoxAttributes& _attributes, std::string_view _key)
+{
+  const auto found = _attributes.find(_key);
+  return found != _attributes.end() ? std::optional<std::string>(found->second) : std::nullopt;
 }
 
 [[nodiscard]] std::optional<float> ParseFloat(std::string_view _text) noexcept
@@ -366,10 +377,11 @@ struct SceneParts
   node.frameCount = reader.Count(4);
   for (std::size_t i = 0; i < node.frameCount && !reader.Failed(); ++i)
   {
-    VoxAttributes frame = reader.Attributes();
+    const VoxAttributes frame = reader.Attributes();
     if (i == 0)
     {
-      node.frame = std::move(frame);
+      node.translation = Attribute(frame, "_t");
+      node.rotation = Attribute(frame, "_r");
     }
   }
   if (!reader.Exhausted())
@@ -528,14 +540,14 @@ struct Placement
     {
       return std::unexpected(VoxError::UnsupportedAnimation);
     }
-    if (const auto rotation = node.frame.find("_r"); rotation != node.frame.end() && rotation->second != IDENTITY_ROTATION)
+    if (node.rotation && *node.rotation != IDENTITY_ROTATION)
     {
       return std::unexpected(VoxError::UnsupportedRotation);
     }
     Int3 translation = _translation;
-    if (const auto offset = node.frame.find("_t"); offset != node.frame.end())
+    if (node.translation)
     {
-      const std::optional<Int3> parsed = ParseTranslation(offset->second);
+      const std::optional<Int3> parsed = ParseTranslation(*node.translation);
       if (!parsed)
       {
         return std::unexpected(VoxError::MalformedChunk);
