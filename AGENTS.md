@@ -160,7 +160,7 @@ Everything builds to `x64\<Configuration>\` at the root, which is where CI looks
 
 **A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`** in the same commit that creates it. A project missing from that list has headers that nothing checks.
 
-**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, and anything a build step generates.
+**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, the restored NuGet packages in `packages/`, and anything a build step generates.
 
 ---
 
@@ -179,6 +179,9 @@ That alignment matters more than it looks, because **CI builds Debug only** (§6
 **Build through the solution, never a `.vcxproj` directly.** Output paths and cross-project include directories are anchored on `$(SolutionDir)`, and MSBuild defines `SolutionDir` only for a solution build. Building a project file directly resolves every one of those paths against the *project* folder instead of the repository root. **It does not fail — that is the problem.** Output lands in the wrong folder, so the next solution build links against whichever copy is staler, and every cross-project include path becomes a directory that does not exist. The breakage is latent: it bites the first time a file reaches across projects, which may be weeks after someone got into the habit. To build one project, use `/t:<ProjectName>` on the solution.
 
 ```powershell
+# NuGet packages, after a fresh clone or a package change. Visual Studio restores them when it builds.
+msbuild Outpost.Voxel.slnx /t:Restore /p:RestorePackagesConfig=true /nologo /v:minimal
+
 # Everything, from the repository root, naming the solution.
 msbuild Outpost.Voxel.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /nologo
 
@@ -248,7 +251,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **The checkers are part of the build.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on. Each prints what it checked and exits non-zero on a finding; run them before you push, and extend one rather than working around it.
 
-**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
 **CI does not build Release.** The Windows build is the slow half of the pipeline and a second configuration roughly doubles it for a tree where the two differ only in optimisation. What stands in for it is the static alignment check on the two configurations (§3) — and, before a release, an actual `Configuration=Release` build by whoever is shipping. If you change something that could plausibly break only under optimisation, build Release yourself and say so.
 

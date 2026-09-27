@@ -139,6 +139,17 @@ jobs:
         shell: pwsh
         run: python Build\CheckProjectFiles.py
 
+      # Visual Studio restores NuGet packages when it builds; a command-line build has to ask, and a
+      # packages.config project is restored only when RestorePackagesConfig says so. A step of its own,
+      # because restore and build evaluate the projects under different properties and NuGet warns
+      # against running both as targets of one invocation. It fails on an error; its warnings are about
+      # package sources and project styles, not the code, and are not promoted.
+      - name: Restore the NuGet packages
+        shell: pwsh
+        run: |
+          msbuild "${{ steps.solution.outputs.path }}" /t:Restore /p:RestorePackagesConfig=true `
+            /p:Configuration=$env:CONFIGURATION /p:Platform=$env:PLATFORM /nologo /v:minimal
+
       # /warnaserror covers MSBuild's own warnings; /WX for the compiler is set in the projects.
       - name: Build
         shell: pwsh

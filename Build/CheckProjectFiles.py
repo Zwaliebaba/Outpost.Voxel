@@ -173,6 +173,10 @@ class Project:
 
 
 CONDITION = re.compile(r"^\s*'\$\(Configuration\)\|\$\(Platform\)'\s*==\s*'([^']+)'\s*$")
+# NuGet imports a package's targets only if the file is there: <Import Project="X" Condition="Exists('X')" />. The
+# test comes out the same in both configurations, so it cannot set them apart; a package that was never restored
+# fails the build from the EnsureNuGetPackageBuildImports target NuGet writes beside the import.
+IMPORT_GUARD = re.compile(r"^\s*exists\s*\(\s*'([^']+)'\s*\)\s*$", re.IGNORECASE)
 
 
 def resolve_item_path(project, include):
@@ -194,6 +198,9 @@ def resolve_item_path(project, include):
 def configurations_of(element, inherited, project, findings):
   condition = element.get('Condition')
   if condition is None:
+    return inherited
+  guard = IMPORT_GUARD.match(condition)
+  if guard and local_name(element.tag) == 'Import' and guard.group(1) == element.get('Project'):
     return inherited
   match = CONDITION.match(condition)
   if not match:

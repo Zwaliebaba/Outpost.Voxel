@@ -115,6 +115,8 @@ It deliberately does not use:
 - any vendor extension;
 - the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships.
 
+One package comes from outside the SDK: WinPixEventRuntime, with which a program names the regions of a frame for PIX. The owner added it to the client engine, and no code calls it yet (ADR-004).
+
 Shaders are compiled at build time by MSBuild's `FxCompile`, which switches to `dxc.exe` when a Shader Model 6 profile is selected, into headers embedded in the binary. Their flags are identical in Debug and Release, because `AGENTS.md` §3 allows the two configurations exactly four differences: optimised, debug information embedded for PIX, warnings as errors. The port in §9.4 uses only scalar conditions, so it compiles identically under HLSL 2018 and 2021, whichever the SDK's `dxc.exe` defaults to.
 
 At start-up the application enumerates adapters in high-performance order, creates the device at 12_1, and requires `D3D12_FEATURE_SHADER_MODEL` ≥ 6.0. Otherwise it refuses, with a message that names the adapter and what it lacks. `--warp` selects WARP.
@@ -359,7 +361,7 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 **Permutations.** At *t* = 0 every rotation is the identity, and the axis-aligned permutation draws. For *t* > 0 the oriented one does. The two must agree at *t* = 0 (§14).
 
-**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-006.
+**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-007.
 
 ## 13. Application
 
@@ -419,9 +421,9 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 |---|---|---|
 | M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
 | M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
-| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003, ADR-004, ADR-005 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
+| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
 | M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-006 | Explosion tests green; the owner has detonated and reassembled the station |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-007 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
@@ -462,9 +464,10 @@ Each expected ADR lands in the commit that implements it:
 - ADR-001, repository layout (M0);
 - ADR-002, voxel record and palette (M1);
 - ADR-003, engine and game layout (M2), which supersedes ADR-001's project layout;
-- ADR-004, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
-- ADR-005, depth conventions (M2);
-- ADR-006, explosion motion model and its defaults (M4).
+- ADR-004, PIX event runtime (M2), recorded after the owner added the package on `main`;
+- ADR-005, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
+- ADR-006, depth conventions (M2);
+- ADR-007, explosion motion model and its defaults (M4).
 
 ## 18. References
 

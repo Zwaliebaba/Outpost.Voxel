@@ -8,7 +8,7 @@
 CI runs it in its own Linux job on a pinned clang-format (AGENTS.md §4, §6): 18.1.3 exactly, because releases
 disagree about where a long argument list breaks. The script prints the version it used and says so when it is not
 the pinned one; if a local run disagrees with CI, compare that line first. HLSL is not checked yet: whether
-clang-format formats it acceptably is decided when the first shader lands (Design/SampleRenderer.md, ADR-004).
+clang-format formats it acceptably is decided when the first shader lands (Design/SampleRenderer.md, ADR-005).
 """
 
 import argparse
