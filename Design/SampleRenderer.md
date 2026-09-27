@@ -22,7 +22,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D8 | Reversed-Z with an infinite far plane; conservative depth output through `SV_DepthLessEqual`. | §7.5, §9.3 |
 | D9 | Shader Model 6.0, compiled by DXC at build time. No third-party code. | §5 |
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
-| D11 | Rendering is 1:1 at the window's size; the default window is 1920 × 1080, and `--bench` always renders at 1920 × 1080. | §13; owner's display, 2026-09-27 |
+| D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
 
 ## 2. Scope
@@ -94,6 +94,7 @@ The intersection (Listing 5) moves the ray into the box's frame and picks the th
 9. **Stochastic pruning** (Listing 3) is left out. It gained 1.2× at 53 million voxels; at 225,048 there is nothing to gain, and it trades temporal stability for throughput.
 10. **Host-side frustum culling** of voxel objects is moot when there is a single object.
 11. **Output.** The paper shaded forward or into a G-buffer. We write a visibility buffer of voxel index and normal, the least that lets lighting run once per pixel — the paper's bandwidth argument applied to our own output.
+12. **Watertight seams.** Listing 5 tests the hit against each face with a strict inequality, so a ray that meets two neighbouring voxels exactly on their shared edge, or runs exactly in the plane between two layers, hits neither. A camera on an integer coordinate would see a line of background through the station, and a shadow map whose texel centres land on voxel edges would leak light; the GPU and the reference tracer agree on such pixels, so no comparison would catch it. The face tests include their edges instead (§9.4): a ray on a seam hits both neighbours, and the depth test keeps the one drawn first, the lower index. An isolated box's boundary now counts as part of the box, which changes its silhouette by nothing. The owner chose this on 2026-09-27.
 
 ## 5. Platform contract
 
@@ -114,6 +115,8 @@ It deliberately does not use:
 - any vendor extension;
 - the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships.
 
+One package comes from outside the SDK: WinPixEventRuntime, with which a program names the regions of a frame for PIX. The owner added it to the client engine, and no code calls it yet (ADR-004).
+
 Shaders are compiled at build time by MSBuild's `FxCompile`, which switches to `dxc.exe` when a Shader Model 6 profile is selected, into headers embedded in the binary. Their flags are identical in Debug and Release, because `AGENTS.md` §3 allows the two configurations exactly four differences: optimised, debug information embedded for PIX, warnings as errors. The port in §9.4 uses only scalar conditions, so it compiles identically under HLSL 2018 and 2021, whichever the SDK's `dxc.exe` defaults to.
 
 At start-up the application enumerates adapters in high-performance order, creates the device at 12_1, and requires `D3D12_FEATURE_SHADER_MODEL` ≥ 6.0. Otherwise it refuses, with a message that names the adapter and what it lacks. `--warp` selects WARP.
@@ -122,27 +125,30 @@ At start-up the application enumerates adapters in high-performance order, creat
 
 ### 6.1 Projects
 
-This layout is a proposal; ADR-001 settles it with the first project, as `AGENTS.md` §2 requires.
+ADR-001 settled the first layout with the first project. The owner then reshaped it into an engine and a game, split along the client/server line the game will grow into (ADR-003); `AGENTS.md` §2 maintains the table below.
 
 | Project | Kind | Namespace | Depends on | Holds |
 |---|---|---|---|---|
-| `VoxelCore` | static library | `VoxelCore` | — | `.vox` reader, voxel model, maths, the CPU twins (ray-box, bounds, pose, packing), reference tracer. No Windows or Direct3D headers. |
-| `VoxelRender` | static library | `VoxelRender` | `VoxelCore` | Device, resources, passes, shaders. Owns the single Windows include header of `AGENTS.md` §4. |
-| `VoxelSample` | Win32 application | `VoxelSample` | `VoxelRender`, `VoxelCore` | Window, input, camera, clock, command line. |
-| `VoxelCoreTests` | test DLL | `VoxelCoreTests` | `VoxelCore` | CPU tests. |
-| `VoxelRenderTests` | test DLL | `VoxelRenderTests` | `VoxelRender`, `VoxelCore` | GPU tests on WARP. |
+| `NeuronCore` | static library | `NeuronCore` | — | The engine core that client and server share: `.vox` reader, voxel model, maths, the CPU twins (ray-box, bounds, pose, packing), reference tracer. No Windows or Direct3D headers. |
+| `NeuronClient` | static library | `NeuronClient` | `NeuronCore` | The client engine: device, resources, passes and their shaders (in `Shader/`), window, input, clock. Owns the single Windows include header of `AGENTS.md` §4. |
+| `NeuronServer` | static library | `NeuronServer` | `NeuronCore` | The server engine; empty until the server has code of its own. |
+| `GameLogic` | static library | `GameLogic` | `NeuronServer`, `NeuronCore` | The game's rules on the server side; empty for now. |
+| `GameLib` | static library | `GameLib` | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
+| `Outpost` | Win32 application | `Outpost` | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: entry point and command line. The client, and until `Server.exe` splits off, the server process too. |
+| `NeuronCoreTests` | test DLL | `NeuronCoreTests` | `NeuronCore` | CPU tests. |
+| `NeuronClientTests` | test DLL | `NeuronClientTests` | `NeuronClient`, `NeuronCore` | GPU tests on WARP. |
 
-There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it. The test DLLs land at `x64\<Configuration>\<Project>.dll`, which is where the workflow's test step expects them. `.clang-tidy`'s `HeaderFilterRegex` gains `VoxelCore|VoxelRender|VoxelSample` in the commit that creates those projects. Dependency edges run one way. `VoxelCore` stays free of Windows and Direct3D so that the CPU twins share nothing with the GPU code they check except the algorithm. The build copies `GameData/MilitaryStation.vox` into the output directory, where the application and both test suites find it.
+There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it. The test DLLs land at `x64\<Configuration>\<Project>.dll`, which is where the workflow's test step expects them. `.clang-tidy`'s `HeaderFilterRegex` names every library and the application. Dependency edges run one way, and the client side and the server side never reference each other. `NeuronCore` stays free of Windows and Direct3D so that the CPU twins share nothing with the GPU code they check except the algorithm. The application's build copies `GameData/MilitaryStation.vox` into the output directory, beside `Outpost.exe`; the test suites look for it upward from their working directory, which finds that copy under Test Explorer and the repository's own under CI.
 
 ### 6.2 Shader sources
 
-HLSL lives flat in `VoxelRender`. A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
+HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
 
 ### 6.3 Data flow
 
 ```
 GameData/MilitaryStation.vox
-   │  VoxelCore reader: validate, place, pack
+   │  NeuronCore reader: validate, place, pack
    ▼
 voxel records, 225,048 × u32 · palette, 16 entries · frame constants (cameras, t)
    │
@@ -164,7 +170,7 @@ voxel records, 225,048 × u32 · palette, 16 entries · frame constants (cameras
 
 ### 7.1 Voxel records and the loader
 
-A voxel is one 32-bit record. Bits 0–23 hold x, y and z (8 bits each, model coordinates 0–255), bits 24–27 hold the palette entry minus one, and bits 28–31 are zero. The buffer is a `StructuredBuffer<uint>` of 900,192 bytes. `VoxelCore` owns the pack and unpack functions, and a `.hlsli` mirrors them. Widening a field is a format change (R14).
+A voxel is one 32-bit record. Bits 0–23 hold x, y and z (8 bits each, model coordinates 0–255), bits 24–27 hold the palette entry minus one, and bits 28–31 are zero. The buffer is a `StructuredBuffer<uint>` of 900,192 bytes. `NeuronCore` owns the pack and unpack functions, and a `.hlsli` mirrors them. Widening a field is a format change (R14).
 
 A model's placement travels in constants, not per voxel: with `modelOrigin` = *T* − ⌊*s*/2⌋, a voxel's centre is `modelOrigin` + (x, y, z) + 0.5.
 
@@ -186,7 +192,7 @@ The view pass writes `R32G32_UINT`: x is the voxel index (`0xFFFFFFFF` where no 
 
 ### 7.4 Constants shared with HLSL
 
-The C++ structs in `VoxelRender` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`. A compute shader includes the mirrors and copies every field of every struct into a UAV; a `VoxelRenderTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
+The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`. A compute shader includes the mirrors and copies every field of every struct into a UAV; a `NeuronClientTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
 
 ### 7.5 Coordinate conventions
 
@@ -251,7 +257,7 @@ Conservative depth lets a GPU keep hierarchical and early depth rejection even t
 
 ### 9.4 Listing 5 in HLSL
 
-This is the normative sketch; the C++ twin in `VoxelCore` is its line-for-line counterpart.
+This is the normative sketch; the C++ twin in `NeuronCore` is its line-for-line counterpart.
 
 ```hlsl
 // Majercik et al. 2018, Listing 5, in HLSL. ORIENTED and CAN_START_IN_BOX are 0/1 compile-time
@@ -302,10 +308,11 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
   d *= _invDirection;
 #endif
 
-  // Is each candidate hit in front of the origin and inside its face?
-  bool hitX = (d.x >= 0.0) && all(abs(origin.yz + direction.yz * d.x) < _box.radius.yz);
-  bool hitY = (d.y >= 0.0) && all(abs(origin.zx + direction.zx * d.y) < _box.radius.zx);
-  bool hitZ = (d.z >= 0.0) && all(abs(origin.xy + direction.xy * d.z) < _box.radius.xy);
+  // Is each candidate hit in front of the origin and on its face? The face includes its edges, so
+  // that a ray on the seam between two voxels hits both (§4.2, item 12); the paper's test is strict.
+  bool hitX = (d.x >= 0.0) && all(abs(origin.yz + direction.yz * d.x) <= _box.radius.yz);
+  bool hitY = (d.y >= 0.0) && all(abs(origin.zx + direction.zx * d.y) <= _box.radius.zx);
+  bool hitZ = (d.z >= 0.0) && all(abs(origin.xy + direction.xy * d.z) <= _box.radius.xy);
 
   // Keep exactly one axis, carrying the sign of the face normal.
   sgn = hitX ? float3(sgn.x, 0.0, 0.0) : (hitY ? float3(0.0, sgn.y, 0.0) : float3(0.0, 0.0, hitZ ? sgn.z : 0.0));
@@ -354,13 +361,13 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 **Permutations.** At *t* = 0 every rotation is the identity, and the axis-aligned permutation draws. For *t* > 0 the oriented one does. The two must agree at *t* = 0 (§14).
 
-**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-005.
+**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-007.
 
 ## 13. Application
 
-The application is a resizable Win32 window, Unicode and per-monitor DPI aware, with a flip-model swap chain of two buffers and a frame-latency waitable object; vsync is on by default.
+The application, `Outpost.exe`, is a Win32 window, Unicode and per-monitor DPI aware, with a flip-model swap chain of two buffers and a frame-latency waitable object; vsync is on by default.
 
-Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The default window has a 1920 × 1080 client area, shrunk to the largest 16:9 size that fits the monitor's work area — which on the owner's 1920 × 1080 display it always is, since the title bar and taskbar take room. Alt+Enter toggles borderless fullscreen at the monitor's resolution, which on that display is exactly the benchmark resolution. `--size WxH` overrides the window size. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
+Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The window is borderless fullscreen on the monitor it starts on, at that monitor's resolution, which on the owner's 1920 × 1080 display is exactly the benchmark resolution; the owner asked for this on 2026-09-27, with no key to leave it. A larger monitor therefore costs proportionally more per frame. `--size WxH` opens an ordinary window of that client size instead, for a debugger to sit beside. Alt+F4 closes the application. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
 
 At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
 
@@ -368,24 +375,24 @@ The camera orbits the model (left drag), pans (right drag), dollies (wheel) and 
 
 - E detonate, R reassemble, Space pause, +/− time scale;
 - 1–6 debug views, G ground, V vsync;
-- F1 key map.
+- F1 key map, Alt+F4 quit.
 
-The title bar carries the frame time, GPU milliseconds per pass, and `PSInvocations`. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, and `PSInvocations`; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
 
 Command line:
 
 - `--vox <path>` — the model; default `GameData\MilitaryStation.vox` beside the executable, copied there by the build;
 - `--size WxH` — the window's client size;
 - `--warp`, `--adapter <n>` — adapter choice;
-- `--d3d-debug` — the debug layer in Release (Debug builds always enable it);
+- `--d3d-debug` — the debug layer in Release. Debug builds always ask for it; where the Windows Graphics Tools that carry it are not installed, the window's title says so and the program runs without it;
 - `--gbv` — GPU-based validation;
 - `--bench <seconds>` — a fixed camera path and explosion timeline, with per-pass timings written to CSV.
 
-Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message naming the call and its `HRESULT`. DRED is enabled, so a device removal reports breadcrumbs and the faulting address.
+Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message giving its `HRESULT` and the file and line that checked it (`winrt::check_hresult`, `AGENTS.md` R12). DRED is enabled, so a device removal also reports breadcrumbs and the faulting address.
 
 ## 14. Verification
 
-`VoxelCoreTests` (CPU, deterministic) cover:
+`NeuronCoreTests` (CPU, deterministic) cover:
 
 - the reader, against synthetic in-memory files for every rule in §7.1, and against the real file, reproducing the counts, size, translation, palette and emissive entries of §3;
 - the ray-box twin, against a brute-force slab test with explicit face tracking, over seeded random boxes and rays, aligned and oriented, plus the edge cases: exactly-zero direction components, rays through edges and corners, and an origin inside the box (the documented wrong answer with `canStartInBox` false, the exit point with true);
@@ -393,7 +400,7 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 - pose: the rest pose at *t* = 0, continuity across contacts, no corner below the ground, a cube-symmetric rotation with the centre at z = 0.5 once *t* ≥ *T*rest, and identical results for identical inputs;
 - packing round trips for records and octahedral normals.
 
-`VoxelRenderTests` run on WARP at FL 12_1. If the device cannot be created, the suite fails; it does not skip. They cover:
+`NeuronClientTests` run on WARP at FL 12_1. If the device cannot be created, the suite fails; it does not skip. They cover:
 
 - the layout echo of §7.4;
 - the intact station from several fixed cameras at 161 × 91, with the visibility buffer read back and compared per pixel with the reference tracer — a 3D DDA through the dense grid that uses the ray-box twin per occupied cell. The odd resolution gives a level camera a whole row and column of rays with exactly-zero components (§4.2, item 6);
@@ -413,10 +420,10 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | | Delivers | Done when |
 |---|---|---|
 | M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
-| M1 | `VoxelCore`: reader, model, maths, CPU twins, reference tracer; ADR-002 | `VoxelCoreTests` green; §3's pinned figures reproduced |
-| M2 | Window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003, ADR-004 | `VoxelRenderTests` green on WARP in CI; the owner sees the station on hardware |
+| M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
+| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
 | M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-005 | Explosion tests green; the owner has detonated and reassembled the station |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-007 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
@@ -441,13 +448,15 @@ The owner answered the open questions on 2026-09-27:
 2. There is no comparison against MagicaVoxel renders (D12); M3 is accepted by eye.
 3. The loader rejects `.vox` features this file does not use, such as rotated nodes or more than 16 colours, by name (§7.1).
 4. The owner's display is 1920 × 1080, and the resolution policy of §13 (D11) applies.
+5. Seams are watertight: Listing 5's face tests include their edges (§4.2, item 12).
+6. The window is borderless fullscreen, with no key to leave it; `--size` still opens a window (§13, D11).
 
 ## 17. Conformance rules and expected ADRs
 
 `AGENTS.md` reserves R14 onward for rules with a design source. The owner accepted these four on 2026-09-27, and they are R14–R17 in `AGENTS.md`, which is where they are maintained:
 
 - **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per coordinate and four for colour (D5). Widening either is a format change and needs an ADR.
-- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `VoxelCore`, and a test compares the two.
+- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `NeuronCore`, and a test compares the two.
 - **R16 — Shared layouts have one source.** The C++ struct, with `static_assert`s on size and offsets, is the truth; its HLSL mirror is written once, in a `.hlsli`; the echo test proves they agree.
 - **R17 — HLSL follows §1.** A `.hlsl` file holds one entry point and nothing but switches and an include; algorithms live in `.hlsli` files; the naming table applies; semantics and intrinsics keep the SDK's spelling (`SV_Position`).
 
@@ -455,9 +464,11 @@ Each expected ADR lands in the commit that implements it:
 
 - ADR-001, repository layout (M0);
 - ADR-002, voxel record and palette (M1);
-- ADR-003, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
-- ADR-004, depth conventions (M2);
-- ADR-005, explosion motion model and its defaults (M4).
+- ADR-003, engine and game layout (M2), which supersedes ADR-001's project layout;
+- ADR-004, PIX event runtime (M2), recorded after the owner added the package on `main`;
+- ADR-005, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
+- ADR-006, depth conventions (M2);
+- ADR-007, explosion motion model and its defaults (M4).
 
 ## 18. References
 

@@ -2,7 +2,7 @@
 """Runs the pinned clang-tidy over every hand-written translation unit, with the switches its project sets.
 
   python Build/RunClangTidy.py                            # every .cpp in the tree
-  python Build/RunClangTidy.py VoxelCore/Foo.cpp          # only the files named
+  python Build/RunClangTidy.py NeuronCore/Foo.cpp          # only the files named
   python Build/RunClangTidy.py --dry-run                  # print the commands, run nothing
   python Build/RunClangTidy.py --configuration Release
 
@@ -67,18 +67,24 @@ def applies(element, configuration):
 
 
 def project_settings(vcxproj, configuration, source_name):
-  """ClCompile settings for one file in one configuration, plus the project's CharacterSet."""
+  """ClCompile settings for one file in one configuration, the project's CharacterSet, and the build-path macros its
+  settings may use: $(IntDir) is where the build writes generated headers, the shaders' among them (ADR-005)."""
   root = ET.parse(vcxproj).getroot()
   settings = {}
   character_set = None
+  macros = {'SolutionDir': str(ROOT) + os.sep, 'Configuration': configuration, 'Platform': 'x64',
+            'ProjectName': vcxproj.stem}
   for group in root:
     tag = local_name(group.tag)
     if not applies(group, configuration):
       continue
     if tag == 'PropertyGroup':
       for prop in group:
-        if local_name(prop.tag) == 'CharacterSet' and applies(prop, configuration):
+        name = local_name(prop.tag)
+        if name == 'CharacterSet' and applies(prop, configuration):
           character_set = (prop.text or '').strip()
+        elif name in ('IntDir', 'OutDir') and applies(prop, configuration):
+          macros[name] = (prop.text or '').strip()
     elif tag == 'ItemDefinitionGroup':
       for tool in group:
         if local_name(tool.tag) == 'ClCompile' and applies(tool, configuration):
@@ -91,14 +97,14 @@ def project_settings(vcxproj, configuration, source_name):
           for setting in item:
             if applies(setting, configuration):
               settings[local_name(setting.tag)] = (setting.text or '').strip()
-  return settings, character_set
+  return settings, character_set, macros
 
 
-def expand(entry, dry_run):
+def expand(entry, dry_run, macros):
   def replace(match):
     name = match.group(1)
-    if name == 'SolutionDir':
-      return str(ROOT) + os.sep
+    if name in macros:
+      return expand(macros[name], dry_run, {key: value for key, value in macros.items() if key != name})
     value = os.environ.get(name.upper())
     if value is None:
       if dry_run:
@@ -114,7 +120,7 @@ def switches_for(source, configuration, dry_run):
   vcxproj = ROOT / folder / f'{folder}.vcxproj'
   if not vcxproj.is_file():
     raise SystemExit(f'RunClangTidy: {source} has no project at {folder}/{folder}.vcxproj (AGENTS.md §2).')
-  settings, character_set = project_settings(vcxproj, configuration, PurePosixPath(source).name)
+  settings, character_set, macros = project_settings(vcxproj, configuration, PurePosixPath(source).name)
   settings.setdefault('ExceptionHandling', 'Sync')
 
   switches = ['--driver-mode=cl']
@@ -128,7 +134,7 @@ def switches_for(source, configuration, dry_run):
       for entry in value.split(';'):
         if not entry or entry.startswith('%('):
           continue
-        directory = os.path.normpath(expand(entry, dry_run))
+        directory = os.path.normpath(expand(entry, dry_run, macros).replace('\\', os.sep))
         inside = os.path.normcase(directory).startswith(os.path.normcase(str(ROOT)))
         switches += ['/I', directory] if inside else ['/imsvc', directory]
     elif name == 'AdditionalOptions':

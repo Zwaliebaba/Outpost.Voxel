@@ -126,7 +126,7 @@ private:
 | Rule | Enforced by |
 |---|---|
 | The naming table, R1, R3, R5, R8 | [`.clang-tidy`](.clang-tidy), gated in CI over the whole tree |
-| R2 affixes, R7 file names and project registration, R11 spellings, R17 HLSL files, §2 flat directories, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
+| R2 affixes, R7 file names and project registration, R11 spellings, R12's ban on WRL, R17 HLSL files, §2 directory shape, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
 | R4, R6, R9, R10 | Review. Check your own diff against the table before handing it back. |
 
 **Both checkers run in CI on every change** (§6): `Build/RunClangTidy.py` drives clang-tidy over every hand-written translation unit with the switches its project sets, and `Build/CheckProjectFiles.py` carries what clang-tidy cannot express. Run them yourself before you push (§3). A rule that one of them could carry and does not is a gap in the checker; close it in the change that finds it.
@@ -135,19 +135,24 @@ private:
 
 ## 2. Repository shape
 
-The layout was settled when the first project landed, and [ADR-001](Design/ADR/ADR-001-repository-layout.md) records why. One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
+The first layout was settled when the first project landed ([ADR-001](Design/ADR/ADR-001-repository-layout.md)); its present shape, an engine and a game split along the client/server line the game will grow into, is [ADR-003](Design/ADR/ADR-003-engine-and-game-layout.md). One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
 
 | Project | Kind | References | Holds |
 |---|---|---|---|
-| `VoxelCore` | static library | — | The `.vox` reader, the voxel model, maths, and the C++ twins of every GPU algorithm (R15). No Windows or Direct3D header. |
-| `VoxelRender` | static library | `VoxelCore` | Direct3D 12, passes and shaders. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
-| `VoxelSample` | Win32 application | `VoxelRender`, `VoxelCore` | Window, input, camera, clock, command line. |
-| `VoxelCoreTests` | test DLL | `VoxelCore` | CPU tests. |
-| `VoxelRenderTests` | test DLL | `VoxelRender`, `VoxelCore` | GPU tests on WARP. |
+| `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of every GPU algorithm (R15), the reference tracer. No Windows or Direct3D header. |
+| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, window, input, clock. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
+| `NeuronServer` | static library | `NeuronCore` | The server engine. Empty until the server has code of its own. |
+| `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side. Empty until the server has code of its own. |
+| `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
+| `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
+| `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
+| `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP. |
+
+**Engine below, game above, client and server apart.** The `Neuron*` libraries are the engine and know nothing of this game; `GameLib` and `GameLogic` are the game and build on them. The client side (`NeuronClient`, `GameLib`) and the server side (`NeuronServer`, `GameLogic`) never reference each other: what both need lives in `NeuronCore`, or, for the game, in a shared game library created when the first such type appears. `Outpost.exe` is the client and, until the two are separated, the server process too, so it links both sides; when the server moves into its own `Server.exe`, that executable takes `GameLogic` and `NeuronServer`, and the client keeps the rest. A project lists every static library it links as a reference, and puts another project's folder on its include path only if it references it.
 
 Everything builds to `x64\<Configuration>\` at the root, which is where CI looks for the test DLLs, with intermediates under `x64\<Configuration>\obj\<Project>\`. Adding a project changes this table and needs an ADR of its own, as the layout did. The constraints below hold for every project, present and future.
 
-**Project directories are flat.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter.
+**C++ is flat; shaders live in `Shader`.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter. The one subdirectory there is holds HLSL: shaders belong to the library that uses them and live in its `Shader` folder, `<Project>/Shader/`, beside no C++ (R17, ADR-003).
 
 **The edges run one way, and a layer never reaches sideways.** Library code is built on by application code and never the reverse (R9), and two libraries at the same level share what is below them rather than each other. An edge that only exists "for now" is an edge, and it is the one that will be impossible to remove later.
 
@@ -155,7 +160,7 @@ Everything builds to `x64\<Configuration>\` at the root, which is where CI looks
 
 **A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`** in the same commit that creates it. A project missing from that list has headers that nothing checks.
 
-**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, and anything a build step generates.
+**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, the restored NuGet packages in `packages/`, and anything a build step generates.
 
 ---
 
@@ -174,6 +179,9 @@ That alignment matters more than it looks, because **CI builds Debug only** (§6
 **Build through the solution, never a `.vcxproj` directly.** Output paths and cross-project include directories are anchored on `$(SolutionDir)`, and MSBuild defines `SolutionDir` only for a solution build. Building a project file directly resolves every one of those paths against the *project* folder instead of the repository root. **It does not fail — that is the problem.** Output lands in the wrong folder, so the next solution build links against whichever copy is staler, and every cross-project include path becomes a directory that does not exist. The breakage is latent: it bites the first time a file reaches across projects, which may be weeks after someone got into the habit. To build one project, use `/t:<ProjectName>` on the solution.
 
 ```powershell
+# NuGet packages, after a fresh clone or a package change. Visual Studio restores them when it builds.
+msbuild Outpost.Voxel.slnx /t:Restore /p:RestorePackagesConfig=true /nologo /v:minimal
+
 # Everything, from the repository root, naming the solution.
 msbuild Outpost.Voxel.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /nologo
 
@@ -206,7 +214,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 ## 4. Layout and formatting
 
-[`.clang-format`](.clang-format) is the authority for C++ layout: 2-space indent, 140 columns, Allman braces, pointer and reference bound left, includes never reordered. [`.editorconfig`](.editorconfig) covers everything clang-format does not — CRLF, UTF-8, final newline, trailing whitespace, and the non-C++ formats — and repeats the two numbers an editor needs before the first save.
+[`.clang-format`](.clang-format) is the authority for C++ layout: 2-space indent, 140 columns, Allman braces, pointer and reference bound left, includes never reordered. HLSL is laid out by the same file, as C++; the one construct clang-format misreads is a semantic after a function's parameter list, so an entry point returns a struct whose members carry the output semantics ([ADR-005](Design/ADR/ADR-005-shader-toolchain.md)). [`.editorconfig`](.editorconfig) covers everything clang-format does not — CRLF, UTF-8, final newline, trailing whitespace, and the non-C++ formats — and repeats the two numbers an editor needs before the first save.
 
 **This tree is formatted, and CI keeps it that way.** A whole-tree format check here is a no-op. Format what you write; if the check fires, run `--fix` and commit the result rather than arguing with it.
 
@@ -219,7 +227,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 ## 5. Rules for this codebase
 
-**R12 — Memory and resource lifetimes are plain C++.** `new`/`delete` where it must be, RAII everywhere, standard containers by default. COM objects are held in `Microsoft::WRL::ComPtr`; a raw `AddRef`/`Release` pair in new code is a defect, not a style. No pool, slab or free-list allocator without a decision recorded in `Design/ADR/`.
+**R12 — Memory and resource lifetimes are plain C++.** `new`/`delete` where it must be, RAII everywhere, standard containers by default. COM objects are held in `winrt::com_ptr` and Windows handles in `winrt::handle`, both from C++/WinRT's `<winrt/base.h>` in the Windows SDK. `Microsoft::WRL::ComPtr` is not used, and a raw `AddRef`/`Release` pair in new code is a defect, not a style. An `HRESULT` that means failure is checked with `winrt::check_hresult`, which throws `winrt::hresult_error` and hands C++/WinRT the file and line it was checked at; one the code expects and handles on the spot, such as the end of an enumeration or an optional feature that is absent, is tested with `FAILED` and handled there. `WindowsSdk.h` includes `<unknwn.h>` before `<winrt/base.h>`, which is what makes `com_ptr` work with classic COM interfaces such as `ID3D12Device`, and every program links `WindowsApp.lib`, which C++/WinRT needs. No pool, slab or free-list allocator without a decision recorded in `Design/ADR/`.
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
@@ -227,11 +235,11 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 
-**R15 — No algorithm exists only on the GPU.** Every algorithm a shader runs — the ray-box intersection, the screen-space bounds, the explosion pose, the packing — has a C++ twin in `VoxelCore` under the same name, and a test compares the two (design D10, §14). The twin is the reference; a shader that disagrees with it is the defect until shown otherwise.
+**R15 — No algorithm exists only on the GPU.** Every algorithm a shader runs — the ray-box intersection, the screen-space bounds, the explosion pose, the packing — has a C++ twin in `NeuronCore` under the same name, and a test compares the two (design D10, §14). The twin is the reference; a shader that disagrees with it is the defect until shown otherwise.
 
-**R16 — A layout shared with HLSL has one source.** The C++ struct is the truth, with `static_assert`s on its size and on every member's offset; its HLSL mirror is written once, in a `.hlsli`; and the echo test in `VoxelRenderTests` proves the two agree (design §7.4). Nothing else redeclares the layout.
+**R16 — A layout shared with HLSL has one source.** The C++ struct is the truth, with `static_assert`s on its size and on every member's offset; its HLSL mirror is written once, in a `.hlsli`; and the echo test in `NeuronClientTests` proves the two agree (design §7.4). Nothing else redeclares the layout.
 
-**R17 — HLSL follows §1.** A `.hlsl` file is one entry point: nothing but `#define` switches and exactly one `#include`. Algorithms live in `.hlsli` files. Both are PascalCase and flat in their project's folder; `.hlsl` is built as `FxCompile` and `.hlsli` is listed as `None`. The naming table of §1 applies to HLSL identifiers, and semantics and intrinsics keep the SDK's spelling (`SV_Position`, `SampleCmpLevelZero`) (design §6.2). `Build/CheckProjectFiles.py` enforces the files; review enforces the names.
+**R17 — HLSL follows §1.** A `.hlsl` file is one entry point: nothing but `#define` switches and exactly one `#include`. Algorithms live in `.hlsli` files. Both are PascalCase and live in the `Shader` folder of the library that uses them (§2); `.hlsl` is built as `FxCompile` and `.hlsli` is listed as `None`. The naming table of §1 applies to HLSL identifiers, and semantics and intrinsics keep the SDK's spelling (`SV_Position`, `SampleCmpLevelZero`) (design §6.2). `Build/CheckProjectFiles.py` enforces the files; review enforces the names.
 
 ---
 
@@ -243,7 +251,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **The checkers are part of the build.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on. Each prints what it checked and exits non-zero on a finding; run them before you push, and extend one rather than working around it.
 
-**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
 **CI does not build Release.** The Windows build is the slow half of the pipeline and a second configuration roughly doubles it for a tree where the two differ only in optimisation. What stands in for it is the static alignment check on the two configurations (§3) — and, before a release, an actual `Configuration=Release` build by whoever is shipping. If you change something that could plausibly break only under optimisation, build Release yourself and say so.
 
