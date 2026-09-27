@@ -22,7 +22,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D8 | Reversed-Z with an infinite far plane; conservative depth output through `SV_DepthLessEqual`. | §7.5, §9.3 |
 | D9 | Shader Model 6.0, compiled by DXC at build time. No third-party code. | §5 |
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
-| D11 | Rendering is 1:1 at the window's size; the default window is 1920 × 1080, and `--bench` always renders at 1920 × 1080. | §13; owner's display, 2026-09-27 |
+| D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
 
 ## 2. Scope
@@ -365,9 +365,9 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 ## 13. Application
 
-The application, `Outpost.exe`, is a resizable Win32 window, Unicode and per-monitor DPI aware, with a flip-model swap chain of two buffers and a frame-latency waitable object; vsync is on by default.
+The application, `Outpost.exe`, is a Win32 window, Unicode and per-monitor DPI aware, with a flip-model swap chain of two buffers and a frame-latency waitable object; vsync is on by default.
 
-Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The default window has a 1920 × 1080 client area, shrunk to the largest 16:9 size that fits the monitor's work area — which on the owner's 1920 × 1080 display it always is, since the title bar and taskbar take room. Alt+Enter toggles borderless fullscreen at the monitor's resolution, which on that display is exactly the benchmark resolution. `--size WxH` overrides the window size. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
+Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The window is borderless fullscreen on the monitor it starts on, at that monitor's resolution, which on the owner's 1920 × 1080 display is exactly the benchmark resolution; the owner asked for this on 2026-09-27, with no key to leave it. A larger monitor therefore costs proportionally more per frame. `--size WxH` opens an ordinary window of that client size instead, for a debugger to sit beside. Alt+F4 closes the application. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
 
 At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
 
@@ -375,20 +375,20 @@ The camera orbits the model (left drag), pans (right drag), dollies (wheel) and 
 
 - E detonate, R reassemble, Space pause, +/− time scale;
 - 1–6 debug views, G ground, V vsync;
-- F1 key map.
+- F1 key map, Alt+F4 quit.
 
-The title bar carries the frame time, GPU milliseconds per pass, and `PSInvocations`. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, and `PSInvocations`; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
 
 Command line:
 
 - `--vox <path>` — the model; default `GameData\MilitaryStation.vox` beside the executable, copied there by the build;
 - `--size WxH` — the window's client size;
 - `--warp`, `--adapter <n>` — adapter choice;
-- `--d3d-debug` — the debug layer in Release (Debug builds always enable it);
+- `--d3d-debug` — the debug layer in Release. Debug builds always ask for it; where the Windows Graphics Tools that carry it are not installed, the window's title says so and the program runs without it;
 - `--gbv` — GPU-based validation;
 - `--bench <seconds>` — a fixed camera path and explosion timeline, with per-pass timings written to CSV.
 
-Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message naming the call and its `HRESULT`. DRED is enabled, so a device removal reports breadcrumbs and the faulting address.
+Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message giving its `HRESULT` and the file and line that checked it (`winrt::check_hresult`, `AGENTS.md` R12). DRED is enabled, so a device removal also reports breadcrumbs and the faulting address.
 
 ## 14. Verification
 
@@ -449,6 +449,7 @@ The owner answered the open questions on 2026-09-27:
 3. The loader rejects `.vox` features this file does not use, such as rotated nodes or more than 16 colours, by name (§7.1).
 4. The owner's display is 1920 × 1080, and the resolution policy of §13 (D11) applies.
 5. Seams are watertight: Listing 5's face tests include their edges (§4.2, item 12).
+6. The window is borderless fullscreen, with no key to leave it; `--size` still opens a window (§13, D11).
 
 ## 17. Conformance rules and expected ADRs
 
