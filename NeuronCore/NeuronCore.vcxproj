@@ -90,7 +90,9 @@
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
+    <ClInclude Include="Explosion.h" />
     <ClInclude Include="Float3.h" />
+    <ClInclude Include="Hash.h" />
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="OctahedralNormal.h" />
     <ClInclude Include="OrthographicView.h" />
@@ -108,6 +110,7 @@
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
+    <ClCompile Include="Explosion.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="OctahedralNormal.cpp" />
     <ClCompile Include="OrthographicView.cpp" />

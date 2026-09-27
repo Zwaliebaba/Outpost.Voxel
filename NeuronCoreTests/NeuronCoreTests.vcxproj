@@ -113,6 +113,7 @@
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
+    <ClCompile Include="ExplosionTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />

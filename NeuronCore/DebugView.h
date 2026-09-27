@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Float3.h"
+#include "Hash.h"
 
 #include <cstdint>
 
@@ -18,15 +19,6 @@ enum class DebugView : std::uint32_t
 };
 
 inline constexpr std::uint32_t DEBUG_VIEW_COUNT = 4;
-
-// The PCG hash of Jarzynski and Olano, "Hash Functions for GPU Rendering", JCGT 9(3), 2020. The twin of PcgHash in
-// DebugView.hlsli (R15).
-[[nodiscard]] constexpr std::uint32_t PcgHash(std::uint32_t _value) noexcept
-{
-  const std::uint32_t state = _value * 747796405u + 2891336453u;
-  const std::uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return (word >> 22u) ^ word;
-}
 
 // The linear color the debug view pass writes for a pixel of the visibility buffer in the views that show it: albedo,
 // normal and voxel index. A pixel no voxel covers is black. The twin of DebugViewColor in DebugView.hlsli (R15).

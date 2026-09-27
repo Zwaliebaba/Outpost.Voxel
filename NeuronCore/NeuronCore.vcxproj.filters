@@ -4,7 +4,13 @@
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
+    <ClInclude Include="Explosion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Float3.h" />
+    <ClInclude Include="Hash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Lighting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -28,6 +34,9 @@
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
+    <ClCompile Include="Explosion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Lighting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

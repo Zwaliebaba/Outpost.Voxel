@@ -8,6 +8,9 @@
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
+    <ClCompile Include="ExplosionTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="LightingTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
