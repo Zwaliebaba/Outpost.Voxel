@@ -48,8 +48,11 @@ constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 constexpr float POSED_DEPTH_TOLERANCE = 1.0e-4f;
 constexpr float POSED_NORMAL_TOLERANCE = 2.0e-3f;
 
-// Mismatches on an edge allowed per image or map: set from the first measured run, which the tests print.
-constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 16;
+// Mismatches on an edge allowed per image or map, which §14 sets from the first measured run. That run, on WARP in CI on
+// 2026-09-27, found none in any of its ten images and maps. The bound is not zero for the reason the other splat tests
+// give: §14 assumes no bit equality between CPU and GPU, and the GPU poses each box with its own sin, cos and sqrt, so a
+// ray within rounding of an edge can land on its other side after a toolchain update. Four is headroom.
+constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
 // The block's times: early in its first flight, around its bounces, and once every voxel has come to rest.
 constexpr std::array<float, 4> BLOCK_TIMES_SECONDS{0.1f, 0.4f, 1.0f, 3.0f};
