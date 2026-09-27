@@ -109,7 +109,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <FxCompile>
-      <ShaderModel>6.0</ShaderModel>
+      <ShaderModel>6.7</ShaderModel>
       <DisableOptimizations>false</DisableOptimizations>
       <EnableDebuggingInformation>true</EnableDebuggingInformation>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -136,10 +136,10 @@
     <None Include="Shader\LayoutEcho.hlsli" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shader\LayoutEchoCompute.hlsl">
+    <FxCompile Include="Shader\LayoutEchoCS.hlsl">
       <ShaderType>Compute</ShaderType>
       <EntryPointName>LayoutEcho</EntryPointName>
-      <VariableName>LAYOUT_ECHO_COMPUTE</VariableName>
+      <VariableName>LAYOUT_ECHO_CS</VariableName>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

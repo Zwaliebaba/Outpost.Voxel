@@ -24,7 +24,7 @@ namespace NeuronClientTests
 namespace
 {
 
-#include "Shaders/LayoutEchoCompute.h"
+#include "Shaders/LayoutEchoCS.h"
 
 enum RootParameter : std::uint8_t
 {
@@ -101,7 +101,7 @@ public:
           NeuronClient::CreateRootSignature(_device, rootSignatureDesc, L"Layout echo root signature");
         D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc{};
         pipelineDesc.pRootSignature = rootSignature.get();
-        pipelineDesc.CS = {LAYOUT_ECHO_COMPUTE, sizeof(LAYOUT_ECHO_COMPUTE)};
+        pipelineDesc.CS = {LAYOUT_ECHO_CS, sizeof(LAYOUT_ECHO_CS)};
         winrt::com_ptr<ID3D12PipelineState> pipeline;
         winrt::check_hresult(_device.Device()->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(pipeline.put())));
 

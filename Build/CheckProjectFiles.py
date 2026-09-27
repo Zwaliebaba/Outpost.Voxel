@@ -21,7 +21,8 @@ It checks, over the whole tree:
   - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
     anywhere else (§2, R17);
   - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
-  - shader compilation: every project that compiles HLSL does it with the flags ADR-005 fixes;
+  - shader compilation: every project that compiles HLSL does it with the flags ADR-005 and ADR-007 fix, and names
+    each .hlsl for its stage (ADR-007);
   - every *Tests project holds at least one TEST_METHOD, because vstest reports an empty suite as a pass (§3).
 
 Exit status 0 when clean, 1 with one line per finding otherwise. It needs only Python 3.10+ and git.
@@ -63,7 +64,7 @@ REQUIRED_SETTINGS = {
 # `fast`, which lets a driver assume no infinity or NaN, and Listing 5 is correct only because of both; -Qembed_debug
 # puts the debug information PIX reads into the shader, where DXC otherwise prints a warning MSBuild promotes.
 REQUIRED_SHADER_SETTINGS = {
-  'ShaderModel': '6.0',
+  'ShaderModel': '6.7',
   'DisableOptimizations': 'false',
   'EnableDebuggingInformation': 'true',
   'TreatWarningAsError': 'true',
@@ -71,7 +72,9 @@ REQUIRED_SHADER_SETTINGS = {
   'HeaderFileOutput': '$(IntDir)Shaders\\%(Filename).h',
 }
 REQUIRED_SHADER_OPTIONS = ('-Gis', '-Qembed_debug')
-SHADER_TYPES = {'Vertex', 'Pixel', 'Compute'}
+# Design/ADR/ADR-007: a .hlsl file is named <Shader><Stage>, the stage spelled as its profile spells it.
+SHADER_SUFFIXES = {'Vertex': 'VS', 'Pixel': 'PS', 'Compute': 'CS'}
+SHADER_TYPES = set(SHADER_SUFFIXES)
 UPPER_CASE_NAME = re.compile(r'^[A-Z][A-Z0-9_]*$')
 
 # AGENTS.md §3: the whole list of what may differ between Debug and Release, besides _DEBUG against NDEBUG.
@@ -433,6 +436,11 @@ def check_shader_settings(project, configuration, settings, findings):
     variable = settings.get((f'FxCompile:{shader}', 'VariableName'))
     if shader_type not in SHADER_TYPES:
       findings.add(project.path, 'ADR-005', f'{shader} has ShaderType {shader_type}; one of {sorted(SHADER_TYPES)}')
+    else:
+      stem = re.split(r'[\\/]', shader)[-1].rsplit('.', 1)[0]
+      suffix = SHADER_SUFFIXES[shader_type]
+      if not stem.endswith(suffix) or stem == suffix:
+        findings.add(project.path, 'ADR-007', f'{shader} is a {shader_type} shader; its name ends in {suffix} (R17)')
     if not entry:
       findings.add(project.path, 'ADR-005', f'{shader} names no EntryPointName')
     if not variable or not UPPER_CASE_NAME.match(variable):

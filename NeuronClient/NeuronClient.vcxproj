@@ -90,7 +90,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <FxCompile>
-      <ShaderModel>6.0</ShaderModel>
+      <ShaderModel>6.7</ShaderModel>
       <DisableOptimizations>false</DisableOptimizations>
       <EnableDebuggingInformation>true</EnableDebuggingInformation>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -143,25 +143,25 @@
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shader\DebugViewPixel.hlsl">
+    <FxCompile Include="Shader\DebugViewPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>DebugViewPixel</EntryPointName>
-      <VariableName>DEBUG_VIEW_PIXEL</VariableName>
+      <VariableName>DEBUG_VIEW_PS</VariableName>
     </FxCompile>
-    <FxCompile Include="Shader\DebugViewVertex.hlsl">
+    <FxCompile Include="Shader\DebugViewVS.hlsl">
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>FullScreenVertex</EntryPointName>
-      <VariableName>DEBUG_VIEW_VERTEX</VariableName>
+      <VariableName>DEBUG_VIEW_VS</VariableName>
     </FxCompile>
-    <FxCompile Include="Shader\ViewSplatAlignedPixel.hlsl">
+    <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>SplatPixel</EntryPointName>
-      <VariableName>VIEW_SPLAT_ALIGNED_PIXEL</VariableName>
+      <VariableName>VIEW_SPLAT_ALIGNED_PS</VariableName>
     </FxCompile>
-    <FxCompile Include="Shader\ViewSplatAlignedVertex.hlsl">
+    <FxCompile Include="Shader\ViewSplatAlignedVS.hlsl">
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>SplatVertex</EntryPointName>
-      <VariableName>VIEW_SPLAT_ALIGNED_VERTEX</VariableName>
+      <VariableName>VIEW_SPLAT_ALIGNED_VS</VariableName>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

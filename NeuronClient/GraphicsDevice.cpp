@@ -134,7 +134,7 @@ GraphicsDevice::GraphicsDevice(const GraphicsDeviceDesc& _desc)
   }
   if (!m_device)
   {
-    std::string message = "No adapter offers Direct3D feature level 12_1 with Shader Model 6.0.";
+    std::string message = "No adapter offers Direct3D feature level 12_1 with Shader Model 6.7.";
     if (_desc.adapter && passedOver.empty())
     {
       message = std::format("There is no adapter {} in high-performance order.", *_desc.adapter);
@@ -201,11 +201,11 @@ std::optional<std::string> GraphicsDevice::TryAdapter(IDXGIAdapter1* _adapter)
   {
     return std::format("no feature level 12_1 ({})", DescribeHresult(result));
   }
-  D3D12_FEATURE_DATA_SHADER_MODEL shaderModel{D3D_SHADER_MODEL_6_0};
+  D3D12_FEATURE_DATA_SHADER_MODEL shaderModel{D3D_SHADER_MODEL_6_7};
   if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel))) ||
-      shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_0)
+      shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_7)
   {
-    return std::string("no Shader Model 6.0");
+    return std::string("no Shader Model 6.7");
   }
   m_adapter.copy_from(_adapter);
   m_device = std::move(device);

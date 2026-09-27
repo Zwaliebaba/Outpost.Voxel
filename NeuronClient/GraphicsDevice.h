@@ -33,7 +33,7 @@ enum class DebugLayerState : std::uint8_t
 };
 
 // The adapter, the device at feature level 12_1, and the one direct queue every pass submits to, with a fence to wait
-// on it. At start-up it takes the first adapter in high-performance order that offers 12_1 and Shader Model 6.0, and
+// on it. At start-up it takes the first adapter in high-performance order that offers 12_1 and Shader Model 6.7, and
 // refuses with a message naming every adapter it passed over and what that adapter lacks. Every failed call throws
 // through winrt::check_hresult (AGENTS.md R12).
 class GraphicsDevice

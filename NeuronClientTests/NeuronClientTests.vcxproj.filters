@@ -1,43 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h</Extensions>
-    </Filter>
     <Filter Include="Shader Files">
       <UniqueIdentifier>{7B3D5E91-2C44-4B1A-9E0F-5D6A8C1B2E3F}</UniqueIdentifier>
       <Extensions>hlsl;hlsli</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pch.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="TestSupport.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DebugViewPassTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="LayoutEchoTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="TestSupport.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ViewSplatTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="LayoutEchoTests.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="TestSupport.cpp" />
+    <ClCompile Include="ViewSplatTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli">
@@ -45,7 +23,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shader\LayoutEchoCompute.hlsl">
+    <FxCompile Include="Shader\LayoutEchoCS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
   </ItemGroup>

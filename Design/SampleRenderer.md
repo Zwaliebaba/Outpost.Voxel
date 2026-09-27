@@ -20,7 +20,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D6 | Voxels become rectangles by vertex pulling, four vertices per voxel — the paper's own Direct3D path. | §9.1 |
 | D7 | The view pass writes a visibility buffer (voxel index and normal), not a G-buffer. | §7.3 |
 | D8 | Reversed-Z with an infinite far plane; conservative depth output through `SV_DepthLessEqual`. | §7.5, §9.3 |
-| D9 | Shader Model 6.0, compiled by DXC at build time. No third-party code. | §5 |
+| D9 | Shader Model 6.7, compiled by DXC at build time. No third-party code. | §5; owner, 2026-09-27 (ADR-007) |
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
 | D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
@@ -98,9 +98,9 @@ The intersection (Listing 5) moves the ray into the box's frame and picks the th
 
 ## 5. Platform contract
 
-The renderer uses Direct3D 12 with the device created at minimum feature level 12_1 (D1), and Shader Model 6.0. DXR is never used; the renderer does not even query `D3D12_FEATURE_D3D12_OPTIONS5`. Mesh and amplification shaders are required only at FL 12_2 and are not used either.
+The renderer uses Direct3D 12 with the device created at minimum feature level 12_1 (D1), and Shader Model 6.7 (D9). DXR is never used; the renderer does not even query `D3D12_FEATURE_D3D12_OPTIONS5`. Mesh and amplification shaders are required only at FL 12_2 and are not used either.
 
-The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and rasterizer-ordered views — have no job in this design. Rays go through pixel centres, so ordinary rasterization of the bounding rectangle already reaches every pixel whose ray can hit the box; conservative rasterization would only add invocations that miss. Nothing in the model is transparent for ROVs to order. In fact nothing here needs more than FL 11_0 plus SM 6.0 — conservative depth output is a Shader Model 5 feature. FL 12_1 stays because it is the owner's contract, and its only practical effect is to refuse FL 11_x and 12_0 hardware that could run the sample. The owner confirmed that on 2026-09-27.
+The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and rasterizer-ordered views — have no job in this design. Rays go through pixel centres, so ordinary rasterization of the bounding rectangle already reaches every pixel whose ray can hit the box; conservative rasterization would only add invocations that miss. Nothing in the model is transparent for ROVs to order. In fact nothing here needs more than FL 11_0 plus SM 6.0 — conservative depth output is a Shader Model 5 feature. FL 12_1 stays because it is the owner's contract, and its only practical effect is to refuse FL 11_x and 12_0 hardware that could run the sample. The owner confirmed that on 2026-09-27. Shader Model 6.7 is the same kind of floor: the owner raised it from 6.0 on 2026-09-27, no shader uses a feature above 6.0 yet, and it refuses adapters and drivers that report less (ADR-007).
 
 In-box WARP implements FL 12_1 on Windows 10 1709 and later, so CI can run the real renderer (§14).
 
@@ -119,7 +119,7 @@ One package comes from outside the SDK: WinPixEventRuntime, with which a program
 
 Shaders are compiled at build time by MSBuild's `FxCompile`, which switches to `dxc.exe` when a Shader Model 6 profile is selected, into headers embedded in the binary. Their flags are identical in Debug and Release, because `AGENTS.md` §3 allows the two configurations exactly four differences: optimised, debug information embedded for PIX, warnings as errors. The port in §9.4 uses only scalar conditions, so it compiles identically under HLSL 2018 and 2021, whichever the SDK's `dxc.exe` defaults to.
 
-At start-up the application enumerates adapters in high-performance order, creates the device at 12_1, and requires `D3D12_FEATURE_SHADER_MODEL` ≥ 6.0. Otherwise it refuses, with a message that names the adapter and what it lacks. `--warp` selects WARP.
+At start-up the application enumerates adapters in high-performance order, creates the device at 12_1, and requires `D3D12_FEATURE_SHADER_MODEL` ≥ 6.7. Otherwise it refuses, with a message that names the adapter and what it lacks. `--warp` selects WARP.
 
 ## 6. Architecture
 
@@ -361,7 +361,7 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 **Permutations.** At *t* = 0 every rotation is the identity, and the axis-aligned permutation draws. For *t* > 0 the oriented one does. The two must agree at *t* = 0 (§14).
 
-**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-007.
+**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-008.
 
 ## 13. Application
 
@@ -423,7 +423,7 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
 | M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
 | M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-007 | Explosion tests green; the owner has detonated and reassembled the station |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-008 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
@@ -436,7 +436,7 @@ M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed 
 
 **Early rejection under conservative depth** is hardware behaviour. M5 measures it; nothing assumes it.
 
-**WARP's shader model.** The WARP guide documents FL 12_1 but says nothing about Shader Model 6.0. M2's first CI run answers the question. If WARP lacks it, that is a blocker to raise, not a suite to skip.
+**WARP's shader model.** The WARP guide documents FL 12_1 but says nothing about Shader Model 6.7. On the owner's machine, in-box WARP runs the 6.7 suite (ADR-007); CI's first run after the change answers it for the runner. If WARP lacks it, that is a blocker to raise, not a suite to skip.
 
 **Aliasing.** The first version has no anti-aliasing, so silhouettes and voxels smaller than a pixel will crawl in motion. If that matters, the options are the paper's route (a ray per MSAA sample) or TAA; either is an ADR.
 
@@ -468,7 +468,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-004, PIX event runtime (M2), recorded after the owner added the package on `main`;
 - ADR-005, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
 - ADR-006, depth conventions (M2);
-- ADR-007, explosion motion model and its defaults (M4).
+- ADR-007, Shader Model 6.7 and shader file names (M2), which amends ADR-005;
+- ADR-008, explosion motion model and its defaults (M4).
 
 ## 18. References
 

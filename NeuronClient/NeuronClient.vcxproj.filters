@@ -1,133 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h</Extensions>
-    </Filter>
     <Filter Include="Shader Files">
       <UniqueIdentifier>{7B3D5E91-2C44-4B1A-9E0F-5D6A8C1B2E3F}</UniqueIdentifier>
       <Extensions>hlsl;hlsli</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Clock.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DebugViewPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DescriptorHeap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FailureReport.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GpuResources.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GraphicsDevice.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="InputState.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="InstanceConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="PaletteConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="pch.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Shaders.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SwapChain.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="UploadRing.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ViewConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ViewSplatPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ViewTargets.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VoxelScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="WindowsSdk.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClInclude Include="Clock.h" />
+    <ClInclude Include="DebugViewPass.h" />
+    <ClInclude Include="DescriptorHeap.h" />
+    <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="GpuResources.h" />
+    <ClInclude Include="GraphicsDevice.h" />
+    <ClInclude Include="InputState.h" />
+    <ClInclude Include="InstanceConstants.h" />
+    <ClInclude Include="PaletteConstants.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Renderer.h" />
+    <ClInclude Include="Shaders.h" />
+    <ClInclude Include="SwapChain.h" />
+    <ClInclude Include="UploadRing.h" />
+    <ClInclude Include="ViewConstants.h" />
+    <ClInclude Include="ViewSplatPass.h" />
+    <ClInclude Include="ViewTargets.h" />
+    <ClInclude Include="VoxelScene.h" />
+    <ClInclude Include="Window.h" />
+    <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DebugViewPass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="DescriptorHeap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FailureReport.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GpuResources.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GraphicsDevice.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="InputState.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="PaletteConstants.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Renderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Shaders.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SwapChain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="UploadRing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ViewConstants.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ViewSplatPass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ViewTargets.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VoxelScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClCompile Include="DebugViewPass.cpp" />
+    <ClCompile Include="DescriptorHeap.cpp" />
+    <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="GpuResources.cpp" />
+    <ClCompile Include="GraphicsDevice.cpp" />
+    <ClCompile Include="InputState.cpp" />
+    <ClCompile Include="PaletteConstants.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="Shaders.cpp" />
+    <ClCompile Include="SwapChain.cpp" />
+    <ClCompile Include="UploadRing.cpp" />
+    <ClCompile Include="ViewConstants.cpp" />
+    <ClCompile Include="ViewSplatPass.cpp" />
+    <ClCompile Include="ViewTargets.cpp" />
+    <ClCompile Include="VoxelScene.cpp" />
+    <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -166,16 +84,16 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shader\DebugViewPixel.hlsl">
+    <FxCompile Include="Shader\DebugViewPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\DebugViewVertex.hlsl">
+    <FxCompile Include="Shader\DebugViewVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\ViewSplatAlignedPixel.hlsl">
+    <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\ViewSplatAlignedVertex.hlsl">
+    <FxCompile Include="Shader\ViewSplatAlignedVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
   </ItemGroup>
