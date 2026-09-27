@@ -43,8 +43,12 @@ constexpr std::uint32_t HEIGHT_PIXELS = 91;
 // A pixel here spans several voxel units or more, so this is a sliver of it.
 constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 
-// Mismatches on an edge allowed per image: set from the first measured run, which the test prints.
-constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 16;
+// Mismatches on an edge allowed per image, which §14 sets from the first measured run and gives a reason for. That run,
+// on WARP in CI on 2026-09-27, found none in any image. The bound is not zero because §14 assumes no bit equality between
+// CPU and GPU: an MSVC or WARP update that contracts or rounds differently can move a ray that lands within rounding of
+// an edge to its other side. Such a ray is rare, so four is headroom; the seams themselves are checked exactly by
+// SeamsLetNoBackgroundThrough.
+constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
 constexpr Float3 WORLD_UP{0.0f, 0.0f, 1.0f};
 
