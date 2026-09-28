@@ -1,6 +1,6 @@
 # Neuron Voxel Format (NVF) — Design and Implementation
 
-**Status:** draft; the questions of §11 are answered, awaiting the owner's acceptance · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered · **Date:** 2026-09-27
 **Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what NVF is, how models get into it, and how its tools are built. `AGENTS.md` says how the code is written; the engineering decisions below land as ADRs in the commits that implement them (§10).
@@ -261,14 +261,14 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 
 | # | Delivers | Done when |
 |---|---|---|
-| N-M0 | §12: the engine on Direct3D's axes; SampleRenderer updated; axes ADR | Every suite green with its constants converted; the pinned tracer hashes unchanged; the mirror test green; the owner has run `Outpost.exe` and seen the same station from the same side |
+| N-M0 | §12: the engine on Direct3D's axes; SampleRenderer updated; axes ADR | Every suite green with its constants converted; the pinned tracer images reproduced under §12.4's rule; the mirror test green; the owner has run `Outpost.exe` and seen the same station from the same side |
 | N-M1 | §4 in `NeuronCore`: reader, writer, validation; golden file; format ADR | Golden and refusal tests green |
 | N-M2 | §6.1 reader changes; `ImportVoxModel`; `NvfImport.exe`; the three assets converted; `--check` in CI; project/layout ADR | Import, rotation and merge tests green; CI checks the assets |
 | N-M3 | `NvfFormat.py` and its tests in CI | Python golden and refusal tests green on Linux |
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 |
 
-ADR numbers are taken in order when each ADR lands. M3 took ADR-008, and SampleRenderer §17 lists ADR-009 as the explosion ADR, so whichever lands first takes 009, and that list is updated in the same commit.
+ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR takes the next free number when N-M0 lands, and SampleRenderer §17's list is updated in the same commit.
 
 ## 11. Risks and open questions
 
@@ -313,11 +313,15 @@ The octahedral normal encoding needs no change. It is exact for all six axis dir
 
 - **A mirrored image passes every existing test.** If the cross products keep today's order, right comes out as −X and the picture is mirrored. The GPU-against-CPU tests would still pass, because both sides share one basis. §12.4's mirror test is there for that.
 - **The half-voxel trap.** The station is 207 × 228 × 255 in MagicaVoxel, so ⌊*s*/2⌋ differs per axis. If the swap is applied to the voxels but not to `SIZE` or `_t`, or after the origin is computed instead of before, the station ends up half a voxel off its floor, and nothing fails loudly.
+- **Not every computation permutes exactly.** The swap moves coordinates without rounding, but a sum over coordinates is taken in axis order. `Length`, and so `Normalize`, adds x², y² and z² in that order, and after the swap adds them in another, which may round differently; `/arch:AVX2` also lets MSVC fuse different multiply-adds (`AGENTS.md` §3). The view's forward and right, and so every ray, can move by an ulp. Depth, itself such a sum, moves almost everywhere. The voxel a pixel shows changes only where its ray passes within rounding of an edge.
 - **Surfaces that meet later milestones.** The sun's azimuth from `rOBJ`, the ambient's up, the explosion's gravity: whichever of them lands after N-M0 is written in the new axes from its first line. The design text is updated in N-M0 so that nobody implements the old axes by mistake.
 
 ### 12.4 Verification
 
-- **Pinned before the change.** In a commit of its own, before any axis moves, a test renders the station with the reference tracer from three cameras and pins a hash of each image. After the move, the same cameras, converted, must reproduce the same hashes. The swap is an exact permutation, and the basis's cross products multiply the same numbers in the same order, so the images are expected to be bit-identical. The one place order could show is where the tracer's traversal breaks an exact tie between axes. A changed hash is therefore investigated. It is re-pinned only when the difference is traced to such a tie, and the axes ADR says so.
+- **Pinned before the change.** In a commit of its own, before any axis moves, a test renders the station with the reference tracer from three cameras and compares the voxel each pixel shows with a reference that the same commit adds. After the move, the same cameras, converted, must show the same voxels. Only the voxel index is pinned. The reader keeps the records' order, so an index survives the move; depth does not (§12.3).
+  - A pixel that differs is judged by SampleRenderer §14's rule, with the edge test of the explosion's GPU tests. It may show another voxel, or none, only where its ray meets the grown box of the voxel it now shows, if any, and misses the shrunk box of the voxel it showed, if any. Each box is grown or shrunk by 1/256 of a voxel. An exact tie between axes in the tracer's traversal, whose order the swap also changes, falls under the same rule.
+  - A difference anywhere else fails and is investigated. It is never re-pinned.
+  - The differences on edges get a bound from the first run after the move, and the axes ADR records it with the count per camera.
 - **Mirror test.** A single voxel at +X, seen from a camera looking along +Z with +Y up, must land in the right half of the image, and one at +Y in the top half. This is the test that catches a mirrored basis (§12.3).
 - **Reader.** The asymmetric `.vox` of §9 lands at swapped coordinates, and the station's lowest layer is at y = 0.
 - **Every suite** green with its constants converted, and the checkers clean.
