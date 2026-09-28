@@ -166,6 +166,7 @@
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="LoopbackTransport.h" />
     <ClInclude Include="Message.h" />
+    <ClInclude Include="NvfModel.h" />
     <ClInclude Include="OctahedralNormal.h" />
     <ClInclude Include="OrthographicView.h" />
     <ClInclude Include="pch.h" />
@@ -192,6 +193,7 @@
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="LoopbackTransport.cpp" />
     <ClCompile Include="Message.cpp" />
+    <ClCompile Include="NvfModel.cpp" />
     <ClCompile Include="OctahedralNormal.cpp" />
     <ClCompile Include="OrthographicView.cpp" />
     <ClCompile Include="pch.cpp">

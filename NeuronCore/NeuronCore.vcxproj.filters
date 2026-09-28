@@ -28,6 +28,7 @@
     <ClInclude Include="LoopbackTransport.h" />
     <ClInclude Include="Message.h" />
     <ClInclude Include="Transport.h" />
+    <ClInclude Include="NvfModel.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
@@ -49,5 +50,6 @@
     <ClCompile Include="LoopbackTransport.cpp" />
     <ClCompile Include="Message.cpp" />
     <ClCompile Include="Quaternion.cpp" />
+    <ClCompile Include="NvfModel.cpp" />
   </ItemGroup>
 </Project>

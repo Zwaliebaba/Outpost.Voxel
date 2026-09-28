@@ -57,7 +57,7 @@ NVF is the game's own voxel model format. A model is a small tree of rigid **par
 - **Conversion from the authoring tools.** MagicaVoxel and Blender are both right-handed with +Z up. A point (x, y, z) there is (x, z, y) in NVF, and a size or an integer voxel coordinate is swapped the same way. The swap is its own inverse and exchanges handedness, so no axis is negated, and integer coordinates stay integers. A rotation matrix *R* becomes *P R P*, where *P* is the swap. There are exactly two converters. In C++ it is the `.vox` reader, for the whole engine (§12); in Python it is the Blender extension's import and export (§7). Everything else, `NvfImport` included, sees Direct3D axes only.
 - **Part space** has its origin at the minimum corner of the part's voxel (0, 0, 0), with model-space axes. Voxel (x, y, z) occupies [x, x+1) × [y, y+1) × [z, z+1).
 - **A hardpoint's frame:** local +Z points out of the mount — the way a weapon fires and an engine's exhaust leaves — local +Y is up, and +X is right, a left-handed frame like model space. In MagicaVoxel and Blender, that forward shows as +Y and up as +Z, so an artist sees the same arrow either way.
-- Names are ASCII. A **part path** is one or more segments joined by `/`. A **hardpoint name** is two or more segments joined by `.`, and the first segment is its **type** (`engine.main`, `weapon.left`, `dock.aft`). A segment matches `[a-z0-9_]{1,31}`. `pivot` is reserved and is not a type. Hardpoint names are unique in the file, not only in their part, so the game can look one up by name.
+- Names are ASCII. A **part path** is one or more segments joined by `/`. A **hardpoint name** is two or more segments joined by `.`, and the first segment is its **type** (`engine.main`, `weapon.left`, `dock.aft`). A segment matches `[a-z0-9_]{1,31}`. `pivot` is reserved and is not a type, though a part may be named `pivot`. Hardpoint names are unique in the file, not only in their part, so the game can look one up by name.
 
 ### 4.2 Layout
 
@@ -90,11 +90,11 @@ Chunk: HPNT  hardpoints (count may be zero)
 | 8 | `u32` | elementCount — records in the content; for `STRS`, its byte count |
 | 12 | `u32` | reserved, 0 |
 
-The five chunks of §4.3 appear exactly once each, in that order. For a table, `sizeBytes` must equal `elementCount` × the record size.
+The five chunks of §4.3 appear exactly once each, in that order. For a table, `sizeBytes` must equal `elementCount` × the record size. A chunk a reader does not know may lie anywhere after the header: its framing is checked like any chunk's, and the reader reports its id (§4.6). A reader of 1.0 reads every minor version of major version 1.
 
 ### 4.3 Chunks
 
-**`STRS` — strings.** Concatenated UTF-8, each NUL-terminated. Other chunks refer to a string by its byte offset. Each string is stored once. The writer lays them out in first-use order — part names in part order, then hardpoint names in hardpoint order — so two writers produce the same bytes.
+**`STRS` — strings.** Concatenated UTF-8, each NUL-terminated. Other chunks refer to a string by its byte offset. Each string is stored once. The writer lays them out in first-use order — part names in part order, then hardpoint names in hardpoint order — so two writers produce the same bytes. A reference points at a string's first byte. The whole chunk is well-formed UTF-8 and ends with a NUL; a string nothing refers to is allowed, since a newer chunk may refer to it.
 
 **`PALT` — palette.** Exactly 16 records of 16 bytes. Entry *i* is the colour a record with colour field *i* shows (R14: the `.vox` palette entry minus one).
 
@@ -111,7 +111,7 @@ This is `PaletteEntry` as the `.vox` reader already produces it (SampleRenderer 
 
 | Offset | Type | Field |
 |---|---|---|
-| 0 | `u32` | nameOffset — the full path, e.g. `hull/turret` |
+| 0 | `u32` | nameOffset — the full path, e.g. `hull/turret`: part 0's is one segment, every other part's its parent's path plus one |
 | 4 | `u32` | parentIndex — `0xFFFFFFFF` for part 0, otherwise less than this part's index |
 | 8 | `u16[3]` | sizeVoxels — 1 to 256 on each axis |
 | 14 | `u16` | flags — bit 0 `PivotAuthored`: the pivot was set in Blender (§6.2); others 0 |
@@ -120,7 +120,7 @@ This is `PaletteEntry` as the `.vox` reader already produces it (SampleRenderer 
 | 40 | `u32` | firstVoxel — index into `VOXL` |
 | 44 | `u32` | voxelCount — at least 1 |
 
-A part's ranges in `VOXL` follow one another in part order, without gaps or overlap. Parts are translated but never rotated at rest (N2). The default pivot is MagicaVoxel's own, ⌊size / 2⌋, taken per axis after the swap.
+A part's ranges in `VOXL` follow one another in part order, without gaps or overlap. Parts are translated but never rotated at rest (N2). A part's origin in model space, the sum of the translations from part 0 down to it, lies within ±2²¹ on every axis (ADR-018). The default pivot is the part's geometric centre, size / 2, taken per axis after the swap (§11, question 5).
 
 **`VOXL` — voxels.** `u32` records exactly as R14 packs them: x, y, z in bits 0–23, the colour in bits 24–27, bits 28–31 zero. Within a part, a record lies inside `sizeVoxels`, and no position repeats. Records keep the order the `.vox` gave them, because the renderer breaks depth ties by record order (ADR-006).
 
@@ -135,13 +135,15 @@ A part's ranges in `VOXL` follow one another in part order, without gaps or over
 | 24 | `f32[4]` | rotation — x, y, z, w: a unit quaternion from the hardpoint's frame to part space, with w ≥ 0 |
 | 40 | `u32[2]` | reserved, 0 |
 
-The type is not stored separately. It is the name's first segment, and the reader exposes it, so the two can never disagree.
+The type is not stored separately. It is the name's first segment, and the reader exposes it, so the two can never disagree. Writers store hardpoints in name order, by the bytes of their names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints (ADR-018).
 
 ### 4.4 Validation
 
 A reader refuses by name, as the `.vox` reader does, returning `std::expected<NvfModel, NvfError>` in C++ and raising `NvfError` in Python, with the same set of names in both:
 
-`NotAnNvfFile`, `UnsupportedVersion`, `Truncated`, `MalformedChunk` (bad size, count or padding, a nonzero reserved field or flag bit), `MissingChunk`, `ChunkOutOfOrder`, `BadString` (an offset off a string start, invalid UTF-8, a name that breaks §4.1), `DuplicateName`, `BadPartTree` (no root, a second root, a parent not before its child), `PartTooLarge`, `BadVoxelRange`, `VoxelOutOfBounds`, `DuplicateVoxel`, `ReservedBitsSet`, `BadHardpointPart`, `NotFinite`, `NotUnitRotation` (|‖q‖ − 1| > 10⁻⁴, or w < 0).
+`FileNotFound`, `ReadFailed`, `WriteFailed` (opening, reading or writing a file), `NotAnNvfFile`, `UnsupportedVersion`, `Truncated`, `MalformedChunk` (bad size, count or padding, a nonzero reserved field or undefined flag bit, a count beyond the limits below), `MissingChunk`, `ChunkOutOfOrder`, `BadString` (an offset off a string start, invalid UTF-8, no final NUL, a name that breaks §4.1), `DuplicateName`, `BadPartTree` (no root, a second root, a parent not before its child, a path that is not its parent's plus one segment), `PartTooLarge`, `TranslationOutOfRange` (a part's origin beyond ±2²¹), `BadVoxelRange`, `VoxelOutOfBounds`, `DuplicateVoxel`, `ReservedBitsSet` (a voxel record's bits 28–31), `BadHardpointPart`, `NotFinite`, `NotUnitRotation` (|‖q‖ − 1| > 10⁻⁴, or w < 0).
+
+Both readers check in the order ADR-018 fixes and report the first failure, so that a file with two faults gets the same name from each.
 
 Limits, so that a bad file fails fast rather than allocating: 1,024 parts, 4,096 hardpoints, 64 KiB of strings. The voxel count is bounded by the parts' sizes.
 
@@ -153,9 +155,9 @@ Each asset is one part today. The voxel chunk is 4 bytes per voxel; everything e
 |---|---|---|---|
 | `MilitaryStation.vox` | 207 × 228 × 255 | 225,048 | 900,192 |
 | `CapitalShip.vox` | 45 × 77 × 21 | 10,747 | 42,988 |
-| `Frigate.vox` | 33 × 26 × 12 | 1,181 | 4,724 |
+| `Frigate.vox` | 33 × 27 × 12 | 1,181 | 4,724 |
 
-Measured on 2026-09-27 by walking the files' chunks with a throwaway script. Each has one model, no rotations, at most 16 colours, and no names.
+Measured on 2026-09-27 by walking the files' chunks with a throwaway script. Each has one model, no rotations, at most 16 colours, and no names. The frigate was measured again on 2026-09-28: the repair merged in 786afeb grew it from 26 deep to 27 ([`SpaceScene.md`](SpaceScene.md) §4).
 
 ### 4.6 Versioning
 
@@ -239,12 +241,12 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 | `NeuronCore/NvfImport.h/.cpp` | `ImportVoxModel` and `NvfImportError` (§6.2). |
 | `NeuronCore/VoxModel.h/.cpp` | Names and odd-sized rotations (§6.1). |
 | `NvfImport/` (new project) | Console application: `Main.cpp` and the command line. References `NeuronCore` only. |
-| `NeuronCoreTests/` | `NvfModelTests.cpp`, `NvfImportTests.cpp`, and the reader's new cases. |
+| `NeuronCoreTests/` | `NvfModelTests.cpp`, `NvfImportTests.cpp`, and the reader's new cases; `NvfGolden.cpp`, the golden model in code, and `RepositoryFile.cpp`, which finds the golden file and the assets. |
 | `Tools/Blender/NeuronVoxelFormat/` | The extension (§7). |
 | `Tools/Golden/Golden.nvf` | The golden file (§9). |
 | `GameData/*.nvf` | The three converted assets. |
 
-`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R18** is added: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++.
+`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R19** is added, R18 having gone to the space scene's client/server rule: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++.
 
 ## 9. Verification
 
@@ -268,7 +270,7 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Not started |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
-ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it.
+ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, so on 2026-09-28 the owner reserved ADR-018 for N-M1's format ([ADR-018](ADR/ADR-018-nvf-format.md)) and ADR-019 for N-M2's importer and layout; the space scene continues from ADR-020.
 
 ## 11. Risks and open questions
 
@@ -279,11 +281,19 @@ ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M
 3. **Blender 4.2 as the floor (§7).**
 4. **`main` as the single-part default name (§5).**
 
+**Answered by the owner on 2026-09-28, as N-M1 began:**
+
+5. **A part's default pivot is its geometric centre, `size / 2` (§4.3).** The draft's ⌊size / 2⌋ was the corner of MagicaVoxel's pivot voxel: half a voxel off-centre on every odd axis, and not a point a marker can give, since markers land on voxel centres.
+6. **Refining a marker's hardpoint in Blender keeps the name clash an error (§6.2, §7).** Moving a `FromVox` hardpoint in Blender clears its flag, so the next import finds an authored hardpoint and a marker of one name. The refusal names the fix: delete the marker in MagicaVoxel, now that Blender owns the hardpoint. A marker seeds a hardpoint once.
+7. **NVF's ADRs are ADR-018 and ADR-019 (§10),** reserved because the space scene takes ADRs in parallel.
+
 **Risks:**
 
 - **Is the name clash in the merge an error or a rename?** An error is chosen: it is loud and never guesses, but an artist must then delete one of the two.
 - **MagicaVoxel may change how it stores `_name` or `_r`.** Both are undocumented conventions of the file. The reader's tests pin today's behavior, and the importer refuses what it does not recognise.
 - **Blender API drift across versions.** The preview and panel code is small and kept apart from `NvfFormat.py`, so the format itself never depends on `bpy`.
+- **A carried-over hardpoint is anchored to its part's grid.** Its position is in part space, from the grid's minimum corner. Growing a part toward negative coordinates in MagicaVoxel moves that corner, and the Blender-authored hardpoints `NvfImport` carries over move off their voxels without a refusal. The checklist of §9 looks at the hardpoints after a voxel edit.
+- **Markers and the game's `.vox` loading.** From N-M2 the reader returns marker models as instances. The game still loads `.vox` (§2), so a committed asset with a marker would draw it as voxels, or be refused if the marker is rotated (§6.1). Until the game loads `.nvf`, the three assets carry no markers, and their hardpoints are authored in Blender.
 - **A preview of a large model may be slow.** The station is the worst case the repository has; if the surface mesh is too heavy, the fallback is a point cloud instanced with cubes through geometry nodes.
 
 ## 12. Moving the engine to Direct3D's axes
