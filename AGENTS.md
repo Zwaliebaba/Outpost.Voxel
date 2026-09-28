@@ -135,18 +135,20 @@ private:
 
 ## 2. Repository shape
 
-The first layout was settled when the first project landed ([ADR-001](Design/ADR/ADR-001-repository-layout.md)); its present shape, an engine and a game split along the client/server line the game will grow into, is [ADR-003](Design/ADR/ADR-003-engine-and-game-layout.md). One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
+The first layout was settled when the first project landed ([ADR-001](Design/ADR/ADR-001-repository-layout.md)); its present shape, an engine and a game split along the client/server line the game will grow into, is [ADR-003](Design/ADR/ADR-003-engine-and-game-layout.md), and [ADR-016](Design/ADR/ADR-016-server-suites.md) gave the server side its suites. One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
 
 | Project | Kind | References | Holds |
 |---|---|---|---|
 | `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
 | `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
-| `NeuronServer` | static library | `NeuronCore` | The server engine. Empty until the server has code of its own. |
-| `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side. Empty until the server has code of its own. |
+| `NeuronServer` | static library | `NeuronCore` | The server engine: `ServerHost`, which runs the tick and the sessions, and the `World` it simulates through ([ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). No Windows header. |
+| `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side: the sector, its layout, routes, flight and detonations ([ADR-017](Design/ADR/ADR-017-sector.md)). |
 | `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
 | `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
 | `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
 | `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP. |
+| `NeuronServerTests` | test DLL | `NeuronServer`, `NeuronCore` | The server host, over a world of its own. |
+| `GameLogicTests` | test DLL | `GameLogic`, `NeuronServer`, `NeuronCore` | The sector, alone and through a server host. |
 
 **Engine below, game above, client and server apart.** The `Neuron*` libraries are the engine and know nothing of this game; `GameLib` and `GameLogic` are the game and build on them. The client side (`NeuronClient`, `GameLib`) and the server side (`NeuronServer`, `GameLogic`) never reference each other: what both need lives in `NeuronCore`, or, for the game, in a shared game library created when the first such type appears. `Outpost.exe` is the client and, until the two are separated, the server process too, so it links both sides; when the server moves into its own `Server.exe`, that executable takes `GameLogic` and `NeuronServer`, and the client keeps the rest. A project lists every static library it links as a reference, and puts another project's folder on its include path only if it references it.
 
@@ -236,7 +238,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
-**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing the design it comes from, [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) or [`Design/SpaceScene.md`](Design/SpaceScene.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 
@@ -245,6 +247,8 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 **R16 — A layout shared with HLSL has one source.** The C++ struct is the truth, with `static_assert`s on its size and on every member's offset; its HLSL mirror is written once, in a `.hlsli`; and the echo test in `NeuronClientTests` proves the two agree (design §7.4). Nothing else redeclares the layout.
 
 **R17 — HLSL follows §1.** A `.hlsl` file is one entry point: nothing but `#define` switches and exactly one `#include`. Algorithms live in `.hlsli` files. Both are PascalCase and live in the `Shader` folder of the library that uses them (§2); `.hlsl` is built as `FxCompile` and `.hlsli` is listed as `None`. A `.hlsl` file is named for its shader and its stage, the stage spelled as the profile spells it: `<Shader>VS.hlsl` for a vertex shader, `<Shader>PS.hlsl` for a pixel shader, `<Shader>CS.hlsl` for a compute shader, and its header array is the same name in `UPPER_CASE` (`ViewSplatAlignedPS.hlsl`, `VIEW_SPLAT_ALIGNED_PS`). Every shader is compiled for Shader Model 6.7 ([ADR-007](Design/ADR/ADR-007-shader-model-and-names.md)). The naming table of §1 applies to HLSL identifiers, and semantics and intrinsics keep the SDK's spelling (`SV_Position`, `SampleCmpLevelZero`) (design §6.2). `Build/CheckProjectFiles.py` enforces the files; review enforces the names.
+
+**R18 — Client and server share bytes, never objects.** What the server knows reaches the client only as messages through a `Transport`, in one process as in two (SpaceScene S3 and S20, [ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). Project references already keep the two sides apart (§2). `Outpost`, the one project that links both, creates the transport and hands each side its own end, and nothing else crosses: no pointer, reference or object of one side reaches the other. Review enforces it.
 
 ---
 

@@ -25,6 +25,9 @@
     <ClInclude Include="RigidTransform.h" />
     <ClInclude Include="SceneTracer.h" />
     <ClInclude Include="Sphere.h" />
+    <ClInclude Include="LoopbackTransport.h" />
+    <ClInclude Include="Message.h" />
+    <ClInclude Include="Transport.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
@@ -43,5 +46,8 @@
     <ClCompile Include="Placement.cpp" />
     <ClCompile Include="RigidTransform.cpp" />
     <ClCompile Include="SceneTracer.cpp" />
+    <ClCompile Include="LoopbackTransport.cpp" />
+    <ClCompile Include="Message.cpp" />
+    <ClCompile Include="Quaternion.cpp" />
   </ItemGroup>
 </Project>
