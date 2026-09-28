@@ -81,6 +81,17 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
   return draws;
 }
 
+// The voxels _draws draw.
+[[nodiscard]] std::uint32_t VoxelsOf(const std::vector<SplatDraw>& _draws) noexcept
+{
+  std::uint32_t voxels = 0;
+  for (const SplatDraw& draw : _draws)
+  {
+    voxels += draw.recordCount;
+  }
+  return voxels;
+}
+
 } // namespace
 
 Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models)
@@ -142,6 +153,16 @@ void Renderer::Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels)
   m_targets.Resize(m_device, _widthPixels, _heightPixels);
 }
 
+void Renderer::SetShadowView(const NeuronCore::OrthographicView& _view)
+{
+  if (_view.widthPixels != m_shadowView.widthPixels || _view.heightPixels != m_shadowView.heightPixels)
+  {
+    throw std::invalid_argument(std::format("The sun's view is {} by {} texels, and its shadow map {} by {}.", _view.widthPixels,
+                                            _view.heightPixels, m_shadowView.widthPixels, m_shadowView.heightPixels));
+  }
+  m_shadowView = _view;
+}
+
 void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const NeuronCore::Placement> _placements,
                       const FrameSettings& _settings)
 {
@@ -186,7 +207,8 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   const std::vector<SplatDraw> shadowDraws = DrawsOf(placements, NeuronCore::ListShadowDraws(m_shadowView, spheres));
   const auto viewDrawn = static_cast<std::uint32_t>(viewDraws.size());
   const auto shadowDrawn = static_cast<std::uint32_t>(shadowDraws.size());
-  frame.draws = {viewDrawn, placementCount - viewDrawn, shadowDrawn, placementCount - shadowDrawn};
+  frame.draws = {viewDrawn,           placementCount - viewDrawn, shadowDrawn, placementCount - shadowDrawn,
+                 VoxelsOf(viewDraws), VoxelsOf(shadowDraws)};
 
   // The overdraw view needs the view splat's overdraw variant; otherwise the frame chooses between conservative and plain
   // depth (§9.3, §11).

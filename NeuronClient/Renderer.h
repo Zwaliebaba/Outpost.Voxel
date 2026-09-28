@@ -42,7 +42,7 @@ struct RendererDesc
   HWND window;
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
-  NeuronCore::OrthographicView shadowView; // the sun's, fitted once to the scene (§10); its size is the shadow map's
+  NeuronCore::OrthographicView shadowView; // the sun's, fitted to the scene (§10); its size is the shadow map's
 };
 
 // What a frame shows (§11, §13), and what it measures besides (§9.3, §14).
@@ -80,6 +80,11 @@ public:
 
   // Follows the window's client area. A zero size, a minimized window, renders nothing until the next resize.
   void Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels);
+
+  // Moves the sun's view from the next Render on. The space scene fits one view to its whole layout until S-M7's
+  // cascades, and moves it only when something reaches beyond it (Design/SpaceScene.md §10). Throws
+  // std::invalid_argument for a view of another size than the shadow map.
+  void SetShadowView(const NeuronCore::OrthographicView& _view);
 
   // Renders and presents one frame of _placements, whose ids NeuronCore::AssignVoxelIds gave them. _view must be the size
   // the renderer was last resized to. Throws std::invalid_argument, before recording anything, for a placement that names

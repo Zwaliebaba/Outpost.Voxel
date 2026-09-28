@@ -3,23 +3,39 @@
 #include "Bench.h"
 
 #include "Canvas.h"
+#include "ClientSession.h"
+#include "FailureReport.h"
 #include "FrameQueries.h"
+#include "Renderer.h"
+#include "SnapshotBuffer.h"
+#include "Window.h"
 
 #include "OrbitCamera.h"
+#include "Scene.h"
 
+#include "Explosion.h"
 #include "Lighting.h"
+#include "Message.h"
+#include "Placement.h"
+#include "RenderSettings.h"
+#include "Sphere.h"
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <expected>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <numbers>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace GameLib
@@ -35,10 +51,9 @@ constexpr std::uint32_t FRAMES_PER_SECOND = 60;
 // Frames of the timeline's start, in both variants, before the measured ones, while pipelines, caches and clocks settle.
 constexpr std::uint32_t WARMUP_FRAMES = 120;
 
-// The timeline in fractions of the run: intact until the detonation, the detonation running to its stop time until
-// STOP_FRACTION, then drifted to a stop. The camera turns once around the model over the whole run.
+// How far into the run, as a fraction of it, the bench asks the server to detonate the station, which the station
+// sample's timeline detonated at. The camera turns once round the station over the whole run.
 constexpr double DETONATION_FRACTION = 0.25;
-constexpr double STOP_FRACTION = 0.75;
 
 // The run's progress on screen, which the canvas draws and times as a pass of its own.
 constexpr NeuronClient::TextStyle PROGRESS_STYLE{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
@@ -61,6 +76,7 @@ enum class Phase : std::uint8_t
   Stopped
 };
 
+constexpr std::array<Phase, 3> PHASES{Phase::Intact, Phase::Flight, Phase::Stopped};
 constexpr std::array<const char*, 3> PHASE_NAMES{"intact", "in flight", "drifted to a stop"};
 
 // One measured frame: where on the timeline it was, how it was drawn, and what was measured of it.
@@ -69,9 +85,9 @@ struct Shot
   std::uint32_t index; // on the timeline
   Depth depth;
   Phase phase;
-  float explosionSeconds;
+  float explosionSeconds; // since the detonation, on the world's clock; 0 while the station is intact
   float yawRadians;
-  double intervalMilliseconds; // from this frame's Render to the next one's, on the CPU's clock
+  double intervalMilliseconds; // from this frame's start to the next one's, on the CPU's clock
   std::optional<NeuronClient::FrameStatistics> statistics;
 };
 
@@ -81,29 +97,6 @@ struct Spread
   double mean;
   double percentile95;
 };
-
-[[nodiscard]] Phase PhaseOf(double _fraction) noexcept
-{
-  if (_fraction < DETONATION_FRACTION)
-  {
-    return Phase::Intact;
-  }
-  return _fraction < STOP_FRACTION ? Phase::Flight : Phase::Stopped;
-}
-
-[[nodiscard]] float ExplosionSeconds(double _fraction, float _stopSeconds) noexcept
-{
-  switch (PhaseOf(_fraction))
-  {
-  case Phase::Intact:
-    return 0.0f;
-  case Phase::Flight:
-    return static_cast<float>((_fraction - DETONATION_FRACTION) / (STOP_FRACTION - DETONATION_FRACTION)) * _stopSeconds;
-  case Phase::Stopped:
-    break;
-  }
-  return _stopSeconds;
-}
 
 [[nodiscard]] Spread SpreadOf(std::vector<double> _values)
 {
@@ -203,7 +196,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   }
   csv << "frame,depth,explosionSeconds,yawDegrees,shadowSplatMs,viewSplatMs,coverageMs,lightingMs,toneMapMs,canvasMs,framePassesMs,gpuMs,"
          "intervalMs,vsInvocations,psInvocations,primitives,coveredPixels,psPerCoveredPixel,viewDrawn,viewCulled,shadowDrawn,"
-         "shadowCulled\n";
+         "shadowCulled,viewVoxels,shadowVoxels\n";
   for (const Shot& shot : _shots)
   {
     if (!shot.statistics)
@@ -212,15 +205,16 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
     }
     const NeuronClient::FrameStatistics& statistics = *shot.statistics;
     csv << std::format(
-      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f},{},{},{},{}\n", shot.index,
-      DEPTH_NAMES[static_cast<std::size_t>(shot.depth)], shot.explosionSeconds, shot.yawRadians * 180.0f / std::numbers::pi_v<float>,
-      PassMilliseconds(statistics, NeuronClient::GpuPass::ShadowSplat), PassMilliseconds(statistics, NeuronClient::GpuPass::ViewSplat),
-      PassMilliseconds(statistics, NeuronClient::GpuPass::Coverage), PassMilliseconds(statistics, NeuronClient::GpuPass::Lighting),
-      PassMilliseconds(statistics, NeuronClient::GpuPass::ToneMap), PassMilliseconds(statistics, NeuronClient::GpuPass::Canvas),
-      FramePassMilliseconds(statistics), statistics.gpuMilliseconds, shot.intervalMilliseconds, statistics.vertexShaderInvocations,
-      statistics.pixelShaderInvocations, statistics.primitives, statistics.coveredPixels.value_or(0),
-      PixelShaderInvocationsPerCoveredPixel(statistics), statistics.draws.viewDrawn, statistics.draws.viewCulled,
-      statistics.draws.shadowDrawn, statistics.draws.shadowCulled);
+      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f},{},{},{},{},{},{}\n",
+      shot.index, DEPTH_NAMES[static_cast<std::size_t>(shot.depth)], shot.explosionSeconds,
+      shot.yawRadians * 180.0f / std::numbers::pi_v<float>, PassMilliseconds(statistics, NeuronClient::GpuPass::ShadowSplat),
+      PassMilliseconds(statistics, NeuronClient::GpuPass::ViewSplat), PassMilliseconds(statistics, NeuronClient::GpuPass::Coverage),
+      PassMilliseconds(statistics, NeuronClient::GpuPass::Lighting), PassMilliseconds(statistics, NeuronClient::GpuPass::ToneMap),
+      PassMilliseconds(statistics, NeuronClient::GpuPass::Canvas), FramePassMilliseconds(statistics), statistics.gpuMilliseconds,
+      shot.intervalMilliseconds, statistics.vertexShaderInvocations, statistics.pixelShaderInvocations, statistics.primitives,
+      statistics.coveredPixels.value_or(0), PixelShaderInvocationsPerCoveredPixel(statistics), statistics.draws.viewDrawn,
+      statistics.draws.viewCulled, statistics.draws.shadowDrawn, statistics.draws.shadowCulled, statistics.draws.viewVoxels,
+      statistics.draws.shadowVoxels);
   }
   if (!csv)
   {
@@ -229,7 +223,8 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
 }
 
 [[nodiscard]] std::string Summarize(const std::vector<Shot>& _shots, std::uint32_t _seconds, std::uint32_t _frames,
-                                    const std::string& _adapter, const std::filesystem::path& _csvPath)
+                                    const std::string& _world, std::optional<float> _detonationSeconds, const std::string& _adapter,
+                                    const std::filesystem::path& _csvPath)
 {
   const auto pass = [](NeuronClient::GpuPass _pass)
   { return [_pass](const Shot& _shot) { return PassMilliseconds(*_shot.statistics, _pass); }; };
@@ -242,11 +237,15 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   const auto viewCulled = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.viewCulled); };
   const auto shadowDrawn = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.shadowDrawn); };
   const auto shadowCulled = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.shadowCulled); };
+  const auto viewVoxels = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.viewVoxels) / 1.0e6; };
+  const auto shadowVoxels = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.shadowVoxels) / 1.0e6; };
 
   std::string summary =
-    std::format("Outpost --bench {}: {} frames of a fixed camera path and detonation timeline at {} x {}, vsync off, each "
-                "drawn with conservative and with plain depth, after {} warm-up frames.\n",
-                _seconds, _frames, BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, WARMUP_FRAMES);
+    std::format("Outpost --bench {}: {} frames of {} at {} x {}, the camera once round the station, vsync off, each frame drawn with "
+                "conservative and with plain depth, after {} warm-up frames.\n",
+                _seconds, _frames, _world, BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, WARMUP_FRAMES);
+  summary += _detonationSeconds ? std::format("The server detonated the station {:.3f} s into the timeline.\n", *_detonationSeconds)
+                                : std::string("The server did not detonate the station within the run.\n");
   summary += std::format("Adapter: {}\n\n", _adapter);
   summary += "Median / mean / 95th percentile, conservative depth | plain SV_Depth:\n";
   const auto row = [&](const char* _name, const auto& _figure, int _decimals, const char* _unit)
@@ -261,7 +260,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   row("the frame's four passes", framePasses, 3, "ms");
   row("coverage count, the bench's only", pass(NeuronClient::GpuPass::Coverage), 3, "ms");
   row("canvas, this progress line", pass(NeuronClient::GpuPass::Canvas), 3, "ms");
-  row("CPU frame interval", interval, 3, "ms");
+  row("CPU frame interval, the server's steps included", interval, 3, "ms");
   row("view splat PSInvocations", invocations, 3, "M");
   row("PSInvocations per covered pixel", perCovered, 2, "");
   row("covered pixels", covered, 3, "M");
@@ -269,52 +268,165 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   row("placements the view culled", viewCulled, 1, "");
   row("placements the sun drew", shadowDrawn, 1, "");
   row("placements the sun culled", shadowCulled, 1, "");
+  row("voxels the view drew", viewVoxels, 3, "M");
+  row("voxels the sun drew", shadowVoxels, 3, "M");
   summary += "\nPlain over conservative, each timeline frame's pair, median / mean / 95th percentile:\n";
   summary += std::format("view splat PSInvocations: {}\n", Describe(RatioSpread(_shots, invocations), 3));
   summary += std::format("view splat time: {}\n", Describe(RatioSpread(_shots, pass(NeuronClient::GpuPass::ViewSplat)), 3));
   summary += "\nView splat by phase, conservative depth, median / mean / 95th percentile:\n";
-  for (const Phase phase : {Phase::Intact, Phase::Flight, Phase::Stopped})
+  for (const Phase phase : PHASES)
   {
-    summary += std::format("{}: {} ms, PSInvocations per covered pixel {}\n", PHASE_NAMES[static_cast<std::size_t>(phase)],
-                           Describe(SpreadOver(_shots, Depth::Conservative, phase, pass(NeuronClient::GpuPass::ViewSplat)), 3),
+    const auto frames =
+      std::ranges::count_if(_shots, [phase](const Shot& _shot) { return _shot.phase == phase && _shot.depth == Depth::Conservative; });
+    if (frames == 0)
+    {
+      summary += std::format("{}: no frames\n", PHASE_NAMES[static_cast<std::size_t>(phase)]);
+      continue;
+    }
+    summary += std::format("{}, {} frames: {} ms, PSInvocations per covered pixel {}\n", PHASE_NAMES[static_cast<std::size_t>(phase)],
+                           frames, Describe(SpreadOver(_shots, Depth::Conservative, phase, pass(NeuronClient::GpuPass::ViewSplat)), 3),
                            Describe(SpreadOver(_shots, Depth::Conservative, phase, perCovered), 2));
   }
   summary += std::format("\nEvery frame: {}\n", winrt::to_string(_csvPath.wstring()));
   return summary;
 }
 
+void ThrowOnRefusal(const std::expected<void, NeuronClient::SessionError>& _polled)
+{
+  if (!_polled)
+  {
+    throw std::runtime_error("The session with the server ended: " + NeuronClient::DescribeSessionError(_polled.error()));
+  }
+}
+
 } // namespace
 
-std::optional<std::wstring> RunBench(NeuronClient::Window& _window, NeuronClient::Renderer& _renderer, const Scene& _scene,
-                                     const NeuronCore::RenderSettings& _settings, float _stopSeconds, std::uint32_t _seconds)
+struct Bench::Run
 {
-  const std::uint32_t frames = std::max(_seconds * FRAMES_PER_SECOND, 1u);
-  OrbitCamera camera(_scene.center, _scene.radius);
-  const float startYawRadians = camera.YawRadians();
-  const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(_settings, 1.0f);
+  std::uint32_t seconds;
+  std::uint32_t frames; // on the timeline
+  std::string world;
+  NeuronClient::GraphicsDeviceDesc device;
+  NeuronClient::Window window;
+  NeuronClient::ClientSession session;
+  // Made by the first frame, once the welcome and the first snapshot have come.
+  std::unique_ptr<Scene> scene;
+  std::unique_ptr<OrbitCamera> camera;
+  std::unique_ptr<NeuronClient::Renderer> renderer;
+  std::uint32_t station = 0; // the entity the camera orbits and the bench detonates
+  float startYawRadians = 0.0f;
+  NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
+  // The run's progress: the shots drawn so far, warm-up included.
+  std::uint32_t step = 0;
+  bool detonationAsked = false;
+  std::optional<float> detonationSeconds; // on the timeline, once the server's event has come
+  std::uint64_t firstFrame = 0;           // the renderer's number for the first measured shot
   std::vector<Shot> shots;
-  shots.reserve(DEPTHS.size() * frames);
+  std::vector<SteadyClock::time_point> starts;
+  bool closed = false;
+  bool finished = false;
 
-  // Draws timeline frame _index with _depth, as a measured shot when _measured; false once the window has been closed.
-  const auto draw = [&](std::uint32_t _index, Depth _depth, bool _measured) -> bool
+  Run(const GameOptions& _options, std::uint32_t _seconds, std::string _world, std::unique_ptr<NeuronCore::Transport> _transport)
+    : seconds(_seconds),
+      frames(std::max(_seconds * FRAMES_PER_SECOND, 1u)),
+      world(std::move(_world)),
+      device(_options.device),
+      window({L"Outpost", _options.windowSize}),
+      session(std::move(_transport), _options.modelDirectory)
   {
-    if (!_window.PumpMessages())
+    shots.reserve(DEPTHS.size() * frames);
+    starts.reserve(shots.capacity() + 1);
+  }
+
+  // The timeline frame of shot _step: the warm-up draws frame 0, then every frame is drawn in both variants.
+  [[nodiscard]] std::uint32_t IndexOf(std::uint32_t _step) const noexcept
+  {
+    return _step < WARMUP_FRAMES ? 0 : (_step - WARMUP_FRAMES) / static_cast<std::uint32_t>(DEPTHS.size());
+  }
+
+  [[nodiscard]] std::uint32_t TickRate() const noexcept
+  {
+    return session.IsWelcomed() ? session.Buffer().TickRate() : 1u;
+  }
+
+  // Frame _index of the timeline is at _index / 60 s past the first snapshot's tick, on the server's clock.
+  [[nodiscard]] double RenderTick(std::uint32_t _index) const noexcept
+  {
+    return 1.0 + static_cast<double>(_index) * TickRate() / FRAMES_PER_SECOND;
+  }
+
+  // What the first frame needs: the models and the station, the camera, the sun's view and the renderer.
+  void Begin()
+  {
+    scene = std::make_unique<Scene>(session.Models(), NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians));
+    const NeuronClient::WorldSample sample = session.Buffer().Sample(RenderTick(0));
+    if (sample.entities.empty())
     {
-      return false;
+      throw std::runtime_error("--bench found no station to orbit in the server's world.");
     }
-    _window.Input().EndFrame();
+    const NeuronClient::SampledEntity& first = sample.entities.front();
+    station = first.id;
+    const NeuronCore::Sphere framed = scene->Models().Extent(first);
+    camera = std::make_unique<OrbitCamera>(framed.center, framed.radius);
+    startYawRadians = camera->YawRadians();
+    scene->FitShadowView(sample);
+    renderer = std::make_unique<NeuronClient::Renderer>(
+      NeuronClient::RendererDesc{device, window.Handle(), BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, scene->ShadowView()},
+      scene->Models().Models());
+  }
+
+  // Draws shot _step: frame _index of the timeline with _depth, and a measured shot unless it is a warm-up one.
+  void Draw(std::uint32_t _index, Depth _depth, bool _measured)
+  {
     const double fraction = static_cast<double>(_index) / static_cast<double>(frames);
+    if (_measured && !detonationAsked && fraction >= DETONATION_FRACTION)
+    {
+      // The server applies it at its next tick, and its event poses the debris from then on (§5.5).
+      session.Send({NeuronCore::CommandKind::Detonate, station});
+      detonationAsked = true;
+    }
+    const NeuronClient::WorldSample sample = session.Buffer().Sample(RenderTick(_index));
+    const std::vector<NeuronCore::Placement> placements = scene->Place(sample);
+    const auto entity = std::ranges::find(sample.entities, station, &NeuronClient::SampledEntity::id);
+    const std::optional<NeuronClient::SampledDetonation> detonation =
+      entity != sample.entities.end() ? entity->detonation : std::optional<NeuronClient::SampledDetonation>{};
+    float explosionSeconds = 0.0f;
+    Phase phase = Phase::Intact;
+    if (detonation.has_value() && detonation->seconds > 0.0f)
+    {
+      explosionSeconds = detonation->seconds;
+      float stopSeconds = 0.0f;
+      for (const NeuronCore::Placement& placement : placements)
+      {
+        if (placement.detonation)
+        {
+          stopSeconds = std::max(
+            stopSeconds, NeuronCore::BoundExplosion(placement.detonation->parameters, placement.lower, placement.upper).stopSeconds);
+        }
+      }
+      phase = explosionSeconds < stopSeconds ? Phase::Flight : Phase::Stopped;
+      if (!detonationSeconds)
+      {
+        // The timeline starts at the first snapshot's tick, and the world ticks with the clock while nothing pauses it.
+        detonationSeconds =
+          static_cast<float>(static_cast<double>(std::max<std::uint64_t>(detonation->event.worldTick, 1) - 1) / TickRate());
+      }
+    }
     const float yawRadians = startYawRadians + static_cast<float>(2.0 * std::numbers::pi * fraction);
-    const float explosionSeconds = ExplosionSeconds(fraction, _stopSeconds);
-    camera.SetYawRadians(yawRadians);
+    camera->SetYawRadians(yawRadians);
     if (_measured)
     {
-      shots.push_back({_index, _depth, PhaseOf(fraction), explosionSeconds, yawRadians, 0.0, std::nullopt});
+      shots.push_back({_index, _depth, phase, explosionSeconds, yawRadians, 0.0, std::nullopt});
     }
-    const std::wstring progress = _measured ? std::format(L"--bench {} s: frame {} of {}, {} depth", _seconds, _index + 1, frames,
+    if (scene->FitShadowView(sample))
+    {
+      renderer->SetShadowView(scene->ShadowView());
+    }
+
+    const std::wstring progress = _measured ? std::format(L"--bench {} s: frame {} of {}, {} depth", seconds, _index + 1, frames,
                                                           _depth == Depth::Plain ? L"plain" : L"conservative")
                                             : std::wstring(L"--bench: warming up");
-    NeuronClient::Canvas& canvas = _renderer.Overlay();
+    NeuronClient::Canvas& canvas = renderer->Overlay();
     const NeuronClient::TextExtent extent = canvas.Measure(progress, PROGRESS_STYLE);
     canvas.FillRectangle(PROGRESS_MARGIN_PIXELS, PROGRESS_MARGIN_PIXELS,
                          static_cast<std::uint32_t>(std::ceil(extent.widthPixels + 2.0f * PROGRESS_PADDING_PIXELS)),
@@ -322,56 +434,122 @@ std::optional<std::wstring> RunBench(NeuronClient::Window& _window, NeuronClient
                          0.55f);
     canvas.Print(progress, static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS,
                  static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS, PROGRESS_STYLE, {1.0f, 1.0f, 1.0f}, 1.0f);
-    _renderer.Render(camera.View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS), PlacementsAt(_scene, explosionSeconds),
-                     {std::nullopt, lighting, _settings.exposure, false, _depth == Depth::Plain, true});
-    return true;
-  };
-
-  for (std::uint32_t i = 0; i < WARMUP_FRAMES; ++i)
-  {
-    if (!draw(0, DEPTHS[i % DEPTHS.size()], false))
-    {
-      return std::nullopt;
-    }
+    const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, 1.0f);
+    renderer->Render(camera->View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS), placements,
+                     {std::nullopt, lighting, settings.exposure, false, _depth == Depth::Plain, true});
   }
-  _renderer.FinishFrames();
-  static_cast<void>(_renderer.TakeStatistics());
 
-  const std::uint64_t first = _renderer.NextFrame();
-  std::vector<SteadyClock::time_point> starts;
-  starts.reserve(shots.capacity() + 1);
-  for (std::uint32_t index = 0; index < frames; ++index)
+  void Frame()
   {
-    for (const Depth depth : DEPTHS)
+    const std::uint32_t measuredStep = step < WARMUP_FRAMES ? 0 : step - WARMUP_FRAMES;
+    if (step >= WARMUP_FRAMES)
     {
       starts.push_back(SteadyClock::now());
-      if (!draw(index, depth, true))
+    }
+    if (!window.PumpMessages())
+    {
+      closed = true;
+      return;
+    }
+    window.Input().EndFrame();
+    // The bench owns the clock, so the snapshots arrive when the timeline says.
+    ThrowOnRefusal(session.Poll(static_cast<double>(IndexOf(step)) / FRAMES_PER_SECOND));
+    if (!renderer)
+    {
+      Begin();
+    }
+    if (step == WARMUP_FRAMES)
+    {
+      renderer->FinishFrames();
+      static_cast<void>(renderer->TakeStatistics());
+      firstFrame = renderer->NextFrame();
+    }
+    const bool measured = step >= WARMUP_FRAMES;
+    Draw(IndexOf(step), DEPTHS[(measured ? measuredStep : step) % DEPTHS.size()], measured);
+    if (measured)
+    {
+      Collect(renderer->TakeStatistics(), firstFrame, shots);
+    }
+    ++step;
+    if (step == WARMUP_FRAMES + DEPTHS.size() * frames)
+    {
+      renderer->FinishFrames();
+      starts.push_back(SteadyClock::now());
+      Collect(renderer->TakeStatistics(), firstFrame, shots);
+      for (std::size_t i = 0; i < shots.size(); ++i)
       {
-        return std::nullopt;
+        shots[i].intervalMilliseconds = std::chrono::duration<double, std::milli>(starts[i + 1] - starts[i]).count();
       }
-      Collect(_renderer.TakeStatistics(), first, shots);
+      finished = true;
     }
   }
-  _renderer.FinishFrames();
-  starts.push_back(SteadyClock::now());
-  Collect(_renderer.TakeStatistics(), first, shots);
-  for (std::size_t i = 0; i < shots.size(); ++i)
-  {
-    shots[i].intervalMilliseconds = std::chrono::duration<double, std::milli>(starts[i + 1] - starts[i]).count();
-  }
+};
 
+Bench::Bench(const GameOptions& _options, std::uint32_t _seconds, std::string _world, std::unique_ptr<NeuronCore::Transport> _transport)
+  : m_run(std::make_unique<Run>(_options, _seconds, std::move(_world), std::move(_transport)))
+{
+}
+
+// Here, where Run is whole, as the unique_ptr to it needs; an empty body rather than a default one, which
+// performance-trivially-destructible mistakes for a destructor that could be trivial.
+Bench::~Bench() {}
+
+std::optional<std::uint64_t> Bench::TickNeeded() const noexcept
+{
+  if (m_run->closed || m_run->finished)
+  {
+    return std::nullopt;
+  }
+  // The snapshot at or after the frame's render tick: 1 + ceil(index × rate / 60), in whole numbers.
+  const std::uint64_t index = m_run->IndexOf(m_run->step);
+  return 1 + (index * m_run->TickRate() + FRAMES_PER_SECOND - 1) / FRAMES_PER_SECOND;
+}
+
+void Bench::Frame()
+{
+  try
+  {
+    m_run->Frame();
+  }
+  catch (...)
+  {
+    // The device still exists here, so a removal can still be asked about.
+    std::string message = NeuronClient::DescribeCurrentException();
+    if (m_run->renderer)
+    {
+      const std::string removal = m_run->renderer->Device().DescribeRemoval();
+      if (!removal.empty())
+      {
+        message += "\n" + removal;
+      }
+    }
+    throw std::runtime_error(message);
+  }
+}
+
+bool Bench::Finish()
+{
+  const Run& run = *m_run;
+  if (!run.finished)
+  {
+    return false;
+  }
   const std::string stamp = LocalStamp();
   const std::filesystem::path csvPath = std::filesystem::current_path() / std::format("Outpost-bench-{}.csv", stamp);
   const std::filesystem::path summaryPath = std::filesystem::current_path() / std::format("Outpost-bench-{}.txt", stamp);
-  WriteCsv(csvPath, shots);
-  const std::string summary = Summarize(shots, _seconds, frames, winrt::to_string(_renderer.Device().AdapterName()), csvPath);
+  WriteCsv(csvPath, run.shots);
+  const std::string summary = Summarize(run.shots, run.seconds, run.frames, run.world, run.detonationSeconds,
+                                        winrt::to_string(run.renderer->Device().AdapterName()), csvPath);
   std::ofstream text(summaryPath, std::ios::binary);
   text << summary;
   if (!text)
   {
     throw std::runtime_error(std::format("--bench could not write {}.", winrt::to_string(summaryPath.wstring())));
   }
-  return std::wstring(winrt::to_hstring(summary));
+  const std::wstring shown(winrt::to_hstring(summary));
+  OutputDebugStringW(shown.c_str());
+  MessageBoxW(run.window.Handle(), shown.c_str(), L"Outpost --bench", MB_OK | MB_ICONINFORMATION);
+  return true;
 }
 
 } // namespace GameLib

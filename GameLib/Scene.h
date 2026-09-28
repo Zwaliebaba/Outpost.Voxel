@@ -1,49 +1,58 @@
 #pragma once
 
-#include "Explosion.h"
+#include "SceneModels.h"
+#include "SnapshotBuffer.h"
+
 #include "Float3.h"
+#include "OrthographicView.h"
 #include "Placement.h"
 #include "Sphere.h"
 #include "VoxModel.h"
 
-#include <filesystem>
+#include <optional>
+#include <span>
 #include <vector>
 
 namespace GameLib
 {
 
-// What the client shows: the model, the box around its voxels, which the detonation's envelope and so the sun's view are
-// fitted around, and the sphere around that box, which the camera frames while the model is intact
-// (Design/Archive/SampleRenderer.md §3, §10, Design/SpaceScene.md §5.5). The model is drawn through placements, one per
-// part, each at its part's origin, so that the image and the voxel ids are what they were before placements
-// (Design/SpaceScene.md §7).
-struct Scene
+// How much the sun's view grows beyond what it must hold, when something reaches past it.
+inline constexpr float SHADOW_VIEW_GROWTH = 1.25f;
+
+// What the client shows of the world (Design/SpaceScene.md §6.1, §7): the placements its entities draw at a render time,
+// and the sun's view they are lit in. Until S-M7's cascades the sun's view is one square fitted to the whole layout
+// (§10): around every entity's reach, whole and as debris, as far as the client has seen it. It never shrinks, and it
+// moves only when something reaches beyond it, then grown by SHADOW_VIEW_GROWTH, so that shadows hold still. It is never
+// narrower than the station sample's, so that the one-station preset draws its shadows at the density M5 measured.
+class Scene
 {
-  NeuronCore::VoxModel model;
-  NeuronCore::Float3 lower;
-  NeuronCore::Float3 upper;
-  NeuronCore::Float3 center;
-  float radius;
-  std::vector<NeuronCore::Placement> placements; // whole, their ids assigned
-  NeuronCore::ExplosionParameters explosion;     // the detonation's, in the world: ADR-013's defaults from the centroid
+public:
+  // _toSun is the direction the sun's light comes from.
+  Scene(std::span<const NeuronCore::VoxModel> _models, NeuronCore::Float3 _toSun);
+
+  [[nodiscard]] const NeuronClient::SceneModels& Models() const noexcept
+  {
+    return m_models;
+  }
+
+  // The placements _sample's entities draw, in the order of their ids and then of their parts, with their ids (§7.3).
+  // Throws std::runtime_error when their voxels would reach NO_VOXEL.
+  [[nodiscard]] std::vector<NeuronCore::Placement> Place(const NeuronClient::WorldSample& _sample) const;
+
+  // Fits the sun's view around _sample's entities, as far as it must: true when the view moved, as it does the first time.
+  bool FitShadowView(const NeuronClient::WorldSample& _sample);
+
+  // The sun's view, once FitShadowView has fitted it.
+  [[nodiscard]] const NeuronCore::OrthographicView& ShadowView() const noexcept
+  {
+    return m_shadowView;
+  }
+
+private:
+  NeuronClient::SceneModels m_models;
+  NeuronCore::Float3 m_toSun;
+  std::optional<NeuronCore::Sphere> m_shadowSphere; // what the sun's view holds
+  NeuronCore::OrthographicView m_shadowView{};
 };
-
-// Loads the model at _path, measures it and places it. Throws std::runtime_error naming the file and the reader's
-// refusal.
-[[nodiscard]] Scene LoadScene(const std::filesystem::path& _path);
-
-// The scene's placements _timeSeconds after its detonation: whole at 0, and after it detonated, each part's voxels
-// launched from the same blast origin, taken into the part's space (Design/SpaceScene.md §7.7).
-[[nodiscard]] std::vector<NeuronCore::Placement> PlacementsAt(const Scene& _scene, float _timeSeconds);
-
-// Where the detonation reaches, in the world: a sphere every part's envelope stays inside at every time, and the time
-// from which every part has drifted to a stop (§5.5).
-struct ExplosionReach
-{
-  NeuronCore::Sphere sphere;
-  float stopSeconds;
-};
-
-[[nodiscard]] ExplosionReach BoundSceneExplosion(const Scene& _scene) noexcept;
 
 } // namespace GameLib
