@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** accepted by the owner, 2026-09-28; sixteen questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14, and the seventeenth, on N-M0's pins, is open; S-M0 and N-M0 are done (§16) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14; S-M0 and N-M0 are done (§16) · **Date:** 2026-09-28
 **Builds on:** [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md), the renderer, and [`Archive/SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md), its measured performance (§3.3); [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout; [ADR-012](ADR/ADR-012-arm64-platform.md), ARM64 beside x64 · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). `SampleRenderer.md` is archived as the record of what M0 to M5 built, so it is not rewritten: what this design changes there is said here (§3), and the archive's status line points to it.
@@ -61,7 +61,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 
 **The documents.** `SampleRenderer.md` is archived as the record of what it built, and S-M1 does not rewrite it. D2 and D3 hold as written, since neither names gravity. §12's motion, §11's ground, §13's G key and time scale, and §14's pose tests no longer describe the code, and the archive's status line says so, pointing here and to the detonation's ADR; the code cites those two from then on. ADR-009 is superseded rather than edited, and ADR-011's row for the explosion and ADR-008's ground paragraph are amended.
 
-**N-M0's pins** (`NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. `LightsAsPinned`'s shades stay: the formula they pin does not change.
+**N-M0's pins** (`NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. The owner confirmed that reading on 2026-09-28 (§17). `LightsAsPinned`'s shades stay: the formula they pin does not change.
 
 ### 3.2 After N-M0
 
@@ -482,10 +482,11 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 14. **Stations stand upright, turned by quarter turns about the vertical (S18, §5.2).**
 15. **Debris stays until it is restored or its lifetime, a world setting with no limit by default, runs out (S19, §5.5).**
 16. **The names stand** (this document, `NeuronServerTests` and `GameLogicTests`), **and S3 becomes a conformance rule (S20, §18).**
+17. **N-M0's pins of the retired behaviors retire with them (§3.1).** S-M1 removes the thirteen gravity flights of `ExplodesAsPinned` and the ground half of `LightsAsPinned`'s column with the behavior they pin, and its ADR names each one; the four tracer images and the shades stay.
+18. **The changes after M5's note stand (§3.3):** S-M9 draws each lever off and on within a frame, `--stable-power` is off by default (§14), the loopback's queues are guarded by a mutex and S-M3 is done on ARM64 as well as x64 (§6.3, §16), and S-M1 leaves the archived `SampleRenderer.md` as it stands but for a status line that points here (§3.1).
+19. **D4, D13 and D14 as revised on 2026-09-28 stay in the archived `SampleRenderer.md`,** where the owner made them before it was archived.
 
-**Open, and S-M1 waits on it:**
-
-17. **Do the pins of the retired behaviors retire with them (§3.1)?** N-M0 landed after the owner accepted this design, and ADR-011 forbids re-pinning. §3.1 reads the thirteen gravity flights of `ExplodesAsPinned`, and the ground half of `LightsAsPinned`'s column, as pins of behavior the owner retired in S1, which S-M1 removes with it and names in its ADR; the four tracer images and the shades stay. Recommended: yes. The alternative, keeping the gravity explosion alive beside the detonation so that its pins hold, keeps a floor the scene no longer has.
+No question is open.
 
 **Risks:**
 
