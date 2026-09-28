@@ -144,6 +144,7 @@ An entity whose model has several parts is drawn by one placement per part, each
 - **Its envelope.** The shadow view is fitted around the sphere around every part's `EnvelopeSphere`, and F frames that sphere.
 - **The renderer takes the frame's placements,** so `RendererDesc` loses the explosion, and `FrameSettings` its time.
 - **The image and the ids** are what they were.
+- **On hardware.** On 2026-09-28 the owner ran S-M2 on hardware and reported that it works: the station renders, detonates and is restored as before, through its one placement.
 - **The debris** is ADR-013's to rounding. The pose is now computed about the part's origin, and the probe compared it with the world-space pose over all 225,048 of the station's voxels. From 0.25 s to 30 s, no centre moved by more than 6.1 × 10⁻⁵ of a voxel in any coordinate, two units in the last place of a coordinate of a few hundred. No axis changed at all.
 
 **Tests.**
