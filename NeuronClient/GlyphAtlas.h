@@ -18,7 +18,7 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// The canvas's glyphs (Design/SampleRenderer.md §13, Design/ADR/ADR-010). DirectWrite rasterizes each glyph once per font
+// The canvas's glyphs (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010). DirectWrite rasterizes each glyph once per font
 // face and size on the CPU, hinted and with grayscale antialiasing, and the atlas packs its coverage into a square R8
 // texture, shelf by shelf. The CPU keeps a copy of every texel; the rows that changed since the last upload reach the
 // GPU in the command list of the frame that first draws them. A glyph that finds no room is left out of its frame, and

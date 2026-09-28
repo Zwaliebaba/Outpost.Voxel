@@ -1,6 +1,6 @@
 #pragma once
 
-// The splat pass (Design/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
+// The splat pass (Design/Archive/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
 // and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
 // perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes while the model is intact

@@ -1,6 +1,6 @@
 #pragma once
 
-// Majercik et al. 2018, Listing 5, in HLSL (Design/SampleRenderer.md §9.4): IntersectBox and the Box it takes. The C++
+// Majercik et al. 2018, Listing 5, in HLSL (Design/Archive/SampleRenderer.md §9.4): IntersectBox and the Box it takes. The C++
 // twin is NeuronCore/Box.h (R15), line for line. ORIENTED and CAN_START_IN_BOX are 0/1 switches standing in for the
 // paper's `const bool` arguments; the entry-point file sets them.
 

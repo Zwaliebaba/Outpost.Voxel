@@ -67,7 +67,7 @@ template <typename T> void AppendWords(std::vector<std::uint32_t>& _words, const
 
 } // namespace
 
-// R16: the C++ structs shared with HLSL and their mirrors agree on every field (Design/SampleRenderer.md §7.4, §14).
+// R16: the C++ structs shared with HLSL and their mirrors agree on every field (Design/Archive/SampleRenderer.md §7.4, §14).
 TEST_CLASS(LayoutEchoTests)
 {
 public:

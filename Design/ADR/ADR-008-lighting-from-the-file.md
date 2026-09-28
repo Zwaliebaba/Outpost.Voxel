@@ -1,6 +1,6 @@
 # ADR-008 — Lighting read from the file
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M3 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes · **Note:** the owner revised D4 on 2026-09-28, and it no longer leaves bloom, image-based light or anything else out of the look; the file's settings for them are still not read, since bloom's parameters are the renderer's own ([`SpaceScene.md`](../SpaceScene.md) §12.2)
+**Status:** accepted, 2026-09-27 · **Lands with:** M3 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes · **Note:** the owner revised D4 on 2026-09-28, and it no longer leaves bloom, image-based light or anything else out of the look; the file's settings for them are still not read, since bloom's parameters are the renderer's own ([`SpaceScene.md`](../SpaceScene.md) §12.2)
 
 ## Context
 
@@ -28,7 +28,7 @@ Colors are three sRGB bytes, converted with the exact curve the palette uses (§
 
 **`_expo` is a multiplier.** The station's value, 1, then leaves the image as the tone map makes it. Read as stops, it would double it.
 
-**An emissive entry's scale is `_emit` × 2^`_flux`, times a gain the viewer sets.** For the station's entries that is 0.6 × 2² = 2.4, from the values §3 measured. An entry whose `_type` is not `_emit` has none. The gain starts at 1. `[` and `]` divide or multiply it by 1.1, within 0.01 and 100. The window's title shows the brightest entry's scale times the gain, which is 2.40 at start for the station. The owner tunes it by eye while accepting M3's look (§15). The value accepted becomes the default, recorded here in the commit that sets it.
+**An emissive entry's scale is `_emit` × 2^`_flux`, times a gain the viewer sets.** For the station's entries that is 0.6 × 2² = 2.4, from the values §3 measured. An entry whose `_type` is not `_emit` has none. The gain starts at 1. `[` and `]` divide or multiply it by 1.1, within 0.01 and 100. The window's title shows the brightest entry's scale times the gain, which is 2.40 at start for the station. The owner tunes it by eye while accepting M3's look (§15). The value accepted becomes the default, recorded here in the commit that sets it. The owner accepted M3's look on 2026-09-28 with the gain at 1, so 1 stays the default.
 
 **The ground is the plane z = 0, and it is lit like a voxel.** Its height is MagicaVoxel's ground height, where §3's placement puts the station's lowest layer. It uses the same formula as a voxel, without emission, with the normal +Z. The shadow map's box is grown down to z = 0, so that the station's shadow on the ground falls inside the map. Beyond the map's 1,024-unit square the ground is lit.
 

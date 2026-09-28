@@ -9,7 +9,7 @@
 namespace NeuronClient
 {
 
-// A perspective view as the splat and debug view shaders read it (R16, Design/SampleRenderer.md §7.4). This struct is the
+// A perspective view as the splat and debug view shaders read it (R16, Design/Archive/SampleRenderer.md §7.4). This struct is the
 // truth; Shader/ViewConstants.hlsli mirrors it, and the layout echo in NeuronClientTests proves the two agree. The
 // members follow HLSL's packing, a float3 and one scalar to each 16 bytes, so the struct has no padding of its own.
 struct ViewConstants

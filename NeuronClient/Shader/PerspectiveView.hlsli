@@ -1,6 +1,6 @@
 #pragma once
 
-// A pinhole camera as the view splat pass sees it (Design/SampleRenderer.md §7.5, §9.3). The C++ twins are in
+// A pinhole camera as the view splat pass sees it (Design/Archive/SampleRenderer.md §7.5, §9.3). The C++ twins are in
 // NeuronCore/PerspectiveView.h (R15); here the view is the constant buffer itself.
 
 #include "Ray.hlsli"

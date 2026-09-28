@@ -7,118 +7,68 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Canvas.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CanvasQuad.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CanvasShading.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Clock.h" />
-    <ClInclude Include="CoveragePass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
-    <ClInclude Include="ExplosionConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="FailureReport.h" />
-    <ClInclude Include="FrameQueries.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GlyphAtlas.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="InstanceConstants.h" />
-    <ClInclude Include="LightingConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="LightingPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
-    <ClInclude Include="ShadowMap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ShadowViewConstants.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SplatPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SwapChain.h" />
-    <ClInclude Include="ToneMapPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="UploadRing.h" />
     <ClInclude Include="ViewConstants.h" />
     <ClInclude Include="ViewTargets.h" />
     <ClInclude Include="VoxelScene.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="WindowsSdk.h" />
+    <ClInclude Include="Canvas.h" />
+    <ClInclude Include="CanvasQuad.h" />
+    <ClInclude Include="CanvasShading.h" />
+    <ClInclude Include="CoveragePass.h" />
+    <ClInclude Include="ExplosionConstants.h" />
+    <ClInclude Include="FrameQueries.h" />
+    <ClInclude Include="GlyphAtlas.h" />
+    <ClInclude Include="LightingConstants.h" />
+    <ClInclude Include="LightingPass.h" />
+    <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="ShadowViewConstants.h" />
+    <ClInclude Include="SplatPass.h" />
+    <ClInclude Include="ToneMapPass.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Canvas.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CanvasShading.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CoveragePass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
-    <ClCompile Include="ExplosionConstants.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="FailureReport.cpp" />
-    <ClCompile Include="FrameQueries.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="GlyphAtlas.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
-    <ClCompile Include="LightingConstants.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="LightingPass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
-    <ClCompile Include="ShadowMap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ShadowViewConstants.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SplatPass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SwapChain.cpp" />
-    <ClCompile Include="ToneMapPass.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="UploadRing.cpp" />
     <ClCompile Include="ViewConstants.cpp" />
     <ClCompile Include="ViewTargets.cpp" />
     <ClCompile Include="VoxelScene.cpp" />
     <ClCompile Include="Window.cpp" />
+    <ClCompile Include="Canvas.cpp" />
+    <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="CoveragePass.cpp" />
+    <ClCompile Include="ExplosionConstants.cpp" />
+    <ClCompile Include="FrameQueries.cpp" />
+    <ClCompile Include="GlyphAtlas.cpp" />
+    <ClCompile Include="LightingConstants.cpp" />
+    <ClCompile Include="LightingPass.cpp" />
+    <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="ShadowViewConstants.cpp" />
+    <ClCompile Include="SplatPass.cpp" />
+    <ClCompile Include="ToneMapPass.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

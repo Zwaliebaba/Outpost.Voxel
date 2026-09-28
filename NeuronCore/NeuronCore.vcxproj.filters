@@ -4,54 +4,36 @@
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
-    <ClInclude Include="Explosion.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Float3.h" />
-    <ClInclude Include="Hash.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Lighting.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="OctahedralNormal.h" />
     <ClInclude Include="OrthographicView.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PerspectiveView.h" />
     <ClInclude Include="Ray.h" />
-    <ClInclude Include="RenderSettings.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SplatBounds.h" />
-    <ClInclude Include="ToneMap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="TraceHit.h" />
     <ClInclude Include="VoxelGrid.h" />
     <ClInclude Include="VoxelRecord.h" />
     <ClInclude Include="VoxModel.h" />
+    <ClInclude Include="Explosion.h" />
+    <ClInclude Include="Hash.h" />
+    <ClInclude Include="Lighting.h" />
+    <ClInclude Include="RenderSettings.h" />
+    <ClInclude Include="ToneMap.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
-    <ClCompile Include="Explosion.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Lighting.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="OctahedralNormal.cpp" />
     <ClCompile Include="OrthographicView.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="PerspectiveView.cpp" />
-    <ClCompile Include="RenderSettings.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SplatBounds.cpp" />
-    <ClCompile Include="ToneMap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="VoxelGrid.cpp" />
     <ClCompile Include="VoxModel.cpp" />
+    <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Lighting.cpp" />
+    <ClCompile Include="RenderSettings.cpp" />
+    <ClCompile Include="ToneMap.cpp" />
   </ItemGroup>
 </Project>

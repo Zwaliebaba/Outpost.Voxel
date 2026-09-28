@@ -1,7 +1,7 @@
 #pragma once
 
 // One triangle over the viewport, at the far plane of reversed Z, for the passes that write every pixel of their target:
-// the tone map and the debug views (Design/SampleRenderer.md §8, §11); and for the coverage count, which writes none
+// the tone map and the debug views (Design/Archive/SampleRenderer.md §8, §11); and for the coverage count, which writes none
 // but tests every one against the view's depth (§14).
 
 struct FullScreenVaryings

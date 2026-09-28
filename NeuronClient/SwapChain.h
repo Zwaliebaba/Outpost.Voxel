@@ -14,7 +14,7 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// The flip-model swap chain of Design/SampleRenderer.md §13: two 8-bit buffers written through an sRGB view, a
+// The flip-model swap chain of Design/Archive/SampleRenderer.md §13: two 8-bit buffers written through an sRGB view, a
 // frame-latency waitable object, and tearing when vsync is off and the system allows it.
 class SwapChain
 {

@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// What the debug view pass shows in place of the lit image (Design/SampleRenderer.md §11), in the order of the keys
+// What the debug view pass shows in place of the lit image (Design/Archive/SampleRenderer.md §11), in the order of the keys
 // that select them. The values are the DEBUG_VIEW_* constants of NeuronClient/Shader/DebugView.hlsli.
 enum class DebugView : std::uint32_t
 {

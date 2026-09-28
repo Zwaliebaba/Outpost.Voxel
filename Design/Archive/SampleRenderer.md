@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28 · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 
@@ -264,7 +264,7 @@ In the orthographic shadow permutation, step 3 collapses to an exact expression:
 
 The ray starts at the camera. Its direction combines the camera's axes with the pixel's normalised device coordinates, scaled by the field of view and aspect ratio, and has a view-space depth component of exactly one. The ray parameter *t* is therefore the view depth, and depth is *n* / *t* with no further division. The intersection is Listing 5, with `canStartInBox` false and `oriented` set per permutation. On a miss, or when *t* < *n*, the pixel is discarded. Otherwise the shader writes `SV_DepthLessEqual` = min(*n* / *t*, `SV_Position.z`) and `SV_Target0` = (voxel index, octahedral normal). The normal is *R* × sign vector in the oriented permutation, and the sign vector itself otherwise.
 
-Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed.
+Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed. On the one GPU measured so far, an Adreno X1-85, early rejection works once the voxels separate and hardly at all on the intact station, and the invocations it saves cost no measurable time ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)).
 
 ### 9.4 Listing 5 in HLSL
 
@@ -445,18 +445,18 @@ Comparison rule: CPU and GPU agree to rounding, not bit for bit. MSVC contracts 
 
 Manual acceptance covers what CI cannot. From M2 on, the owner runs the sample on hardware at every milestone, and at M3 judges the lighting by eye; there is no comparison against MagicaVoxel renders (D12).
 
-Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pixels, which is the tightness of the bounds in one number; the overdraw view; and `--bench`. Figures quoted in ADRs say how they were measured.
+Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pixels; the overdraw view; and `--bench`. Figures quoted in ADRs say how they were measured. `PSInvocations` against covered pixels is what the GPU shaded per visible pixel, in whatever unit that GPU counts. The Adreno X1-85 counts every lane of every 2×2 quad a triangle touches, helper lanes included, so it is not the tightness of the bounds. The tightness is the twin's figure: the share of a rectangle's pixels whose ray hits its box ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)).
 
 ## 15. Milestones
 
-| | Delivers | Done when |
-|---|---|---|
-| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
-| M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
-| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
-| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station |
-| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
+| | Delivers | Done when | Status |
+|---|---|---|---|
+| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running | Done: PR #1, 2026-09-27 |
+| M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced | Done: PR #1, 2026-09-27 |
+| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware | Done: PR #2, 2026-09-27; the owner ran the station on hardware the same day |
+| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look | Done: PR #4, 2026-09-28; the owner accepted the look, with the emissive gain at its default of 1 (ADR-008) |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station | Done: PR #4, 2026-09-28; the owner detonated and reassembled the station and accepted the defaults (ADR-009) |
+| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)), and an ADR for any decision it drives | Done: PR #4 measures, PR #7 records the note, 2026-09-28; the note drives no ADR |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
 
@@ -504,7 +504,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
 - ADR-009, explosion motion model and its defaults (M4);
 - ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28);
-- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28).
+- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28);
+- ADR-012, ARM64 as a second platform beside x64, with CI kept on x64, recorded when the owner added it (2026-09-28).
 
 ## 18. References
 

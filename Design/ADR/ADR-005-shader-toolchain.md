@@ -1,6 +1,6 @@
 # ADR-005 — Shader toolchain
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15) · **Amended by:** [ADR-007](ADR-007-shader-model-and-names.md), Shader Model 6.7
+**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-007](ADR-007-shader-model-and-names.md), Shader Model 6.7
 
 ## Context
 

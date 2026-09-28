@@ -52,7 +52,7 @@ void AreClose(Float3 _expected, Float3 _actual, float _tolerance, const wchar_t*
 
 } // namespace
 
-// The lighting pass's twin (Design/SampleRenderer.md §10, §11). The GPU side is compared with it in NeuronClientTests;
+// The lighting pass's twin (Design/Archive/SampleRenderer.md §10, §11). The GPU side is compared with it in NeuronClientTests;
 // these pin the twin itself.
 TEST_CLASS(LightingTests)
 {

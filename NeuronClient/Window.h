@@ -20,7 +20,7 @@ struct ClientSize
 struct WindowDesc
 {
   const wchar_t* title;
-  // Without a size, the window is borderless fullscreen on the monitor the mouse is on (Design/SampleRenderer.md §13);
+  // Without a size, the window is borderless fullscreen on the monitor the mouse is on (Design/Archive/SampleRenderer.md §13);
   // with one, it is an ordinary window with that client area.
   std::optional<ClientSize> clientSize;
 };

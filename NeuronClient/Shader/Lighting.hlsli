@@ -1,6 +1,6 @@
 #pragma once
 
-// The lighting of Design/SampleRenderer.md §10 and §11: the sun with its shadow map, a hemisphere of sky and ground, and
+// The lighting of Design/Archive/SampleRenderer.md §10 and §11: the sun with its shadow map, a hemisphere of sky and ground, and
 // emissive palette entries that light only themselves. The C++ twins are in NeuronCore/Lighting.h (R15), function for
 // function.
 

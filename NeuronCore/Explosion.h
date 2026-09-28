@@ -9,7 +9,7 @@
 namespace NeuronCore
 {
 
-// The explosion's parameter block (Design/SampleRenderer.md §12). Lengths are in voxels and times in seconds, the
+// The explosion's parameter block (Design/Archive/SampleRenderer.md §12). Lengths are in voxels and times in seconds, the
 // world's +Y is up and the ground is the plane y = 0 (§7.5). Design/ADR/ADR-009 records the defaults and how they were
 // chosen.
 struct ExplosionParameters

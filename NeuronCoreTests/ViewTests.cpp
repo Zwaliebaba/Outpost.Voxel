@@ -39,7 +39,7 @@ void ExpectOrthonormalLeftHanded(Float3 _right, Float3 _up, Float3 _forward, con
 
 } // namespace
 
-// Ray generation and the depth conventions of Design/SampleRenderer.md §7.5 and §9.3.
+// Ray generation and the depth conventions of Design/Archive/SampleRenderer.md §7.5 and §9.3.
 TEST_CLASS(ViewTests)
 {
 public:

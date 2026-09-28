@@ -1,6 +1,6 @@
 # ADR-007 — Shader Model 6.7 and shader file names
 
-**Status:** accepted, 2026-09-27 · **Amends:** [ADR-005](ADR-005-shader-toolchain.md) · **Design:** [`Design/SampleRenderer.md`](../SampleRenderer.md) D9, §5
+**Status:** accepted, 2026-09-27 · **Amends:** [ADR-005](ADR-005-shader-toolchain.md) · **Design:** [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) D9, §5
 
 ## Context
 

@@ -139,7 +139,7 @@ struct RectangleCoverage
 
 } // namespace
 
-// The measurements of Design/SampleRenderer.md §8, §11 and §14: the overdraw count, the timestamps, the view splat's
+// The measurements of Design/Archive/SampleRenderer.md §8, §11 and §14: the overdraw count, the timestamps, the view splat's
 // pipeline statistics and the covered pixels, on WARP.
 TEST_CLASS(MeasurementTests)
 {

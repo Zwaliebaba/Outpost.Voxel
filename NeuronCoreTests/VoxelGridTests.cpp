@@ -91,7 +91,7 @@ void ExpectSameHit(const TraceHit& _expected, const TraceHit& _actual, const std
 
 } // namespace
 
-// The reference tracer of Design/SampleRenderer.md §14, held to the brute force it stands in for.
+// The reference tracer of Design/Archive/SampleRenderer.md §14, held to the brute force it stands in for.
 TEST_CLASS(VoxelGridTests)
 {
 public:

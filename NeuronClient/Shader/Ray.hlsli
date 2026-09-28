@@ -1,6 +1,6 @@
 #pragma once
 
-// A ray as the views make it, and the reciprocal of its direction (Design/SampleRenderer.md §9.3). The C++ twin is
+// A ray as the views make it, and the reciprocal of its direction (Design/Archive/SampleRenderer.md §9.3). The C++ twin is
 // NeuronCore/Ray.h (R15).
 
 struct Ray

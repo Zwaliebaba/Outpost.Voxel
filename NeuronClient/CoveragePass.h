@@ -10,7 +10,7 @@ namespace NeuronClient
 class GraphicsDevice;
 class ViewTargets;
 
-// Counts the pixels the view splat covered, which the pixel-shader invocations are measured against (Design/SampleRenderer.md
+// Counts the pixels the view splat covered, which the pixel-shader invocations are measured against (Design/Archive/SampleRenderer.md
 // §14). One triangle over the view at the far plane is depth-tested LESS against the view's depth, with no depth write and
 // no pixel shader: exactly the pixels a voxel wrote pass, and an occlusion query around the draw counts them. The
 // hardware's depth test does the counting, so no shader algorithm needs a twin; the test compares the count with the

@@ -72,7 +72,7 @@ constexpr float DISPLAY_TOLERANCE = 1.0e-5f;
 
 } // namespace
 
-// The lighting and tone map passes against their twins, each on the inputs the GPU itself wrote (Design/SampleRenderer.md
+// The lighting and tone map passes against their twins, each on the inputs the GPU itself wrote (Design/Archive/SampleRenderer.md
 // §11, R15): the lighting from the view splat's depth and visibility and the shadow splat's map, the tone map from the
 // lighting's HDR color.
 TEST_CLASS(LightingPassTests)

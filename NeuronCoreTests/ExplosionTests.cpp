@@ -73,7 +73,7 @@ constexpr std::uint32_t FLIGHT_SAMPLES = 160;
 
 } // namespace
 
-// The explosion's motion model (Design/SampleRenderer.md §12, §14) on synthetic voxels and random parameter blocks; the
+// The explosion's motion model (Design/Archive/SampleRenderer.md §12, §14) on synthetic voxels and random parameter blocks; the
 // station under the defaults is MilitaryStationTests'.
 TEST_CLASS(ExplosionTests)
 {

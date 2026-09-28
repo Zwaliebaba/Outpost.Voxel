@@ -12,7 +12,7 @@
 namespace NeuronCore
 {
 
-// The visibility buffer's value for a pixel that no voxel covers (Design/SampleRenderer.md §7.3).
+// The visibility buffer's value for a pixel that no voxel covers (Design/Archive/SampleRenderer.md §7.3).
 inline constexpr std::uint32_t NO_VOXEL = 0xFFFFFFFFu;
 
 // The voxel a ray resolves to, as the view and shadow passes resolve it.
@@ -23,7 +23,7 @@ struct TraceHit
   Float3 normal;       // the face normal, facing back along the ray
 };
 
-// The brute-force reference (Design/SampleRenderer.md §14): IntersectBox against every box, keeping the nearest hit at
+// The brute-force reference (Design/Archive/SampleRenderer.md §14): IntersectBox against every box, keeping the nearest hit at
 // or beyond _minDistance, as a splat pass's discard and depth test do. A tie goes to the lower index, which is the box
 // the pass draws first.
 template <bool Oriented> [[nodiscard]] TraceHit TraceBoxes(std::span<const Box> _boxes, const Ray& _ray, float _minDistance) noexcept

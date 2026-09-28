@@ -26,7 +26,7 @@ namespace NeuronClientTests
 [[nodiscard]] NeuronCore::VoxModel LoadMilitaryStation();
 
 // Runs _body on a WARP device at feature level 12_1, with the debug layer where it is installed. The suite fails rather
-// than skips when WARP cannot be made (Design/SampleRenderer.md §14). A failed HRESULT becomes a test failure that
+// than skips when WARP cannot be made (Design/Archive/SampleRenderer.md §14). A failed HRESULT becomes a test failure that
 // names it, where it was checked and, after a device removal, what DRED recorded; anything the debug layer reports
 // fails the test too.
 void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body);

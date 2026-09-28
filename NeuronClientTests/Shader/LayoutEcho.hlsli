@@ -1,6 +1,6 @@
 #pragma once
 
-// The layout echo of Design/SampleRenderer.md §7.4 (R16): every field of every constant-buffer mirror, in declaration
+// The layout echo of Design/Archive/SampleRenderer.md §7.4 (R16): every field of every constant-buffer mirror, in declaration
 // order, then of two canvas quads read from a structured buffer, written back as the 32-bit words the C++ structs hold
 // them in. A mirror that places a field anywhere else, or a structured buffer whose stride differs from the struct's
 // size, reads another field's word, and LayoutEchoTests sees it.

@@ -38,7 +38,7 @@ constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
 constexpr float DEPTH_TOLERANCE = 1.0e-6f;
 
 // How far inside or outside a box a ray may pass and still be answered differently by the GPU and the tracer, in voxel
-// units; the view splat's tests use the same sliver (Design/SampleRenderer.md §14).
+// units; the view splat's tests use the same sliver (Design/Archive/SampleRenderer.md §14).
 constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 
 // Mismatches on an edge allowed per map, which §14 sets from the first measured run and gives a reason for. That run, on
@@ -93,7 +93,7 @@ void Report(const wchar_t* _map, const Comparison& _comparison)
 
 } // namespace
 
-// The shadow splat against the reference tracer, texel for texel (Design/SampleRenderer.md §10, §14).
+// The shadow splat against the reference tracer, texel for texel (Design/Archive/SampleRenderer.md §10, §14).
 TEST_CLASS(ShadowSplatTests)
 {
 public:

@@ -10,7 +10,7 @@
 namespace NeuronClient
 {
 
-// What the lighting pass knows besides the pixel it shades (R16, Design/SampleRenderer.md §7.4, §11). This struct is the
+// What the lighting pass knows besides the pixel it shades (R16, Design/Archive/SampleRenderer.md §7.4, §11). This struct is the
 // truth; Shader/LightingConstants.hlsli mirrors it, and the layout echo in NeuronClientTests proves the two agree. A
 // float3 and one scalar to each 16 bytes, so no padding.
 struct LightingConstants

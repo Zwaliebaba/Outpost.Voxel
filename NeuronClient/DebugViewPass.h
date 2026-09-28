@@ -14,7 +14,7 @@ class ShadowMap;
 class ViewTargets;
 class VoxelScene;
 
-// The debug view pass (Design/SampleRenderer.md §11): one triangle over the render target bound by the caller, which
+// The debug view pass (Design/Archive/SampleRenderer.md §11): one triangle over the render target bound by the caller, which
 // shows the chosen view of the visibility buffer, the shadow map or the overdraw count in place of the lit image. _targetFormat is the
 // render target's view format; the application's is the swap chain's sRGB view, and a test's may be a float format
 // that keeps the linear color exact.

@@ -11,7 +11,7 @@
 namespace NeuronCore
 {
 
-// The reference tracer for an intact model (Design/SampleRenderer.md §14): a dense grid over its voxels, walked by a 3D
+// The reference tracer for an intact model (Design/Archive/SampleRenderer.md §14): a dense grid over its voxels, walked by a 3D
 // DDA that runs the ray-box twin on the occupied cells along the ray. The view and shadow passes are compared with it
 // pixel for pixel.
 //

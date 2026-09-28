@@ -27,7 +27,10 @@ name: Build
 # directory or sit on an older language standard. Before a release, somebody builds Release for
 # real -- see AGENTS.md §3.
 #
-# X64 ONLY. There is no second platform to fall back on and nothing left to excuse a red x64.
+# X64 ONLY. ARM64 is a platform too (ADR-012), but this pipeline neither builds nor tests it: the
+# same "Check the build shape" step holds every ARM64 configuration to its x64 twin, which it may
+# differ from only in the instruction set, and whoever runs on ARM64 builds it. Nothing on ARM64
+# excuses a red x64.
 #
 # ── Why the toolchain is not pinned to an image ────────────────────────────────────────────
 #

@@ -9,25 +9,17 @@
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
-    <ClCompile Include="ExplosionTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="LightingTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp" />
-    <ClCompile Include="RenderSettingsTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SplatBoundsTests.cpp" />
-    <ClCompile Include="ToneMapTests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ViewTests.cpp" />
     <ClCompile Include="VoxelGridTests.cpp" />
     <ClCompile Include="VoxFile.cpp" />
     <ClCompile Include="VoxModelTests.cpp" />
+    <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="LightingTests.cpp" />
+    <ClCompile Include="RenderSettingsTests.cpp" />
+    <ClCompile Include="ToneMapTests.cpp" />
   </ItemGroup>
 </Project>
