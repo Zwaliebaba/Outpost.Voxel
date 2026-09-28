@@ -202,7 +202,8 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
     throw std::runtime_error(std::format("--bench could not write {}.", winrt::to_string(_path.wstring())));
   }
   csv << "frame,depth,explosionSeconds,yawDegrees,shadowSplatMs,viewSplatMs,coverageMs,lightingMs,toneMapMs,canvasMs,framePassesMs,gpuMs,"
-         "intervalMs,vsInvocations,psInvocations,primitives,coveredPixels,psPerCoveredPixel\n";
+         "intervalMs,vsInvocations,psInvocations,primitives,coveredPixels,psPerCoveredPixel,viewDrawn,viewCulled,shadowDrawn,"
+         "shadowCulled\n";
   for (const Shot& shot : _shots)
   {
     if (!shot.statistics)
@@ -211,14 +212,15 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
     }
     const NeuronClient::FrameStatistics& statistics = *shot.statistics;
     csv << std::format(
-      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f}\n", shot.index,
+      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f},{},{},{},{}\n", shot.index,
       DEPTH_NAMES[static_cast<std::size_t>(shot.depth)], shot.explosionSeconds, shot.yawRadians * 180.0f / std::numbers::pi_v<float>,
       PassMilliseconds(statistics, NeuronClient::GpuPass::ShadowSplat), PassMilliseconds(statistics, NeuronClient::GpuPass::ViewSplat),
       PassMilliseconds(statistics, NeuronClient::GpuPass::Coverage), PassMilliseconds(statistics, NeuronClient::GpuPass::Lighting),
       PassMilliseconds(statistics, NeuronClient::GpuPass::ToneMap), PassMilliseconds(statistics, NeuronClient::GpuPass::Canvas),
       FramePassMilliseconds(statistics), statistics.gpuMilliseconds, shot.intervalMilliseconds, statistics.vertexShaderInvocations,
       statistics.pixelShaderInvocations, statistics.primitives, statistics.coveredPixels.value_or(0),
-      PixelShaderInvocationsPerCoveredPixel(statistics));
+      PixelShaderInvocationsPerCoveredPixel(statistics), statistics.draws.viewDrawn, statistics.draws.viewCulled,
+      statistics.draws.shadowDrawn, statistics.draws.shadowCulled);
   }
   if (!csv)
   {
@@ -236,6 +238,10 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   const auto invocations = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->pixelShaderInvocations) / 1.0e6; };
   const auto perCovered = [](const Shot& _shot) { return PixelShaderInvocationsPerCoveredPixel(*_shot.statistics); };
   const auto covered = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->coveredPixels.value_or(0)) / 1.0e6; };
+  const auto viewDrawn = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.viewDrawn); };
+  const auto viewCulled = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.viewCulled); };
+  const auto shadowDrawn = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.shadowDrawn); };
+  const auto shadowCulled = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->draws.shadowCulled); };
 
   std::string summary =
     std::format("Outpost --bench {}: {} frames of a fixed camera path and detonation timeline at {} x {}, vsync off, each "
@@ -259,6 +265,10 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   row("view splat PSInvocations", invocations, 3, "M");
   row("PSInvocations per covered pixel", perCovered, 2, "");
   row("covered pixels", covered, 3, "M");
+  row("placements the view drew", viewDrawn, 1, "");
+  row("placements the view culled", viewCulled, 1, "");
+  row("placements the sun drew", shadowDrawn, 1, "");
+  row("placements the sun culled", shadowCulled, 1, "");
   summary += "\nPlain over conservative, each timeline frame's pair, median / mean / 95th percentile:\n";
   summary += std::format("view splat PSInvocations: {}\n", Describe(RatioSpread(_shots, invocations), 3));
   summary += std::format("view splat time: {}\n", Describe(RatioSpread(_shots, pass(NeuronClient::GpuPass::ViewSplat)), 3));
@@ -312,8 +322,8 @@ std::optional<std::wstring> RunBench(NeuronClient::Window& _window, NeuronClient
                          0.55f);
     canvas.Print(progress, static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS,
                  static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS, PROGRESS_STYLE, {1.0f, 1.0f, 1.0f}, 1.0f);
-    _renderer.Render(camera.View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS),
-                     {std::nullopt, lighting, _settings.exposure, explosionSeconds, false, _depth == Depth::Plain, true});
+    _renderer.Render(camera.View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS), PlacementsAt(_scene, explosionSeconds),
+                     {std::nullopt, lighting, _settings.exposure, false, _depth == Depth::Plain, true});
     return true;
   };
 

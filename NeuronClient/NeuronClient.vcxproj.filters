@@ -14,7 +14,6 @@
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
-    <ClInclude Include="InstanceConstants.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
@@ -39,6 +38,7 @@
     <ClInclude Include="ShadowViewConstants.h" />
     <ClInclude Include="SplatPass.h" />
     <ClInclude Include="ToneMapPass.h" />
+    <ClInclude Include="PlacementConstants.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DebugViewPass.cpp" />
@@ -68,6 +68,7 @@
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="ShadowViewConstants.cpp" />
     <ClCompile Include="SplatPass.cpp" />
+    <ClCompile Include="PlacementConstants.cpp" />
     <ClCompile Include="ToneMapPass.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -99,9 +100,6 @@
     <None Include="Shader\Hash.hlsli">
       <Filter>Shader Files</Filter>
     </None>
-    <None Include="Shader\InstanceConstants.hlsli">
-      <Filter>Shader Files</Filter>
-    </None>
     <None Include="Shader\Lighting.hlsli">
       <Filter>Shader Files</Filter>
     </None>
@@ -121,6 +119,12 @@
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\PerspectiveView.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\Placement.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\PlacementConstants.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\Ray.hlsli">

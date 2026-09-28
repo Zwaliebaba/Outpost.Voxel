@@ -107,10 +107,10 @@ public:
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
         const NeuronCore::VoxelGrid grid(model);
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow);
         const NeuronCore::OrthographicView view = TestShadowView(model, {0.0f, 1.0f, 0.0f}, 128.0f, 256);
-        const std::vector<float> depth = RenderShadowSplat(_device, scene, pass, view);
+        const std::vector<float> depth = RenderShadowSplat(_device, scene, WholePlacements(model), pass, view);
 
         Comparison comparison;
         for (std::uint32_t y = 0; y < view.heightPixels; ++y)
@@ -141,11 +141,11 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow);
         const Float3 toSun = NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE);
         const NeuronCore::OrthographicView view = TestShadowView(model, toSun, 8.0f, 128);
-        const std::vector<float> depth = RenderShadowSplat(_device, scene, pass, view);
+        const std::vector<float> depth = RenderShadowSplat(_device, scene, WholePlacements(model), pass, view);
 
         const std::vector<NeuronCore::Box> exact = Boxes(model, 0.0f);
         const std::vector<NeuronCore::Box> grown = Boxes(model, EDGE_EPSILON);

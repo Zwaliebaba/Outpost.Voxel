@@ -2,7 +2,9 @@
 
 #include "PerspectiveView.h"
 
+#include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace NeuronCore
 {
@@ -49,6 +51,43 @@ Ray PerspectiveRay(const PerspectiveView& _view, std::uint32_t _pixelX, std::uin
   const Float3 direction =
     _view.forward + _view.right * (ndc.x * _view.aspect * _view.tanHalfFovY) + _view.up * (ndc.y * _view.tanHalfFovY);
   return {_view.position, direction};
+}
+
+bool IsInView(const PerspectiveView& _view, const Sphere& _sphere) noexcept
+{
+  // The center in the view's axes. Each side is a plane through the eye where |lateral| = tan × depth, and the center
+  // lies (|lateral| - tan × depth) / √(1 + tan²) beyond it.
+  const Float3 offset = _sphere.center - _view.position;
+  const float lateralX = Dot(offset, _view.right);
+  const float lateralY = Dot(offset, _view.up);
+  const float depth = Dot(offset, _view.forward);
+  const float reach = _sphere.radius + CULL_MARGIN;
+  const auto beyondSide = [depth, reach](float _lateral, float _tan) noexcept
+  { return std::abs(_lateral) - _tan * depth > reach * std::sqrt(1.0f + _tan * _tan); };
+  return depth >= _view.nearPlane - reach && !beyondSide(lateralX, _view.tanHalfFovY * _view.aspect) &&
+         !beyondSide(lateralY, _view.tanHalfFovY);
+}
+
+std::vector<std::uint32_t> ListViewDraws(const PerspectiveView& _view, std::span<const Sphere> _spheres)
+{
+  // Each kept sphere, with how far its nearest point is from the eye: negative when the eye is inside it. Sorted as
+  // pairs, two spheres as near keep their order.
+  std::vector<std::pair<float, std::uint32_t>> kept;
+  for (std::uint32_t i = 0; i < _spheres.size(); ++i)
+  {
+    if (IsInView(_view, _spheres[i]))
+    {
+      kept.emplace_back(Length(_spheres[i].center - _view.position) - _spheres[i].radius, i);
+    }
+  }
+  std::sort(kept.begin(), kept.end());
+  std::vector<std::uint32_t> draws;
+  draws.reserve(kept.size());
+  for (const std::pair<float, std::uint32_t>& sphere : kept)
+  {
+    draws.push_back(sphere.second);
+  }
+  return draws;
 }
 
 } // namespace NeuronCore

@@ -5,7 +5,10 @@
 #include "TraceHit.h"
 #include "VoxModel.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace NeuronCore
@@ -21,9 +24,14 @@ namespace NeuronCore
 class VoxelGrid
 {
 public:
+  // A grid over every instance of _model, in the world: a cell holds the index of its record in the model's buffer.
   explicit VoxelGrid(const VoxModel& _model);
 
-  // The world position of the grid's minimum corner, and its extent in cells: the tight bounds of the model's voxels.
+  // A grid over one part's records, in the part's own space, where a record's cell is the one whose minimum corner is
+  // its coordinates: a cell holds the record's index in _records (Design/SpaceScene.md §15).
+  explicit VoxelGrid(std::span<const std::uint32_t> _records);
+
+  // The position of the grid's minimum corner, and its extent in cells: the tight bounds of its voxels.
   [[nodiscard]] Int3 Origin() const noexcept
   {
     return m_origin;
@@ -34,8 +42,8 @@ public:
     return m_size;
   }
 
-  // The record occupying the cell whose minimum corner is _position, or NO_VOXEL. Where instances overlap, the first
-  // one's record holds the cell: the view pass draws it first, and it wins the tie.
+  // What the cell whose minimum corner is _position holds, or NO_VOXEL. Where instances overlap, the first one's record
+  // holds the cell: the view pass draws it first, and it wins the tie.
   [[nodiscard]] std::uint32_t VoxelAt(Int3 _position) const noexcept;
 
   // What the view pass resolves for _ray: the nearest hit of the aligned IntersectBox with canStartInBox false, at or
@@ -44,11 +52,59 @@ public:
   [[nodiscard]] TraceHit Trace(const Ray& _ray, float _minDistance) const noexcept;
 
 private:
+  void Fill(std::span<const std::uint32_t> _records, std::span<const ModelInstance> _instances);
+
   [[nodiscard]] std::uint32_t CellAt(std::int32_t _x, std::int32_t _y, std::int32_t _z) const noexcept;
 
   Int3 m_origin{};
   Int3 m_size{};
-  std::vector<std::uint32_t> m_cells; // a record index per cell, x fastest, then y
+  std::vector<std::uint32_t> m_cells; // what each cell holds, x fastest, then y
+};
+
+// The occupied cells a ray passes near while it crosses one cell of a grid: that cell and any of its 26 neighbors.
+struct GridStep
+{
+  static constexpr std::size_t MAX_CELLS = 27;
+
+  std::array<Int3, MAX_CELLS> cells;           // their minimum corners, in the grid's space
+  std::array<std::uint32_t, MAX_CELLS> values; // what the grid holds in each
+  std::size_t count;
+  double leaveDistance; // the ray parameter at which the ray leaves the cell it crosses
+};
+
+// VoxelGrid's walk along a ray, a cell at a time from the nearest, for a caller that tests the occupied cells its own
+// way. Trace is one; the scene tracer is another, which walks a placement's grid in its part's space and tests each
+// cell with the box the GPU draws, in the world (Design/SpaceScene.md §15). The ray is in double precision and in the
+// grid's space, and its parameter is the caller's: a rigid transform leaves it unchanged.
+class GridWalk
+{
+public:
+  // A walk along the ray from _origin along _direction, from parameter _minDistance on. A ray that is not finite, or
+  // has no direction, walks nothing.
+  GridWalk(const VoxelGrid& _grid, const std::array<double, 3>& _origin, const std::array<double, 3>& _direction,
+           double _minDistance) noexcept;
+
+  // The next cell's step, or false once the ray has left the grid.
+  [[nodiscard]] bool Next(GridStep& _step) noexcept;
+
+  // How far beyond a hit the walk must go before no cell ahead can hold a nearer one: once a step leaves at a parameter
+  // beyond the hit's plus this, the caller may stop.
+  [[nodiscard]] double SettleDistance() const noexcept;
+
+private:
+  [[nodiscard]] double NextFace(std::size_t _axis) const noexcept;
+
+  const VoxelGrid& m_grid;
+  std::array<double, 3> m_origin;
+  std::array<double, 3> m_direction;
+  std::array<std::int32_t, 3> m_gridOrigin{};
+  std::array<std::int32_t, 3> m_gridSize{};
+  double m_directionLength = 0.0;
+  double m_exit = 0.0;                  // the parameter at which the ray leaves the grid's box, widened by the margin
+  double m_entered = 0.0;               // the parameter at which the ray entered the current cell
+  std::array<std::int32_t, 3> m_cell{}; // the current cell, relative to the grid's minimum corner
+  std::array<double, 3> m_leave{};      // the parameter at which the ray leaves the current cell along each axis
+  bool m_done = false;
 };
 
 } // namespace NeuronCore

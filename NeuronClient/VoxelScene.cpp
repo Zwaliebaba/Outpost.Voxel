@@ -4,43 +4,30 @@
 
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
-#include "InstanceConstants.h"
 
-#include <cstddef>
-#include <cstring>
+#include "Placement.h"
+
+#include <stdexcept>
 
 namespace NeuronClient
 {
-namespace
+
+VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models)
 {
-
-// A constant buffer view starts on this boundary, so the palette and every instance take one slot each.
-constexpr std::size_t CONSTANTS_SLOT_BYTES = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-
-static_assert(sizeof(PaletteConstants) <= CONSTANTS_SLOT_BYTES);
-static_assert(sizeof(InstanceConstants) <= CONSTANTS_SLOT_BYTES);
-
-} // namespace
-
-VoxelScene::VoxelScene(GraphicsDevice& _device, const NeuronCore::VoxModel& _model)
-  : m_palette(MakePaletteConstants(_model.palette))
-{
-  m_records = CreateStaticBuffer(_device, std::as_bytes(std::span(_model.records)), L"Voxel records");
-
-  std::vector<std::byte> constants((1 + _model.instances.size()) * CONSTANTS_SLOT_BYTES);
-  std::memcpy(constants.data(), &m_palette, sizeof(m_palette));
-  for (std::size_t i = 0; i < _model.instances.size(); ++i)
+  const std::vector<std::uint32_t> records = NeuronCore::SceneRecords(_models);
+  if (_models.empty() || records.empty())
   {
-    const InstanceConstants instance = MakeInstanceConstants(_model.instances[i]);
-    std::memcpy(constants.data() + (1 + i) * CONSTANTS_SLOT_BYTES, &instance, sizeof(instance));
+    throw std::invalid_argument("A scene needs at least one model with a voxel.");
   }
-  m_constants = CreateStaticBuffer(_device, constants, L"Palette and instance constants");
+  m_recordCount = static_cast<std::uint32_t>(records.size());
+  m_records = CreateStaticBuffer(_device, std::as_bytes(std::span(records)), L"Voxel records");
 
-  m_instances.reserve(_model.instances.size());
-  for (std::size_t i = 0; i < _model.instances.size(); ++i)
+  m_paletteValues.reserve(_models.size());
+  for (const NeuronCore::VoxModel& model : _models)
   {
-    m_instances.push_back({m_constants->GetGPUVirtualAddress() + (1 + i) * CONSTANTS_SLOT_BYTES, _model.instances[i].recordCount});
+    m_paletteValues.push_back(MakePaletteConstants(model.palette));
   }
+  m_palettes = CreateStaticBuffer(_device, std::as_bytes(std::span(m_paletteValues)), L"Palettes");
 }
 
 } // namespace NeuronClient

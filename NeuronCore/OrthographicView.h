@@ -2,8 +2,11 @@
 
 #include "Float3.h"
 #include "Ray.h"
+#include "Sphere.h"
 
 #include <cstdint>
+#include <span>
+#include <vector>
 
 namespace NeuronCore
 {
@@ -56,5 +59,12 @@ inline constexpr float SHADOW_HALF_EXTENT = 512.0f;
 // the last. The box is what casts and receives shadows; it never moves, so neither do the shadows.
 [[nodiscard]] OrthographicView MakeShadowView(Float3 _toSun, Float3 _center, float _halfExtent, Float3 _lower, Float3 _upper,
                                               std::uint32_t _sizePixels) noexcept;
+
+// Whether _view keeps _sphere (Design/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN beyond
+// one of the box's six faces. A sphere that touches the box is kept.
+[[nodiscard]] bool IsInView(const OrthographicView& _view, const Sphere& _sphere) noexcept;
+
+// What a shadow view draws (§7.4): the index of every sphere it keeps, in their order. Depth alone needs no other.
+[[nodiscard]] std::vector<std::uint32_t> ListShadowDraws(const OrthographicView& _view, std::span<const Sphere> _spheres);
 
 } // namespace NeuronCore

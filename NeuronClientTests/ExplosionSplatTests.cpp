@@ -1,6 +1,5 @@
 #include "pch.h"
 
-#include "ExplosionConstants.h"
 #include "GraphicsDevice.h"
 #include "SplatPass.h"
 #include "TestSupport.h"
@@ -13,7 +12,11 @@
 #include "OctahedralNormal.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
+#include "Quaternion.h"
 #include "Ray.h"
+#include "RigidTransform.h"
+#include "Sphere.h"
 #include "TraceHit.h"
 #include "VoxModel.h"
 
@@ -118,22 +121,6 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
   std::vector<float> times(BLOCK_TIMES_SECONDS.begin(), BLOCK_TIMES_SECONDS.end());
   times.push_back(_envelope.stopSeconds);
   return times;
-}
-
-// Every record's box where the twin poses it at _timeSeconds, its half-extents changed by _change: grown boxes are hit
-// wherever a ray passes near an edge, shrunk ones only well inside.
-[[nodiscard]] std::vector<NeuronCore::Box> PosedBoxes(const NeuronCore::VoxModel& _model,
-                                                      const NeuronCore::ExplosionParameters& _parameters, float _timeSeconds, float _change)
-{
-  std::vector<NeuronCore::Box> boxes;
-  boxes.reserve(_model.records.size());
-  const float radius = 0.5f + _change;
-  for (std::uint32_t record = 0; record < _model.records.size(); ++record)
-  {
-    const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(record, RecordBox(_model, record).center, _parameters, _timeSeconds);
-    boxes.push_back(NeuronCore::MakeOrientedBox(pose.center, {radius, radius, radius}, pose.axisX, pose.axisY, pose.axisZ));
-  }
-  return boxes;
 }
 
 // A view of the envelope's sphere from an elevated three-quarter direction that frames it.
@@ -292,25 +279,22 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, model);
-        const NeuronClient::ExplosionConstants intact =
-          NeuronClient::MakeExplosionConstants(NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const std::vector<NeuronCore::Placement> whole = WholePlacements(model);
+        const std::vector<NeuronCore::Placement> intact =
+          DetonatePlacements(whole, NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
 
         const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView({180.0f, 210.0f, -260.0f}, {0.0f, 110.0f, 0.0f}, WORLD_UP,
                                                                                  TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
-        const NeuronClient::SplatPass aligned(_device, NeuronClient::SplatPass::Kind::View);
-        const NeuronClient::SplatPass oriented(_device, NeuronClient::SplatPass::Kind::View,
-                                               NeuronClient::SplatPass::Permutation::Oriented);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         Report(L"view at time 0",
-               CompareDrawings(RenderSplat(_device, scene, aligned, view), RenderSplat(_device, scene, oriented, view, intact)));
+               CompareDrawings(RenderSplat(_device, scene, whole, pass, view), RenderSplat(_device, scene, intact, pass, view)));
 
         const NeuronCore::OrthographicView sun =
           TestShadowView(model, NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE), 160.0f, MAP_PIXELS);
-        const NeuronClient::SplatPass alignedShadow(_device, NeuronClient::SplatPass::Kind::Shadow);
-        const NeuronClient::SplatPass orientedShadow(_device, NeuronClient::SplatPass::Kind::Shadow,
-                                                     NeuronClient::SplatPass::Permutation::Oriented);
-        const std::vector<float> alignedMap = RenderShadowSplat(_device, scene, alignedShadow, sun);
-        const std::vector<float> orientedMap = RenderShadowSplat(_device, scene, orientedShadow, sun, intact);
+        const NeuronClient::SplatPass shadowPass(_device, NeuronClient::SplatPass::Kind::Shadow);
+        const std::vector<float> alignedMap = RenderShadowSplat(_device, scene, whole, shadowPass, sun);
+        const std::vector<float> orientedMap = RenderShadowSplat(_device, scene, intact, shadowPass, sun);
         Comparison shadowComparison;
         for (std::size_t texel = 0; texel < alignedMap.size(); ++texel)
         {
@@ -329,28 +313,69 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
         const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
         const NeuronCore::PerspectiveView view = EnvelopeView(envelope);
-        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
-                                                 NeuronClient::SplatPass::Permutation::Oriented,
                                                  NeuronClient::SplatPass::Variant::PlainDepth);
-        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented,
-                                               NeuronClient::SplatPass::Variant::Overdraw);
+        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
         for (const float time : BlockTimes(envelope))
         {
-          const NeuronClient::ExplosionConstants constants = NeuronClient::MakeExplosionConstants(parameters, time);
-          const SplatImage image = RenderSplat(_device, scene, pass, view, constants);
+          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(WholePlacements(model), parameters, time);
+          const SplatImage image = RenderSplat(_device, scene, placements, pass, view);
           const Comparison comparison =
-            CompareView(view, PosedBoxes(model, parameters, time, 0.0f), PosedBoxes(model, parameters, time, EDGE_EPSILON),
-                        PosedBoxes(model, parameters, time, -EDGE_EPSILON), image);
+            CompareView(view, PlacedBoxes(model.records, placements, 0.0f), PlacedBoxes(model.records, placements, EDGE_EPSILON),
+                        PlacedBoxes(model.records, placements, -EDGE_EPSILON), image);
           Report(std::format(L"block at {} s", time), comparison);
           Report(std::format(L"block at {} s, plain depth", time),
-                 CompareDrawings(image, RenderSplat(_device, scene, plainDepth, view, constants)));
+                 CompareDrawings(image, RenderSplat(_device, scene, placements, plainDepth, view)));
           Report(std::format(L"block at {} s, overdraw", time),
-                 CompareDrawings(image, RenderSplat(_device, scene, overdraw, view, constants)));
+                 CompareDrawings(image, RenderSplat(_device, scene, placements, overdraw, view)));
+        }
+      });
+  }
+
+  // Design/SpaceScene.md §7.7, §15: the block turned any way and moved, detonated with a seed and an inherited velocity,
+  // against brute force over the boxes the twin poses in its part's space and takes into the world, in the view and the
+  // sun's map, at several times.
+  TEST_METHOD(TurnedDebrisMatchesTheTwin)
+  {
+    RunGpuTest(
+      [](NeuronClient::GraphicsDevice& _device)
+      {
+        const NeuronCore::VoxModel model = RandomBlock();
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        std::vector<NeuronCore::Placement> whole{
+          PlaceCentered(model, 0, 0, 0, NeuronCore::RotationOf({-0.4f, 0.1f, 0.3f, 0.86f}), {30.0f, -12.0f, 55.0f})};
+        Assert::IsTrue(NeuronCore::AssignVoxelIds(whole));
+        // The block's detonation, in the world: from its centroid, carried off by a velocity of its own, with a seed.
+        NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
+        parameters.blastOrigin = NeuronCore::TransformPoint(whole.front().transform, parameters.blastOrigin);
+        parameters.inheritedVelocity = {1.5f, 0.5f, -1.0f};
+        parameters.seed = 11u;
+
+        // The envelope, bounded in the part's space and taken into the world, around the whole of its drift.
+        const NeuronCore::ExplosionParameters partParameters = DetonatePlacements(whole, parameters, 1.0f).front().detonation->parameters;
+        const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(partParameters, whole.front().lower, whole.front().upper);
+        const NeuronCore::Sphere reach = NeuronCore::EnvelopeSphere(envelope);
+        const NeuronCore::ExplosionEnvelope world{
+          NeuronCore::TransformPoint(whole.front().transform, reach.center), reach.radius, {0.0f, 0.0f, 0.0f}, envelope.stopSeconds};
+        const NeuronCore::PerspectiveView view = EnvelopeView(world);
+        const NeuronCore::OrthographicView sun = EnvelopeShadowView(world);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
+        const NeuronClient::SplatPass shadowPass(_device, NeuronClient::SplatPass::Kind::Shadow);
+        for (const float time : BlockTimes(envelope))
+        {
+          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(whole, parameters, time);
+          const std::vector<NeuronCore::Box> exact = PlacedBoxes(model.records, placements, 0.0f);
+          const std::vector<NeuronCore::Box> grown = PlacedBoxes(model.records, placements, EDGE_EPSILON);
+          const std::vector<NeuronCore::Box> shrunk = PlacedBoxes(model.records, placements, -EDGE_EPSILON);
+          Report(std::format(L"turned block at {} s", time),
+                 CompareView(view, exact, grown, shrunk, RenderSplat(_device, scene, placements, pass, view)));
+          Report(std::format(L"turned block's shadow at {} s", time),
+                 CompareShadow(sun, exact, grown, shrunk, RenderShadowSplat(_device, scene, placements, shadowPass, sun)));
         }
       });
   }
@@ -362,18 +387,18 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
         const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
         const NeuronCore::OrthographicView view = EnvelopeShadowView(envelope);
-        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow, NeuronClient::SplatPass::Permutation::Oriented);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow);
         for (const float time : BlockTimes(envelope))
         {
-          const std::vector<float> depth =
-            RenderShadowSplat(_device, scene, pass, view, NeuronClient::MakeExplosionConstants(parameters, time));
+          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(WholePlacements(model), parameters, time);
+          const std::vector<float> depth = RenderShadowSplat(_device, scene, placements, pass, view);
           const Comparison comparison =
-            CompareShadow(view, PosedBoxes(model, parameters, time, 0.0f), PosedBoxes(model, parameters, time, EDGE_EPSILON),
-                          PosedBoxes(model, parameters, time, -EDGE_EPSILON), depth);
+            CompareShadow(view, PlacedBoxes(model.records, placements, 0.0f), PlacedBoxes(model.records, placements, EDGE_EPSILON),
+                          PlacedBoxes(model.records, placements, -EDGE_EPSILON), depth);
           Report(std::format(L"block's shadow at {} s", time), comparison);
         }
       });

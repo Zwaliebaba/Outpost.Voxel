@@ -223,6 +223,7 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PlacementSplatTests.cpp" />
     <ClCompile Include="ShadowSplatTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />

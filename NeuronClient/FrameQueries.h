@@ -29,7 +29,17 @@ enum class GpuPass : std::uint8_t
 
 inline constexpr std::uint32_t GPU_PASS_COUNT = 7;
 
-// What the GPU measured of one frame (§8, §14).
+// What a frame's culling kept and dropped, in placements (Design/SpaceScene.md §7.4). The CPU counts them as it records
+// the frame, and they travel with what the GPU measured of it.
+struct DrawCounts
+{
+  std::uint32_t viewDrawn;
+  std::uint32_t viewCulled;
+  std::uint32_t shadowDrawn;
+  std::uint32_t shadowCulled;
+};
+
+// What the GPU measured of one frame (§8, §14), and what its culling counted.
 struct FrameStatistics
 {
   std::uint64_t frame; // the renderer's count of frames, from 0
@@ -42,6 +52,7 @@ struct FrameStatistics
   std::uint64_t pixelShaderInvocations;
   std::uint64_t primitives;
   std::optional<std::uint64_t> coveredPixels; // when the frame counted them (§14)
+  DrawCounts draws;                           // the renderer's, which FrameQueries leaves zero
 };
 
 // A frame's queries (§8): a timestamp before the first pass and after each one, a pipeline-statistics query around the

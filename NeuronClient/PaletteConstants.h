@@ -18,8 +18,9 @@ struct PaletteMaterial
   float emissiveScale;
 };
 
-// The sixteen entries of R14, 256 bytes of constants (R16, §7.4). This struct is the truth;
-// Shader/PaletteConstants.hlsli mirrors it, and the layout echo in NeuronClientTests proves the two agree.
+// The sixteen entries of R14, 256 bytes (R16, §7.4): one model's palette, an element of the scene's structured buffer of
+// palettes (Design/SpaceScene.md §7.1). This struct is the truth; Shader/PaletteConstants.hlsli mirrors it, and the
+// layout echo in NeuronClientTests proves the two agree.
 struct PaletteConstants
 {
   std::array<PaletteMaterial, NeuronCore::PALETTE_ENTRY_COUNT> materials;

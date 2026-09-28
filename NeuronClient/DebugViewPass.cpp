@@ -20,13 +20,22 @@ namespace
 enum RootParameter : std::uint8_t
 {
   ViewConstantsParameter,
-  PaletteParameter,
   SelectionParameter,
   RecordsParameter,
   VisibilityParameter,
   ShadowMapParameter,
   OverdrawParameter,
+  PlacementsParameter,
+  PalettesParameter,
   RootParameterCount
+};
+
+// The selection's root constants, in the order of DebugViewSelection in Shader/DebugViewPass.hlsli.
+enum SelectionConstant : std::uint8_t
+{
+  ViewConstant,
+  PlacementCountConstant,
+  SelectionConstantCount
 };
 
 } // namespace
@@ -39,10 +48,8 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[ViewConstantsParameter].Descriptor = {0, 0};
-  parameters[PaletteParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  parameters[PaletteParameter].Descriptor = {1, 0};
   parameters[SelectionParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-  parameters[SelectionParameter].Constants = {2, 0, 1};
+  parameters[SelectionParameter].Constants = {1, 0, SelectionConstantCount};
   parameters[RecordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[RecordsParameter].Descriptor = {0, 0};
   parameters[VisibilityParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -51,6 +58,10 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   parameters[ShadowMapParameter].DescriptorTable = {1, &shadowMapRange};
   parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
+  parameters[PlacementsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PlacementsParameter].Descriptor = {4, 0};
+  parameters[PalettesParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PalettesParameter].Descriptor = {5, 0};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
   {
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -75,18 +86,21 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
 }
 
 void DebugViewPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const ShadowMap& _shadowMap,
-                           const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants, NeuronCore::DebugView _view) const
+                           const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants, D3D12_GPU_VIRTUAL_ADDRESS _placements,
+                           std::uint32_t _placementCount, NeuronCore::DebugView _view) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
   _list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   _list->SetGraphicsRootConstantBufferView(ViewConstantsParameter, _viewConstants);
-  _list->SetGraphicsRootConstantBufferView(PaletteParameter, _scene.Palette());
-  _list->SetGraphicsRoot32BitConstant(SelectionParameter, static_cast<UINT>(_view), 0);
+  _list->SetGraphicsRoot32BitConstant(SelectionParameter, static_cast<UINT>(_view), ViewConstant);
+  _list->SetGraphicsRoot32BitConstant(SelectionParameter, _placementCount, PlacementCountConstant);
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
   _list->SetGraphicsRootDescriptorTable(VisibilityParameter, _targets.VisibilityTable());
   _list->SetGraphicsRootDescriptorTable(ShadowMapParameter, _shadowMap.Table());
   _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _targets.OverdrawTable());
+  _list->SetGraphicsRootShaderResourceView(PlacementsParameter, _placements);
+  _list->SetGraphicsRootShaderResourceView(PalettesParameter, _scene.Palettes());
   _list->DrawInstanced(3, 1, 0, 0);
 }
 

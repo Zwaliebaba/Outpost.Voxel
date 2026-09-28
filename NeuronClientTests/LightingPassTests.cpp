@@ -21,6 +21,7 @@
 #include "OctahedralNormal.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
 #include "RenderSettings.h"
 #include "ToneMap.h"
 #include "TraceHit.h"
@@ -34,6 +35,7 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -84,7 +86,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const std::vector<NeuronCore::Placement> placements = WholePlacements(model);
         const NeuronClient::SplatPass viewSplat(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass shadowSplat(_device, NeuronClient::SplatPass::Kind::Shadow);
         const NeuronClient::LightingPass lighting(_device);
@@ -114,7 +117,9 @@ public:
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(view));
         const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = constants.Push(NeuronClient::MakeShadowViewConstants(shadowView));
-        const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants = constants.Push(NeuronClient::MakeLightingConstants(parameters, shadowView));
+        const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants =
+          constants.Push(NeuronClient::MakeLightingConstants(parameters, shadowView, static_cast<std::uint32_t>(placements.size())));
+        const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
 
         _device.Execute(
           [&](ID3D12GraphicsCommandList* _list)
@@ -122,13 +127,13 @@ public:
             std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
             _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
             shadowMap.BeginSplat(_list);
-            shadowSplat.Record(_list, scene, shadowViewConstants);
+            shadowSplat.Record(_list, scene, shadowViewConstants, pushed.constants, pushed.draws);
             shadowMap.EndSplat(_list);
             targets.BeginSplat(_list);
-            viewSplat.Record(_list, scene, viewConstants);
+            viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginLighting(_list);
-            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants);
+            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants);
             targets.EndLighting(_list);
             const D3D12_CPU_DESCRIPTOR_HANDLE target = rtvHeap.Cpu(colorView);
             _list->OMSetRenderTargets(1, &target, FALSE, nullptr);
@@ -170,10 +175,10 @@ public:
             const std::uint32_t voxel = visibility[2 * pixel];
             Float3 albedo{};
             float emissiveScale = 0.0f;
-            if (voxel != NeuronCore::NO_VOXEL)
+            if (const std::optional<NeuronCore::PlacedVoxel> placed = NeuronCore::FindVoxel(placements, voxel))
             {
               const NeuronClient::PaletteMaterial& material =
-                scene.PaletteValues().materials[NeuronCore::UnpackVoxelRecord(model.records[voxel]).color];
+                scene.PaletteValues(placed->paletteIndex).materials[NeuronCore::UnpackVoxelRecord(model.records[placed->record]).color];
               albedo = material.albedo;
               emissiveScale = material.emissiveScale;
               ++voxelPixels;

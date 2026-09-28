@@ -2,8 +2,11 @@
 
 #include "Float3.h"
 #include "Ray.h"
+#include "Sphere.h"
 
 #include <cstdint>
+#include <span>
+#include <vector>
 
 namespace NeuronCore
 {
@@ -55,5 +58,15 @@ inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
 // An orthonormal left-handed basis looking along _forward, with _worldUp as up unless the two are parallel, in which
 // case +Z stands in: a sun straight overhead still gets a basis.
 void MakeViewBasis(Float3 _forward, Float3 _worldUp, Float3& _right, Float3& _up) noexcept;
+
+// Whether _view keeps _sphere (Design/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN behind
+// the near plane or beyond one of the four sides. The far plane is at infinity. A sphere that touches the frustum is
+// kept, and so is one that lies just outside a corner, since each plane is tested on its own.
+[[nodiscard]] bool IsInView(const PerspectiveView& _view, const Sphere& _sphere) noexcept;
+
+// What the camera's view draws (§7.4): the index of every sphere it keeps, nearest first, by the distance from the eye
+// to the sphere's nearest point, and in their order where two are as near. Drawn in that order, whatever occludes draws
+// before what it hides, which is what the splat's early depth test needs.
+[[nodiscard]] std::vector<std::uint32_t> ListViewDraws(const PerspectiveView& _view, std::span<const Sphere> _spheres);
 
 } // namespace NeuronCore

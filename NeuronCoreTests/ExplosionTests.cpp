@@ -4,6 +4,7 @@
 
 #include "Explosion.h"
 #include "Float3.h"
+#include "Sphere.h"
 #include "VoxModel.h"
 #include "VoxelRecord.h"
 
@@ -92,16 +93,24 @@ constexpr float POSITION_ROUNDING = 1.0e-6f;
   return model;
 }
 
-// A parameter block well beyond the defaults, around a blast origin in _lower-_upper.
+// A parameter block well beyond the defaults, around a blast origin in _lower-_upper, with an inherited velocity and a
+// seed (Design/SpaceScene.md §7.7). Each number is drawn in its own statement or list element, so that every compiler
+// draws them in the same order.
 [[nodiscard]] NeuronCore::ExplosionParameters RandomParameters(SeededRandom& _random, Float3 _lower, Float3 _upper)
 {
-  return {.blastOrigin = _random.InBox(_lower, _upper),
-          .launchSpeed = _random.Uniform(0.0f, 400.0f),
-          .falloffDistance = _random.Uniform(5.0f, 300.0f),
-          .directionJitter = _random.Uniform(0.0f, 1.5f),
-          .speedJitter = _random.Uniform(0.0f, 0.9f),
-          .drag = _random.Uniform(0.2f, 5.0f),
-          .maxQuarterTurns = _random.Below(9)};
+  NeuronCore::ExplosionParameters parameters{.blastOrigin = _random.InBox(_lower, _upper),
+                                             .launchSpeed = _random.Uniform(0.0f, 400.0f),
+                                             .falloffDistance = _random.Uniform(5.0f, 300.0f),
+                                             .directionJitter = _random.Uniform(0.0f, 1.5f),
+                                             .speedJitter = _random.Uniform(0.0f, 0.9f),
+                                             .drag = _random.Uniform(0.2f, 5.0f),
+                                             .maxQuarterTurns = _random.Below(9),
+                                             .inheritedVelocity = {0.0f, 0.0f, 0.0f},
+                                             .seed = 0u};
+  const Float3 heading = _random.Direction();
+  parameters.inheritedVelocity = heading * _random.Uniform(0.0f, 300.0f);
+  parameters.seed = _random.Below(0xFFFFFFFFu);
+  return parameters;
 }
 
 // A random voxel's center in integer cells of a 60-voxel box, and the box around them all.
@@ -205,9 +214,58 @@ public:
     }
   }
 
+  // Design/SpaceScene.md §7.7: a detonation's seed changes every voxel's randomness, and the same seed repeats it (D3).
+  TEST_METHOD(SeedsGiveDifferentDebris)
+  {
+    const NeuronCore::ExplosionParameters first = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 0.0f});
+    NeuronCore::ExplosionParameters second = first;
+    second.seed = 1u;
+    std::uint32_t moved = 0;
+    for (std::uint32_t voxel = 0; voxel < 64u; ++voxel)
+    {
+      const std::uint32_t column = voxel % 4u;
+      const std::uint32_t row = voxel / 4u % 4u;
+      const std::uint32_t layer = voxel / 16u;
+      const Float3 restCenter{static_cast<float>(column) - 1.5f, static_cast<float>(row) - 1.5f, static_cast<float>(layer) - 1.5f};
+      const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, second, 1.0f);
+      Assert::IsTrue(SamePose(pose, NeuronCore::ExplosionPose(voxel, restCenter, second, 1.0f)), L"the same seed repeats itself");
+      moved += SamePose(pose, NeuronCore::ExplosionPose(voxel, restCenter, first, 1.0f)) ? 0u : 1u;
+    }
+    Assert::AreEqual(64u, moved, L"every voxel flies differently under another seed");
+  }
+
+  // §7.7: the inherited velocity joins every launch under the same drag, so it carries every voxel alike, by the
+  // velocity times the motion made over the drag, and leaves every spin as it was.
+  TEST_METHOD(InheritedVelocityCarriesEveryVoxel)
+  {
+    SeededRandom random(20261015u);
+    for (std::uint32_t block = 0; block < 16u; ++block)
+    {
+      const RandomVoxels voxels = MakeRandomVoxels(random, 32);
+      const NeuronCore::ExplosionParameters carried = RandomParameters(random, voxels.lower, voxels.upper);
+      NeuronCore::ExplosionParameters still = carried;
+      still.inheritedVelocity = {0.0f, 0.0f, 0.0f};
+      for (const float time : {0.0f, 0.3f, 1.0f, 4.0f, MOTION_DONE / carried.drag})
+      {
+        const float made = time > 0.0f ? 1.0f - std::exp(-carried.drag * time) : 0.0f;
+        const Float3 expected = carried.inheritedVelocity * (made / carried.drag);
+        for (std::uint32_t voxel = 0; voxel < voxels.centers.size(); ++voxel)
+        {
+          const NeuronCore::VoxelPose moving = NeuronCore::ExplosionPose(voxel, voxels.centers[voxel], carried, time);
+          const NeuronCore::VoxelPose resting = NeuronCore::ExplosionPose(voxel, voxels.centers[voxel], still, time);
+          const std::wstring what = std::format(L"block {}, voxel {}, {} s", block, voxel, time);
+          const float allowed = POSITION_ROUNDING * 4.0f * (NeuronCore::Length(moving.center) + NeuronCore::Length(resting.center) + 1.0f);
+          Assert::IsTrue(NeuronCore::Length(moving.center - resting.center - expected) <= allowed, what.c_str());
+          Assert::IsTrue(SamePose({moving.center, resting.axisX, resting.axisY, resting.axisZ}, moving), what.c_str());
+        }
+      }
+    }
+  }
+
   // The closed-form envelope of §5.5 against the motion itself, for parameter blocks well beyond the defaults, with one
-  // voxel at the blast origin in each: every voxel exactly intact at time 0, every sampled box inside the sphere, and,
-  // from the stop time on, every corner within EXPLOSION_STOP_DISTANCE of where it ends.
+  // voxel at the blast origin in each: every voxel exactly intact at time 0, every sampled box inside the sphere at its
+  // time and inside the sphere around the whole drift, and, from the stop time on, every corner within
+  // EXPLOSION_STOP_DISTANCE of where it ends.
   TEST_METHOD(RandomExplosionsStayInsideTheirEnvelope)
   {
     SeededRandom random(20260927u);
@@ -219,6 +277,9 @@ public:
       voxels.centers.back() = parameters.blastOrigin;
       const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, voxels.lower, voxels.upper);
       Assert::IsTrue(envelope.stopSeconds >= 0.0f, std::format(L"block {} stops", block).c_str());
+      const NeuronCore::Sphere whole = NeuronCore::EnvelopeSphere(envelope);
+      const float slack =
+        POSITION_ROUNDING * (envelope.radius + NeuronCore::Length(envelope.drift) + NeuronCore::Length(envelope.center)) + 1.0e-3f;
       const float done = MOTION_DONE / parameters.drag;
       for (std::uint32_t voxel = 0; voxel < voxels.centers.size(); ++voxel)
       {
@@ -233,8 +294,11 @@ public:
           const float time = 2.0f * envelope.stopSeconds * static_cast<float>(sample) / static_cast<float>(FLIGHT_SAMPLES);
           const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, parameters, time);
           const std::wstring where = std::format(L"block {}, voxel {}, {} s", block, voxel, time);
-          const float reached = NeuronCore::Length(pose.center - envelope.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
-          Assert::IsTrue(reached <= envelope.radius * (1.0f + POSITION_ROUNDING) + 1.0e-3f, where.c_str());
+          const NeuronCore::Sphere now = NeuronCore::EnvelopeSphereAt(envelope, parameters, time);
+          const float reached = NeuronCore::Length(pose.center - now.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
+          Assert::IsTrue(reached <= now.radius + slack, where.c_str());
+          const float reachedEver = NeuronCore::Length(pose.center - whole.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
+          Assert::IsTrue(reachedEver <= whole.radius + slack, where.c_str());
           if (time >= envelope.stopSeconds)
           {
             const float left = CornerDistance(pose, end);
@@ -248,8 +312,8 @@ public:
     Logger::WriteMessage(std::format(L"{} voxels followed under 24 random parameter blocks\n", followed).c_str());
   }
 
-  // A center moves no faster than its launch, which is at most the launch speed at the origin with all the variation:
-  // the drag only slows it.
+  // A center moves no faster than its launch, which is at most the launch speed at the origin with all the variation,
+  // plus the inherited velocity: the drag only slows it.
   TEST_METHOD(RandomExplosionsMoveNoFasterThanTheirLaunch)
   {
     constexpr float STEP_SECONDS = 1.0e-3f;
@@ -258,7 +322,7 @@ public:
     {
       const RandomVoxels voxels = MakeRandomVoxels(random, 32);
       const NeuronCore::ExplosionParameters parameters = RandomParameters(random, voxels.lower, voxels.upper);
-      const float fastest = parameters.launchSpeed * (1.0f + parameters.speedJitter);
+      const float fastest = parameters.launchSpeed * (1.0f + parameters.speedJitter) + NeuronCore::Length(parameters.inheritedVelocity);
       const float stop = NeuronCore::BoundExplosion(parameters, voxels.lower, voxels.upper).stopSeconds;
       for (std::uint32_t voxel = 0; voxel < voxels.centers.size(); ++voxel)
       {

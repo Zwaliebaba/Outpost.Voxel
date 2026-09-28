@@ -168,8 +168,13 @@
     <ClInclude Include="OrthographicView.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PerspectiveView.h" />
+    <ClInclude Include="Placement.h" />
+    <ClInclude Include="Quaternion.h" />
     <ClInclude Include="Ray.h" />
     <ClInclude Include="RenderSettings.h" />
+    <ClInclude Include="RigidTransform.h" />
+    <ClInclude Include="SceneTracer.h" />
+    <ClInclude Include="Sphere.h" />
     <ClInclude Include="SplatBounds.h" />
     <ClInclude Include="ToneMap.h" />
     <ClInclude Include="TraceHit.h" />
@@ -188,7 +193,10 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="PerspectiveView.cpp" />
+    <ClCompile Include="Placement.cpp" />
     <ClCompile Include="RenderSettings.cpp" />
+    <ClCompile Include="RigidTransform.cpp" />
+    <ClCompile Include="SceneTracer.cpp" />
     <ClCompile Include="SplatBounds.cpp" />
     <ClCompile Include="ToneMap.cpp" />
     <ClCompile Include="VoxelGrid.cpp" />

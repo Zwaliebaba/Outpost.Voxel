@@ -1,6 +1,6 @@
 # ADR-013 — The zero-gravity detonation, and no ground
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M1 of [`Design/SpaceScene.md`](../SpaceScene.md) (§3.1, §5.5, §16) · **Supersedes:** [ADR-009](ADR-009-explosion-motion.md), the explosion's motion · **Amends:** [ADR-008](ADR-008-lighting-from-the-file.md)'s ground, and [ADR-011](ADR-011-engine-axes.md)'s rows and pins for the explosion and the ground
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M1 of [`Design/SpaceScene.md`](../SpaceScene.md) (§3.1, §5.5, §16) · **Supersedes:** [ADR-009](ADR-009-explosion-motion.md), the explosion's motion · **Amends:** [ADR-008](ADR-008-lighting-from-the-file.md)'s ground, and [ADR-011](ADR-011-engine-axes.md)'s rows and pins for the explosion and the ground · **Amended by:** [ADR-014](ADR-014-placements.md), which adds the inherited velocity and the seed, and moves the envelope with the drift
 
 ## Context
 

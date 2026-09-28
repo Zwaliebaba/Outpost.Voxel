@@ -3,6 +3,7 @@
 #include "TestSupport.h"
 
 #include "DescriptorHeap.h"
+#include "ExplosionConstants.h"
 #include "FailureReport.h"
 #include "GpuResources.h"
 #include "ShadowMap.h"
@@ -11,6 +12,7 @@
 #include "ViewConstants.h"
 #include "ViewTargets.h"
 
+#include "RigidTransform.h"
 #include "VoxelRecord.h"
 
 #include <algorithm>
@@ -53,18 +55,100 @@ namespace
 
 } // namespace
 
-NeuronCore::VoxModel LoadMilitaryStation()
+NeuronCore::VoxModel LoadGameData(const wchar_t* _fileName)
 {
-  const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.vox";
+  const std::filesystem::path relative = std::filesystem::path("GameData") / _fileName;
   std::optional<std::filesystem::path> found = FindAbove(std::filesystem::current_path(), relative);
   if (!found)
   {
     found = FindAbove(std::filesystem::path(std::source_location::current().file_name()).parent_path(), relative);
   }
-  Assert::IsTrue(found.has_value(), L"GameData/MilitaryStation.vox is not above the working directory or the test sources");
+  Assert::IsTrue(found.has_value(), std::format(L"GameData/{} is not above the working directory or the test sources", _fileName).c_str());
   auto model = NeuronCore::LoadVoxModel(found.value_or(std::filesystem::path()));
-  Assert::IsTrue(model.has_value(), L"MilitaryStation.vox was refused");
+  Assert::IsTrue(model.has_value(), std::format(L"{} was refused", _fileName).c_str());
   return std::move(*model);
+}
+
+NeuronCore::VoxModel LoadMilitaryStation()
+{
+  return LoadGameData(L"MilitaryStation.vox");
+}
+
+std::vector<NeuronCore::Placement> WholePlacements(const NeuronCore::VoxModel& _model)
+{
+  std::vector<NeuronCore::Placement> placements;
+  for (std::uint32_t part = 0; part < _model.instances.size(); ++part)
+  {
+    const NeuronCore::Int3 origin = _model.instances[part].origin;
+    const NeuronCore::RigidTransform transform{NeuronCore::IDENTITY_ROTATION,
+                                               {static_cast<float>(origin.x), static_cast<float>(origin.y), static_cast<float>(origin.z)}};
+    placements.push_back(NeuronCore::PlacePart(_model, 0, 0, part, transform));
+  }
+  Assert::IsTrue(NeuronCore::AssignVoxelIds(placements), L"the model's ids fit");
+  return placements;
+}
+
+NeuronCore::Placement PlaceCentered(const NeuronCore::VoxModel& _model, std::uint32_t _modelIndex, std::uint32_t _modelFirstRecord,
+                                    std::uint32_t _part, const NeuronCore::Rotation& _rotation, NeuronCore::Float3 _center)
+{
+  NeuronCore::Placement placement =
+    NeuronCore::PlacePart(_model, _modelIndex, _modelFirstRecord, _part, {NeuronCore::IDENTITY_ROTATION, {0.0f, 0.0f, 0.0f}});
+  placement.transform = {_rotation, _center - NeuronCore::RotateVector(_rotation, (placement.lower + placement.upper) * 0.5f)};
+  return placement;
+}
+
+std::vector<NeuronCore::Placement> DetonatePlacements(std::vector<NeuronCore::Placement> _placements,
+                                                      const NeuronCore::ExplosionParameters& _parameters, float _timeSeconds)
+{
+  for (NeuronCore::Placement& placement : _placements)
+  {
+    NeuronCore::ExplosionParameters parameters = _parameters;
+    parameters.blastOrigin = NeuronCore::InverseTransformPoint(placement.transform, _parameters.blastOrigin);
+    parameters.inheritedVelocity = NeuronCore::UnrotateVector(placement.transform.rotation, _parameters.inheritedVelocity);
+    placement.detonation = NeuronCore::PlacementDetonation{parameters, _timeSeconds};
+  }
+  return _placements;
+}
+
+std::vector<NeuronCore::Box> PlacedBoxes(std::span<const std::uint32_t> _records, std::span<const NeuronCore::Placement> _placements,
+                                         float _change)
+{
+  std::vector<NeuronCore::Box> boxes;
+  const float radius = 0.5f + _change;
+  for (const NeuronCore::Placement& placement : _placements)
+  {
+    Assert::AreEqual(static_cast<std::uint32_t>(boxes.size()), placement.firstVoxel, L"the ids run on from placement to placement");
+    for (std::uint32_t i = 0; i < placement.recordCount; ++i)
+    {
+      const NeuronCore::Box box = NeuronCore::PlacedVoxelBox(placement, i, _records[placement.firstRecord + i]);
+      boxes.push_back(NeuronCore::MakeOrientedBox(box.center, {radius, radius, radius}, box.axisX, box.axisY, box.axisZ));
+    }
+  }
+  return boxes;
+}
+
+NeuronClient::SplatPlacements PushTestPlacements(NeuronClient::UploadRing& _ring, std::span<const NeuronCore::Placement> _placements,
+                                                 Permutations _permutations)
+{
+  NeuronClient::SplatPlacements pushed = NeuronClient::PushSplatPlacements(_ring, _placements);
+  if (_permutations == Permutations::AllOriented)
+  {
+    // A whole placement drawn oriented reads constants at rest, as the renderer gives a whole rigid one.
+    D3D12_GPU_VIRTUAL_ADDRESS rest = 0;
+    for (NeuronClient::SplatDraw& draw : pushed.draws)
+    {
+      if (!draw.oriented)
+      {
+        if (rest == 0)
+        {
+          rest = _ring.Push(NeuronClient::ExplosionConstants{});
+        }
+        draw.oriented = true;
+        draw.explosion = rest;
+      }
+    }
+  }
+  return pushed;
 }
 
 void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body)
@@ -98,8 +182,9 @@ void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body)
   }
 }
 
-SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene, const NeuronClient::SplatPass& _pass,
-                       const NeuronCore::PerspectiveView& _view, const std::optional<NeuronClient::ExplosionConstants>& _explosion)
+SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
+                       std::span<const NeuronCore::Placement> _placements, const NeuronClient::SplatPass& _pass,
+                       const NeuronCore::PerspectiveView& _view, Permutations _permutations)
 {
   NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
@@ -107,9 +192,9 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
   NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, false, L"Test CPU-only views");
   NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);
   targets.Resize(_device, _view.widthPixels, _view.heightPixels);
-  NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
+  NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES + NeuronClient::SplatPlacementBytes(_placements), L"Test constants");
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(_view));
-  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants = _explosion ? constants.Push(*_explosion) : 0;
+  const NeuronClient::SplatPlacements placements = PushTestPlacements(constants, _placements, _permutations);
 
   _device.Execute(
     [&](ID3D12GraphicsCommandList* _list)
@@ -121,7 +206,7 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
       {
         targets.BeginOverdraw(_list);
       }
-      _pass.Record(_list, _scene, viewConstants, explosionConstants, targets.OverdrawWriteTable());
+      _pass.Record(_list, _scene, viewConstants, placements.constants, placements.draws, targets.OverdrawWriteTable());
       if (_pass.CountsOverdraw())
       {
         targets.EndOverdraw(_list);
@@ -151,15 +236,15 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
 }
 
 std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
-                                     const NeuronClient::SplatPass& _pass, const NeuronCore::OrthographicView& _view,
-                                     const std::optional<NeuronClient::ExplosionConstants>& _explosion)
+                                     std::span<const NeuronCore::Placement> _placements, const NeuronClient::SplatPass& _pass,
+                                     const NeuronCore::OrthographicView& _view, Permutations _permutations)
 {
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
   NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
   const NeuronClient::ShadowMap map(_device, dsvHeap, shaderHeap, _view.widthPixels);
-  NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
+  NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES + NeuronClient::SplatPlacementBytes(_placements), L"Test constants");
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeShadowViewConstants(_view));
-  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants = _explosion ? constants.Push(*_explosion) : 0;
+  const NeuronClient::SplatPlacements placements = PushTestPlacements(constants, _placements, _permutations);
 
   _device.Execute(
     [&](ID3D12GraphicsCommandList* _list)
@@ -167,7 +252,7 @@ std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, cons
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       map.BeginSplat(_list);
-      _pass.Record(_list, _scene, viewConstants, explosionConstants);
+      _pass.Record(_list, _scene, viewConstants, placements.constants, placements.draws);
       map.EndSplat(_list);
     });
 

@@ -4,6 +4,7 @@
 #include "PerspectiveView.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace NeuronCore
@@ -57,6 +58,29 @@ OrthographicView MakeShadowView(Float3 _toSun, Float3 _center, float _halfExtent
   farthest += SHADOW_DEPTH_MARGIN;
   return MakeOrthographicView(_center + forward * nearest, forward, {0.0f, 1.0f, 0.0f}, _halfExtent, _halfExtent, farthest - nearest,
                               _sizePixels, _sizePixels);
+}
+
+bool IsInView(const OrthographicView& _view, const Sphere& _sphere) noexcept
+{
+  // The center in the view's axes, against the box from the near plane to the far one.
+  const Float3 offset = _sphere.center - _view.origin;
+  const float reach = _sphere.radius + CULL_MARGIN;
+  const float depth = Dot(offset, _view.forward);
+  return std::abs(Dot(offset, _view.right)) <= _view.halfWidth + reach && std::abs(Dot(offset, _view.up)) <= _view.halfHeight + reach &&
+         depth >= -reach && depth <= _view.depthRange + reach;
+}
+
+std::vector<std::uint32_t> ListShadowDraws(const OrthographicView& _view, std::span<const Sphere> _spheres)
+{
+  std::vector<std::uint32_t> draws;
+  for (std::uint32_t i = 0; i < _spheres.size(); ++i)
+  {
+    if (IsInView(_view, _spheres[i]))
+    {
+      draws.push_back(i);
+    }
+  }
+  return draws;
 }
 
 } // namespace NeuronCore

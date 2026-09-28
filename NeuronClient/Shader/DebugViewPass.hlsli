@@ -1,25 +1,29 @@
 #pragma once
 
 // The debug view pass (Design/Archive/SampleRenderer.md §11): one triangle over the viewport, and for each pixel the color the
-// chosen view gives it: DebugViewColor of its entry in the visibility buffer, the shadow map, or the overdraw count.
+// chosen view gives it: DebugViewColor of its entry in the visibility buffer, the shadow map, or the overdraw count. A
+// pixel's voxel id leads through its placement to its record and its model's palette (Design/SpaceScene.md §7.3).
 
 #include "DebugView.hlsli"
 #include "FullScreen.hlsli"
 #include "Packing.hlsli"
 #include "PaletteConstants.hlsli"
+#include "Placement.hlsli"
 #include "ViewConstants.hlsli"
 
 ConstantBuffer<ViewConstants> g_view : register(b0);
-ConstantBuffer<PaletteConstants> g_palette : register(b1);
 StructuredBuffer<uint> g_records : register(t0);
 Texture2D<uint2> g_visibility : register(t1);
 Texture2D<float> g_shadowMap : register(t2);
 Texture2D<uint> g_overdraw : register(t3);
+StructuredBuffer<PlacementConstants> g_placements : register(t4);
+StructuredBuffer<PaletteConstants> g_palettes : register(t5);
 
-// One 32-bit root constant: the DEBUG_VIEW_* value to show.
-cbuffer DebugViewSelection : register(b2)
+// Two 32-bit root constants: the DEBUG_VIEW_* value to show, and how many placements the frame's structured buffer holds.
+cbuffer DebugViewSelection : register(b1)
 {
   uint g_debugView;
+  uint g_placementCount;
 };
 
 struct DebugViewTarget
@@ -50,9 +54,11 @@ DebugViewTarget DebugViewPixel(FullScreenVaryings _varyings)
   {
     uint2 visibility = g_visibility.Load(int3(int2(pixel), 0));
     float3 albedo = float3(0.0, 0.0, 0.0);
-    if (visibility.x != NO_VOXEL)
+    uint record = 0u;
+    uint paletteIndex = 0u;
+    if (visibility.x != NO_VOXEL && FindVoxel(g_placements, g_placementCount, visibility.x, record, paletteIndex))
     {
-      albedo = g_palette.materials[UnpackVoxelRecord(g_records[visibility.x]).color].albedo;
+      albedo = g_palettes[paletteIndex].materials[UnpackVoxelRecord(g_records[record]).color].albedo;
     }
     color = DebugViewColor(g_debugView, visibility.x, UnpackOctahedralNormal(visibility.y), albedo);
   }

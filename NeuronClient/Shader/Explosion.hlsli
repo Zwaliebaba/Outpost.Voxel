@@ -1,8 +1,8 @@
 #pragma once
 
-// pose(i, t) of the detonation (Design/SpaceScene.md §5.5, Design/ADR/ADR-013): where a voxel is, and how it is turned,
-// some time after the detonation. The C++ twin is NeuronCore/Explosion.h and .cpp (R15), function for function; the
-// envelope is the CPU's alone, since no shader needs it.
+// pose(i, t) of the detonation (Design/SpaceScene.md §5.5, §7.7, Design/ADR/ADR-013, ADR-014): where a voxel is, and how
+// it is turned, some time after the detonation. The C++ twin is NeuronCore/Explosion.h and .cpp (R15), function for
+// function; the envelope is the CPU's alone, since no shader needs it.
 
 #include "ExplosionConstants.hlsli"
 #include "Hash.hlsli"
@@ -20,6 +20,9 @@ static const uint HASH_FIRST_SPIN = 4;
 static const uint HASH_SECOND_SPIN = 5;
 static const uint HASH_STREAMS = 8;
 
+// How far apart two seeds put a voxel's hash inputs: 2^32 over the golden ratio. Seed 0 adds nothing.
+static const uint SEED_STEP = 0x9E3779B9u;
+
 struct VoxelPose
 {
   float3 center;
@@ -28,35 +31,41 @@ struct VoxelPose
   float3 axisZ;
 };
 
-// A number in [0, 1) from the top 24 bits of the hash, which a float holds exactly.
-float HashUnit(uint _voxel, uint _stream)
+// Voxel _voxel's random bits for _stream in the detonation with _seed.
+uint VoxelHash(uint _voxel, uint _stream, uint _seed)
 {
-  return float(PcgHash(_voxel * HASH_STREAMS + _stream) >> 8u) * (1.0 / 16777216.0);
+  return PcgHash(_voxel * HASH_STREAMS + _stream + _seed * SEED_STEP);
+}
+
+// A number in [0, 1) from the top 24 bits of the hash, which a float holds exactly.
+float HashUnit(uint _voxel, uint _stream, uint _seed)
+{
+  return float(VoxelHash(_voxel, _stream, _seed) >> 8u) * (1.0 / 16777216.0);
 }
 
 // A unit vector uniform on the sphere: its y uniform in [-1, 1), its heading about the y axis uniform.
-float3 Jitter(uint _voxel)
+float3 Jitter(uint _voxel, uint _seed)
 {
-  float height = 2.0 * HashUnit(_voxel, HASH_JITTER_HEIGHT) - 1.0;
-  float angle = TWO_PI * HashUnit(_voxel, HASH_JITTER_ANGLE);
+  float height = 2.0 * HashUnit(_voxel, HASH_JITTER_HEIGHT, _seed) - 1.0;
+  float angle = TWO_PI * HashUnit(_voxel, HASH_JITTER_ANGLE, _seed);
   float ring = sqrt(max(1.0 - height * height, 0.0));
   return float3(ring * cos(angle), height, ring * sin(angle));
 }
 
-// Away from the blast origin, jittered by hash, at a speed that falls off with distance. A voxel with no direction away
-// from the origin, one at the origin itself, flies along its jitter.
+// Away from the blast origin, jittered by hash, at a speed that falls off with distance, plus the inherited velocity. A
+// voxel with no direction away from the origin, one at the origin itself, flies along its jitter.
 float3 LaunchVelocity(uint _voxel, float3 _restCenter, ExplosionConstants _explosion)
 {
   float3 offset = _restCenter - _explosion.blastOrigin;
   float distance = length(offset);
   float3 away = distance > 0.0 ? offset * (1.0 / distance) : float3(0.0, 0.0, 0.0);
-  float3 jitter = Jitter(_voxel);
+  float3 jitter = Jitter(_voxel, _explosion.seed);
   float3 sum = away + jitter * _explosion.directionJitter;
   float sumLength = length(sum);
   float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0 / sumLength) : jitter;
-  float variation = 1.0 + _explosion.speedJitter * (2.0 * HashUnit(_voxel, HASH_SPEED_VARIATION) - 1.0);
+  float variation = 1.0 + _explosion.speedJitter * (2.0 * HashUnit(_voxel, HASH_SPEED_VARIATION, _explosion.seed) - 1.0);
   float speed = _explosion.launchSpeed / (1.0 + distance / _explosion.falloffDistance) * variation;
-  return direction * speed;
+  return direction * speed + _explosion.inheritedVelocity;
 }
 
 // How much of its motion the drag has let a voxel make by _timeSeconds: 1 - e^(-drag t), from 0 at the detonation
@@ -100,14 +109,14 @@ float3 Spin(uint _firstAxis, float _firstCos, float _firstSin, uint _secondAxis,
 }
 
 // A spin's whole number of quarter turns: 1 to maxQuarterTurns either way, or none if that is 0.
-float SpinQuarterTurns(uint _voxel, uint _stream, uint _maxQuarterTurns)
+float SpinQuarterTurns(uint _voxel, uint _stream, ExplosionConstants _explosion)
 {
-  if (_maxQuarterTurns == 0u)
+  if (_explosion.maxQuarterTurns == 0u)
   {
     return 0.0;
   }
-  uint hash = PcgHash(_voxel * HASH_STREAMS + _stream);
-  float turns = float(1u + (hash >> 1u) % _maxQuarterTurns);
+  uint hash = VoxelHash(_voxel, _stream, _explosion.seed);
+  float turns = float(1u + (hash >> 1u) % _explosion.maxQuarterTurns);
   return (hash & 1u) != 0u ? -turns : turns;
 }
 
@@ -120,15 +129,15 @@ VoxelPose ExplosionPose(uint _voxel, float3 _restCenter, ExplosionConstants _exp
 
   // Two different coordinate axes, each turned through its whole number of quarter turns as the drag lets the motion
   // run, so that the voxel ends square to the axes.
-  uint axes = PcgHash(_voxel * HASH_STREAMS + HASH_SPIN_AXES);
+  uint axes = VoxelHash(_voxel, HASH_SPIN_AXES, _explosion.seed);
   uint firstAxis = axes % 3u;
   uint secondAxis = (firstAxis + 1u + (axes >> 16u) % 2u) % 3u;
   float firstCos = 1.0;
   float firstSin = 0.0;
   float secondCos = 1.0;
   float secondSin = 0.0;
-  QuarterTurnCosSin(SpinQuarterTurns(_voxel, HASH_FIRST_SPIN, _explosion.maxQuarterTurns) * made, firstCos, firstSin);
-  QuarterTurnCosSin(SpinQuarterTurns(_voxel, HASH_SECOND_SPIN, _explosion.maxQuarterTurns) * made, secondCos, secondSin);
+  QuarterTurnCosSin(SpinQuarterTurns(_voxel, HASH_FIRST_SPIN, _explosion) * made, firstCos, firstSin);
+  QuarterTurnCosSin(SpinQuarterTurns(_voxel, HASH_SECOND_SPIN, _explosion) * made, secondCos, secondSin);
 
   VoxelPose pose;
   pose.center = center;
