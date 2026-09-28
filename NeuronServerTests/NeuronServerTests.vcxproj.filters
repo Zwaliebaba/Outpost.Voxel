@@ -2,14 +2,9 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="pch.h" />
-    <ClInclude Include="Route.h" />
-    <ClInclude Include="ShipMotion.h" />
-    <ClInclude Include="Sector.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
-    <ClCompile Include="Route.cpp" />
-    <ClCompile Include="ShipMotion.cpp" />
-    <ClCompile Include="Sector.cpp" />
+    <ClCompile Include="ServerHostTests.cpp" />
   </ItemGroup>
 </Project>

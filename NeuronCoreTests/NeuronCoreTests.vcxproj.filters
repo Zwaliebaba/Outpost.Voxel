@@ -26,5 +26,7 @@
     <ClCompile Include="PlacementTests.cpp" />
     <ClCompile Include="RigidTransformTests.cpp" />
     <ClCompile Include="SceneTracerTests.cpp" />
+    <ClCompile Include="LoopbackTransportTests.cpp" />
+    <ClCompile Include="MessageTests.cpp" />
   </ItemGroup>
 </Project>

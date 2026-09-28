@@ -50,7 +50,7 @@ struct DoubleQuaternion
 
 // A quaternion of _rotation in double precision, by Shepperd's method: from whichever of w, x, y and z is largest, so
 // that nothing is divided by a small number.
-[[nodiscard]] DoubleQuaternion QuaternionOf(const Rotation& _rotation) noexcept
+[[nodiscard]] DoubleQuaternion QuaternionOfInDouble(const Rotation& _rotation) noexcept
 {
   const double m00 = _rotation.axisX.x;
   const double m10 = _rotation.axisX.y;
@@ -145,7 +145,7 @@ public:
       {
         continue;
       }
-      const DoubleQuaternion q = QuaternionOf(symmetry.rotation);
+      const DoubleQuaternion q = QuaternionOfInDouble(symmetry.rotation);
       const Quaternion rounded{static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z), static_cast<float>(q.w)};
       const Quaternion negated{-rounded.x, -rounded.y, -rounded.z, -rounded.w};
       Assert::IsTrue(SameRotation(symmetry.rotation, NeuronCore::RotationOf(rounded)), L"its quaternion gives it exactly");
@@ -159,6 +159,56 @@ public:
       plain += exactEntries ? 1u : 0u;
     }
     Assert::AreEqual(12u, plain, L"the identity, three half turns about the axes and eight thirds of a turn about the diagonals");
+  }
+
+  // QuaternionOf inverts RotationOf, and stores the rotation as NVF and the protocol do: of unit length, w >= 0 (§6.2).
+  TEST_METHOD(QuaternionOfInvertsRotationOf)
+  {
+    SeededRandom random(20261017u);
+    float worst = 0.0f;
+    for (std::uint32_t sample = 0; sample < 4096u; ++sample)
+    {
+      Quaternion q{};
+      float length = 0.0f;
+      do
+      {
+        q = {random.Uniform(-1.0f, 1.0f), random.Uniform(-1.0f, 1.0f), random.Uniform(-1.0f, 1.0f), random.Uniform(-1.0f, 1.0f)};
+        length = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+      } while (length < 0.1f || length > 1.0f);
+      const float sign = q.w < 0.0f ? -1.0f : 1.0f;
+      q = {sign * q.x / length, sign * q.y / length, sign * q.z / length, sign * q.w / length};
+      const Quaternion back = NeuronCore::QuaternionOf(NeuronCore::RotationOf(q));
+      Assert::IsTrue(NeuronCore::IsUnitRotation(back), std::format(L"sample {} is stored as a unit rotation", sample).c_str());
+      worst = std::max({worst, std::abs(back.x - q.x), std::abs(back.y - q.y), std::abs(back.z - q.z), std::abs(back.w - q.w)});
+    }
+    Logger::WriteMessage(std::format(L"QuaternionOf's worst component is {} from the quaternion it came from\n", worst).c_str());
+    Assert::IsTrue(worst < 2.0e-6f, L"every component within 2 x 10^-6");
+  }
+
+  // A station's quarter turn survives the wire: each of the cube's rotations comes back exactly from QuaternionOf, and
+  // the quaternion's entries are those of the float rounding of its exact value (§5.1, §7.2).
+  TEST_METHOD(CubeRotationsSurviveTheirQuaternions)
+  {
+    for (const CubeSymmetry& symmetry : CubeSymmetries())
+    {
+      if (!symmetry.proper)
+      {
+        continue;
+      }
+      const Quaternion q = NeuronCore::QuaternionOf(symmetry.rotation);
+      Assert::IsTrue(NeuronCore::IsUnitRotation(q), L"stored as a unit rotation");
+      Assert::IsTrue(SameRotation(symmetry.rotation, NeuronCore::RotationOf(q)), L"and turned back exactly");
+    }
+  }
+
+  TEST_METHOD(StoresRotationsAsNvfDoes)
+  {
+    Assert::IsTrue(NeuronCore::IsUnitRotation({0.0f, 0.0f, 0.0f, 1.0f}), L"the identity");
+    Assert::IsTrue(NeuronCore::IsUnitRotation({1.0f, 0.0f, 0.0f, 0.0f}), L"a half turn, w = 0");
+    Assert::IsTrue(NeuronCore::IsUnitRotation({0.0f, 0.0f, 0.0f, 1.00009f}), L"within 10^-4 of unit length");
+    Assert::IsFalse(NeuronCore::IsUnitRotation({0.0f, 0.0f, 0.0f, 1.00011f}), L"beyond it");
+    Assert::IsFalse(NeuronCore::IsUnitRotation({0.0f, 0.0f, 0.6f, -0.8f}), L"w below 0");
+    Assert::IsFalse(NeuronCore::IsUnitRotation({0.0f, 0.0f, 0.0f, 0.0f}), L"nothing at all");
   }
 
   // RotationOf against the double-precision matrix of the normalized quaternion, for quaternions up to 10^-4 from unit

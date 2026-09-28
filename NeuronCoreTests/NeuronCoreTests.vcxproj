@@ -206,6 +206,8 @@
     <ClCompile Include="DebugViewTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
+    <ClCompile Include="LoopbackTransportTests.cpp" />
+    <ClCompile Include="MessageTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">

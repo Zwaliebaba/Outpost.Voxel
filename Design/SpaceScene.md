@@ -129,14 +129,14 @@ Because placements share their model's records (§7.1), the paper's 53 million v
 
 ### 5.3 Flight
 
-Flight is kinematic, one step per tick. A ship has a forward, an up and a speed. Each tick it aims at the point of its route that lies a look-ahead ahead of it (pure pursuit, looking 1.5 s of travel ahead). It turns its forward toward that point by at most its turn rate, changes speed toward its cruise speed by at most its acceleration, and moves. It banks into the turn: the bank the turn's lateral acceleration calls for, limited in angle and in rate, about its forward, from a reference up the route supplies. The reference is the orbit's normal while orbiting and the world's up in transit, so a ship leans into an orbit and levels out between stations. A wingman steers for its slot in its leader's frame and matches its leader's speed.
+Flight is kinematic, one step per tick. A ship has a forward, an up and a speed. Each tick it aims at the point of its route that lies a look-ahead ahead of it (pure pursuit, looking 1.5 s of travel ahead). It turns its forward toward that point by at most its turn rate, changes speed toward its cruise speed by at most its acceleration, and moves. It banks into the turn: the bank the turn's lateral acceleration calls for, limited in angle and in rate, about its forward, from a reference up the route supplies. The reference is the orbit's normal while orbiting and the world's up in transit, so a ship leans into an orbit and levels out between stations. A wingman holds a slot in its leader's frame. It flies its route to its slot's side at its slot's own speed, faster as it lags and slower as it leads, so that it closes on the slot along the route and never across a station (ADR-017).
 
 | Class | Cruise | Acceleration | Turn rate | Bank limit |
 |---|---|---|---|---|
 | Frigate | 60 units/s | 30 units/s² | 45°/s | 45° |
 | Capital ship | 20 units/s | 5 units/s² | 8°/s | 15° |
 
-These are defaults, tuned by eye in S-M4 and recorded in the world's ADR. No ship enters a keep-out sphere, and a test holds every ship to that over ten simulated minutes (§15).
+These are defaults, tuned by eye in S-M4 and recorded in the world's ADR, ADR-017, with the rates, the formation and the rules for a flight whose ships detonate that it adds. No ship enters a keep-out sphere, and a test holds every ship to that over ten simulated minutes (§15).
 
 ### 5.4 The tick
 
@@ -162,14 +162,14 @@ For now, commands detonate the camera's target and restore it, for testing and f
 |---|---|
 | `NeuronCore` | The messages, their encoding and their validation (§6.2). `Transport`, an abstract pipe of whole messages, and `LoopbackTransport`, two queues between two ends, each behind a mutex (§6.3). Quaternions and rigid transforms. The standard library only, as before. |
 | `NeuronServer` | `ServerHost`: sessions over transports, the handshake, one snapshot per tick to every session, and commands. It runs the tick on a thread of its own, or one step at a time for a caller (§6.3). It simulates nothing: it asks a `World`, an abstract class it defines, to advance a tick and to list its entities and events. |
-| `GameLogic` | `SpaceWorld`, the `World` of §5: the layout, the flight, the detonations, and the manifest of the models it places. It loads those models itself to measure their boxes. |
+| `GameLogic` | `Sector`, the `World` of §5: the layout, the flight, the detonations, and the manifest of the models it places. It loads those models itself to measure their boxes. |
 | `NeuronClient` | `ClientSession`: the handshake, then snapshots into a `SnapshotBuffer`, which says where every entity is at a given time (§6.4). The renderer's placements (§7), cascades (§10), sky (§11), bloom and temporal anti-aliasing (§12). |
 | `GameLib` | The game's client: the camera and its targets, the keys, the figures, the placements made from the buffer's transforms and events, and the bench's timeline (§13, §14). |
-| `Outpost` | The command line. It creates the `LoopbackTransport` pair, starts the `ServerHost` and its `SpaceWorld` on their thread, and runs the client. It is the one project that sees both sides, and it hands each side only its own end of the transport. |
+| `Outpost` | The command line. It creates the `LoopbackTransport` pair, starts the `ServerHost` and its `Sector` on their thread, and runs the client. It is the one project that sees both sides, and it hands each side only its own end of the transport. |
 
 `Transport` is message-oriented: `Send` takes one message's bytes, and `Receive` returns the next whole message or nothing. The loopback is reliable and ordered, and it copies bytes, so no object is ever shared across the boundary. A UDP transport will be neither reliable nor ordered. Snapshots are whole states and tolerate loss, but the handshake and commands need a reliable channel, and the ADR that adds UDP adds that channel.
 
-Splitting off `Server.exe` then touches `Outpost` and the transport alone. The server's executable builds a `ServerHost` and a `SpaceWorld` over a listening transport, the client builds its `ClientSession` over a connecting one, and nothing between them changes.
+Splitting off `Server.exe` then touches `Outpost` and the transport alone. The server's executable builds a `ServerHost` and a `Sector` over a listening transport, the client builds its `ClientSession` over a connecting one, and nothing between them changes.
 
 ### 6.2 Messages
 
@@ -177,12 +177,14 @@ Splitting off `Server.exe` then touches `Outpost` and the transport alone. The s
 |---|---|---|
 | `Hello` | client → server | the protocol version |
 | `Welcome` | server → client | the protocol version; the tick rate and the current tick; the world's settings (the sun's direction, radiance and angular radius, the ambient, the sky's seed, and the galactic plane's orientation); and the manifest: for each model, its name and a 64-bit hash of its file |
-| `Snapshot` | server → client | the tick and whether the world is paused; for each entity, its id, model index, flags, position, rotation and velocity; and the detonations whose debris still lasts (§5.5) |
+| `Snapshot` | server → client | the tick, the world tick and whether the world is paused; for each entity, its id, model index, flags, position, rotation and velocity; and the detonations whose debris still lasts (§5.5) |
 | `Command` | client → server | pause or resume; and, for testing until fighting decides what destroys what, detonate or restore an entity |
 
 Every message is little-endian and starts with a header giving its type, its version and its size. An entity's record is a fixed 48 bytes, like NVF's records, and its rotation is stored as x, y, z, w with w ≥ 0, as NVF's hardpoints store theirs. A snapshot of the defaults' 52 entities is about 2.5 KB, about 76 KB a second at 30 ticks.
 
 A model's name is its file's stem, letters and digits; the client adds its loader's extension, which is `.vox` today and `.nvf` after NVF's follow-up. The client loads every model the manifest names before it draws anything. It refuses, by name, a model it cannot load or whose hash differs from its own file's. Server and client read the same files today; once they no longer do, a mismatch is exactly the failure this catches.
+
+The world tick counts the ticks the world has advanced, and stands still while it is paused; the tick counts snapshots and never stops. A detonation's tick is a world tick, so its debris freezes with the world, and a client that joins late poses it from the same event. S-M3 added the world tick (ADR-015).
 
 `DecodeMessage` returns `std::expected<Message, ProtocolError>` and refuses by name, as the readers do: `Truncated`, `UnknownMessage`, `UnsupportedVersion`, `MalformedMessage` (a size or count that disagrees with the content), `BadName`, `NotFinite`, `NotUnitRotation` (NVF's tolerance of 10⁻⁴, and w ≥ 0), `DuplicateEntity`, `BadModelIndex` and `UnknownEntity` (an event for an entity the snapshot does not hold).
 
@@ -194,7 +196,7 @@ The server's thread runs `ServerHost` on a `std::jthread` at the tick rate. It w
 
 The two threads share nothing but the loopback's queues, and each queue is guarded by a mutex; nothing crosses through an atomic. These are the tree's first threads. ARM64 orders memory more weakly than x64, and CI runs x64 alone (ADR-012), so a lock-free queue with one ordering too weak would pass CI and fail on the owner's laptop. A queue the bench shows to be too slow earns a lock-free one, and its ADR.
 
-The pause command freezes the world, not the clock. Ticks and snapshots go on, each state the same as the last, so the client's time never jumps and a resume needs no resynchronization.
+The pause command freezes the world, not the clock. Ticks and snapshots go on, each state the same as the last and every velocity zero, so the client's time never jumps and a resume needs no resynchronization.
 
 ### 6.4 The client's time
 
@@ -452,7 +454,7 @@ What it takes from the look is some softness where history is rejected or clampe
 | N-M0 | NeuronVoxelFormat.md §12: the engine on Direct3D's axes | Done on 2026-09-28 (ADR-011) |
 | S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion, and the pins of the retired behaviors retired with them; the archived `SampleRenderer.md`'s status line pointing to what replaces its parts (§3.1); ADR-009 superseded by the detonation's ADR, and ADR-008 and ADR-011 amended | Done on 2026-09-28 (ADR-013): every suite green, and the owner has seen the station lit without a floor, detonated in zero gravity and restored |
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, detonated placements, ids, culling and order, the scene tracer; the placements ADR | Done on 2026-09-28 (ADR-014): §15's placement tests green, and the owner has seen the station render, detonate and be restored as before, through one placement |
-| S-M3 | The messages, the transports, `ServerHost`, and `SpaceWorld` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green, on x64 in CI and on ARM64 on the owner's machine, since CI runs no ARM64 and the threads are the tree's first (§6.3, ADR-012) |
+| S-M3 | The messages, the transports, `ServerHost`, and `Sector` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green, on x64 in CI and on ARM64 on the owner's machine, since CI runs no ARM64 and the threads are the tree's first (§6.3, ADR-012) |
 | S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots and events, the camera, keys, figures and command line; the space scene replaces the station sample | The owner has flown among the ships, confirmed their facing and detonated a station |
 | S-M5 | The sky, bloom and the lighting in space; the sky ADR and the bloom ADR; ADR-008 superseded | The sky and bloom tests green; the owner has seen them on hardware |
 | S-M6 | Temporal anti-aliasing; its ADR | The resolve tests green; the owner accepts the look: lighting, sky, bloom and anti-aliasing together |
@@ -486,6 +488,9 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 18. **The changes after M5's note stand (§3.3):** S-M9 draws each lever off and on within a frame, `--stable-power` is off by default (§14), the loopback's queues are guarded by a mutex and S-M3 is done on ARM64 as well as x64 (§6.3, §16), and S-M1 leaves the archived `SampleRenderer.md` as it stands but for a status line that points here (§3.1).
 19. **D4, D13 and D14 as revised on 2026-09-28 stay in the archived `SampleRenderer.md`,** where the owner made them before it was archived.
 20. **A detonated entity's velocity slows under the drag with the rest of the motion (§7.7).** So its debris carries on the way it was going and comes to rest the velocity over the drag further on. The owner answered this while S-M2 was built, and ADR-014 records it.
+21. **When a flight's leader detonates, its first wingman leads, and the rest of the flight re-slots on it (§5.3).** The owner answered this while S-M3 was built, and ADR-017 records it, with what happens when the leader is restored.
+22. **A restored ship resumes where it blew up (§5.5):** whole again at its frozen transform, with its flight state as at the event, and pure pursuit picks its route up from there. ADR-017 records it.
+23. **The world is a `Sector`.** It is one bounded region, and `Universe` stays free for whatever holds several. The owner named it while S-M3 was built.
 
 No question is open.
 
@@ -501,11 +506,12 @@ No question is open.
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation and ADR-014 to S-M2's placements, so the next free number is ADR-015.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation, ADR-014 to S-M2's placements, and ADR-015 to ADR-017 to S-M3's boundary, suites and sector, so the next free number is ADR-018.
 
 - **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
-- **S-M3, the client/server boundary:** the messages, the events and their validation, `Transport`, the host's tick, threads and stepping, and the client's time. Also the two new suites, amending ADR-003's table; each has Debug and Release on x64 and ARM64, as ADR-012 requires of every project.
+- **S-M3, the client/server boundary** (ADR-015): the messages, the events and their validation, `Transport`, and the host's tick, threads and stepping. **The two new suites** (ADR-016), amending ADR-003's table; each has Debug and Release on x64 and ARM64, as ADR-012 requires of every project. **The sector** (ADR-017): its layout, routes, flight, formation and destruction, and their defaults.
+- **S-M4, the client's time:** `ClientSession` and `SnapshotBuffer`, amending ADR-015 (§6.4).
 - **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
 - **S-M6, temporal anti-aliasing:** the jitter, the reprojection, the rejection, the resolve and its twin.
 - **S-M7, cascades:** amending SampleRenderer §10 and ADR-006's shadow section.
