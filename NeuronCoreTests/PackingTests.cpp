@@ -33,7 +33,7 @@ using NeuronCore::Float3;
 
 } // namespace
 
-// The packing twins of Design/SampleRenderer.md §7.1 and §7.3 (R14, R15).
+// The packing twins of Design/Archive/SampleRenderer.md §7.1 and §7.3 (R14, R15).
 TEST_CLASS(PackingTests)
 {
 public:

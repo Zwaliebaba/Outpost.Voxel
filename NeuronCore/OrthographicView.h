@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// The sun's view for the shadow map (Design/SampleRenderer.md §10): every ray travels along forward and starts on the
+// The sun's view for the shadow map (Design/Archive/SampleRenderer.md §10): every ray travels along forward and starts on the
 // near plane, and depth is standard Z, 0 at the near plane and 1 at the far one (§7.5).
 struct OrthographicView
 {

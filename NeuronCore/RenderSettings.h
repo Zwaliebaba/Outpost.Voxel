@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// The lighting a MagicaVoxel scene asks for in its rOBJ chunks (Design/SampleRenderer.md §3, §10, §11), in the
+// The lighting a MagicaVoxel scene asks for in its rOBJ chunks (Design/Archive/SampleRenderer.md §3, §10, §11), in the
 // renderer's terms: angles in radians, colors linear. How the file's values are read is Design/ADR/ADR-008's. Whatever a
 // file leaves out, or writes in a form this does not read, keeps the value the station's file gives it.
 struct RenderSettings

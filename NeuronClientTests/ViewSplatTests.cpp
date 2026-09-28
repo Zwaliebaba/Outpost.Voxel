@@ -206,7 +206,7 @@ void Report(const wchar_t* _camera, const Comparison& _comparison)
 
 } // namespace
 
-// The view splat against the reference tracer, pixel for pixel (Design/SampleRenderer.md §14).
+// The view splat against the reference tracer, pixel for pixel (Design/Archive/SampleRenderer.md §14).
 TEST_CLASS(ViewSplatTests)
 {
 public:

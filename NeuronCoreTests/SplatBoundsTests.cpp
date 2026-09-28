@@ -224,7 +224,7 @@ void ExpectClampedAndGrown(Float2 _rawMin, Float2 _rawMax, const SplatBounds& _b
 
 } // namespace
 
-// The bounds of Design/SampleRenderer.md §9.2, as the splat vertex shaders' C++ twins compute them.
+// The bounds of Design/Archive/SampleRenderer.md §9.2, as the splat vertex shaders' C++ twins compute them.
 TEST_CLASS(SplatBoundsTests)
 {
 public:

@@ -49,7 +49,7 @@ class GraphicsDevice;
 // where their feature is off, which the runtime checks.
 [[nodiscard]] D3D12_GRAPHICS_PIPELINE_STATE_DESC DefaultGraphicsPipeline() noexcept;
 
-// Serializes a version 1.0 root signature and creates it (Design/SampleRenderer.md §5).
+// Serializes a version 1.0 root signature and creates it (Design/Archive/SampleRenderer.md §5).
 [[nodiscard]] winrt::com_ptr<ID3D12RootSignature> CreateRootSignature(const GraphicsDevice& _device, const D3D12_ROOT_SIGNATURE_DESC& _desc,
                                                                       const wchar_t* _name);
 

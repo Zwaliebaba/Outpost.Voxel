@@ -10,7 +10,7 @@ namespace NeuronClient
 {
 
 // One placed model as the splat shaders read it: where its voxels sit and which records are its own (R16,
-// Design/SampleRenderer.md §7.1, §7.4). This struct is the truth; Shader/InstanceConstants.hlsli mirrors it, and the
+// Design/Archive/SampleRenderer.md §7.1, §7.4). This struct is the truth; Shader/InstanceConstants.hlsli mirrors it, and the
 // layout echo in NeuronClientTests proves the two agree.
 struct InstanceConstants
 {

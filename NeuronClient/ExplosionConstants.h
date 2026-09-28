@@ -10,7 +10,7 @@ namespace NeuronClient
 {
 
 // The explosion's parameter block and the time since the detonation, as the oriented splat shaders read them (R16,
-// Design/SampleRenderer.md §7.4, §12). This struct is the truth; Shader/ExplosionConstants.hlsli mirrors it, and the
+// Design/Archive/SampleRenderer.md §7.4, §12). This struct is the truth; Shader/ExplosionConstants.hlsli mirrors it, and the
 // layout echo in NeuronClientTests proves the two agree. The float3 and the time share 16 bytes, so there is no padding.
 struct ExplosionConstants
 {

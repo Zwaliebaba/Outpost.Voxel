@@ -1,6 +1,6 @@
 # ADR-010 — The canvas: DirectWrite text drawn straight by Direct3D 12
 
-**Status:** accepted, 2026-09-28 · **Lands with:** the canvas, between M4 and M5 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§13, §15)
+**Status:** accepted, 2026-09-28 · **Lands with:** the canvas, between M4 and M5 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§13, §15)
 
 ## Context
 

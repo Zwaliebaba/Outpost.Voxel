@@ -12,7 +12,7 @@
 namespace NeuronCore
 {
 
-// What the lighting pass knows besides the pixel it shades (Design/SampleRenderer.md §11). The twin of the lighting
+// What the lighting pass knows besides the pixel it shades (Design/Archive/SampleRenderer.md §11). The twin of the lighting
 // values in NeuronClient's LightingConstants (R15).
 struct LightingParameters
 {

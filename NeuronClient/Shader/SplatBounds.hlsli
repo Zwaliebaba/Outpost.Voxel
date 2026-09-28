@@ -1,6 +1,6 @@
 #pragma once
 
-// The screen-space rectangle a voxel is splatted as, and the depth it is placed at (Design/SampleRenderer.md §9.2). The
+// The screen-space rectangle a voxel is splatted as, and the depth it is placed at (Design/Archive/SampleRenderer.md §9.2). The
 // C++ twins are in NeuronCore/SplatBounds.h and .cpp (R15), function for function.
 //
 // A call whose out parameters matter is never the right-hand side of && or ||: HLSL 2018 evaluates both sides, and the

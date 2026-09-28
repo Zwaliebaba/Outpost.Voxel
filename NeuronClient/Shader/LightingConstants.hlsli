@@ -1,6 +1,6 @@
 #pragma once
 
-// The HLSL mirror of NeuronClient/LightingConstants.h (R16, Design/SampleRenderer.md §7.4, §11). The C++ struct is the
+// The HLSL mirror of NeuronClient/LightingConstants.h (R16, Design/Archive/SampleRenderer.md §7.4, §11). The C++ struct is the
 // truth, and the layout echo in NeuronClientTests proves that the two agree.
 struct LightingConstants
 {

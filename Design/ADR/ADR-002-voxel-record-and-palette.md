@@ -1,6 +1,6 @@
 # ADR-002 — Voxel record, palette and what the reader accepts
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M1 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes
+**Status:** accepted, 2026-09-27 · **Lands with:** M1 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes
 
 ## Context
 

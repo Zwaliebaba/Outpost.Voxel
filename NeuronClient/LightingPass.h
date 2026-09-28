@@ -14,7 +14,7 @@ class ShadowMap;
 class ViewTargets;
 class VoxelScene;
 
-// The lighting pass (Design/SampleRenderer.md §8, §11): one compute dispatch that shades every pixel of the view from the
+// The lighting pass (Design/Archive/SampleRenderer.md §8, §11): one compute dispatch that shades every pixel of the view from the
 // depth and visibility buffers, the shadow map and the palette, into the HDR color of ViewTargets.
 class LightingPass
 {

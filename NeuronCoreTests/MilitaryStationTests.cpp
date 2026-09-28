@@ -306,7 +306,7 @@ void ExpectColor(Float3 _expected, Float3 _actual, const std::wstring& _what)
 
 } // namespace
 
-// The figures of Design/SampleRenderer.md §3, measured once by a throwaway script and pinned here in C++.
+// The figures of Design/Archive/SampleRenderer.md §3, measured once by a throwaway script and pinned here in C++.
 TEST_CLASS(MilitaryStationTests)
 {
 public:
@@ -378,7 +378,7 @@ public:
     }
   }
 
-  // Design/SampleRenderer.md §11: the lighting reads the file's own settings, which the defaults repeat.
+  // Design/Archive/SampleRenderer.md §11: the lighting reads the file's own settings, which the defaults repeat.
   TEST_METHOD(LightsAsItsSettingsSay)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
@@ -510,7 +510,7 @@ public:
     Assert::IsTrue(2 * hits > rays, L"most rays hit, or the comparison says little");
   }
 
-  // Design/SampleRenderer.md §12: time 0 is the intact station, every voxel where it was and unrotated, exactly.
+  // Design/Archive/SampleRenderer.md §12: time 0 is the intact station, every voxel where it was and unrotated, exactly.
   TEST_METHOD(ExplosionStartsIntact)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();

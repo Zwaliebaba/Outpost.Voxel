@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// The screen-space rectangle a voxel is splatted as, and the depth it is placed at (Design/SampleRenderer.md §9.2).
+// The screen-space rectangle a voxel is splatted as, and the depth it is placed at (Design/Archive/SampleRenderer.md §9.2).
 struct SplatBounds
 {
   Float2 minNdc; // normalized device coordinates: x right, y up

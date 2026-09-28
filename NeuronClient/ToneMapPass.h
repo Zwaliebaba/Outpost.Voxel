@@ -10,7 +10,7 @@ namespace NeuronClient
 class GraphicsDevice;
 class ViewTargets;
 
-// The tone map pass (Design/SampleRenderer.md §8, §11): one triangle over the render target bound by the caller, which
+// The tone map pass (Design/Archive/SampleRenderer.md §8, §11): one triangle over the render target bound by the caller, which
 // shows the HDR color through the exposure and the ACES fit. _targetFormat is the render target's view format; the
 // application's is the swap chain's sRGB view, which encodes the result, and a test's may be a float format.
 class ToneMapPass

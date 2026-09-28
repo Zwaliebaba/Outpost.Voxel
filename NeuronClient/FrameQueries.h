@@ -14,7 +14,7 @@ namespace NeuronClient
 
 class GraphicsDevice;
 
-// The passes a frame's timestamps bracket (Design/SampleRenderer.md §8), in the order a frame runs them. A frame runs
+// The passes a frame's timestamps bracket (Design/Archive/SampleRenderer.md §8), in the order a frame runs them. A frame runs
 // the lighting and the tone map or a debug view in their place, and counts coverage only when asked to.
 enum class GpuPass : std::uint8_t
 {

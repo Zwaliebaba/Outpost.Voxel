@@ -12,7 +12,7 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// The targets at the size of the view (Design/SampleRenderer.md §7.3, §8): the view splat's reversed-Z depth and
+// The targets at the size of the view (Design/Archive/SampleRenderer.md §7.3, §8): the view splat's reversed-Z depth and
 // visibility buffer of voxel index and packed normal, the lighting's HDR color, and the overdraw count the view splat's
 // overdraw variant keeps (§11). Between frames the depth, the visibility buffer and the overdraw count rest readable by
 // every shader stage, and the HDR color by pixel shaders.

@@ -27,7 +27,7 @@ void AreClose(Float3 _expected, Float3 _actual, const wchar_t* _what)
 
 } // namespace
 
-// The tone map's twin (Design/SampleRenderer.md §11). The GPU side is compared with it in NeuronClientTests; these pin
+// The tone map's twin (Design/Archive/SampleRenderer.md §11). The GPU side is compared with it in NeuronClientTests; these pin
 // the twin itself.
 TEST_CLASS(ToneMapTests)
 {

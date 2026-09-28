@@ -1,6 +1,6 @@
 # ADR-004 — PIX event runtime
 
-**Status:** accepted, 2026-09-27 · **Decided by:** the owner, who added the package on `main` in 20fcb6b · **Lands with:** M2 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15), which carries it into `NeuronClient`
+**Status:** accepted, 2026-09-27 · **Decided by:** the owner, who added the package on `main` in 20fcb6b · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15), which carries it into `NeuronClient`
 
 ## Context
 

@@ -1,6 +1,6 @@
 #pragma once
 
-// The canvas's arithmetic (Design/SampleRenderer.md §13, Design/ADR/ADR-010): where a rectangle's corners land, which
+// The canvas's arithmetic (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010): where a rectangle's corners land, which
 // atlas texel a glyph shows at a pixel, and the color a pixel of it blends over the target with. Rectangles are in pixels
 // of the target, y down. The C++ twins are in NeuronClient/CanvasShading.h (R15).
 
