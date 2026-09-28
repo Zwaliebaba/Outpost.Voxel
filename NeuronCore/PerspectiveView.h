@@ -51,6 +51,14 @@ inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
   return _depth > _than;
 }
 
+// The sky's test (Design/SpaceScene.md §9): a direction at infinity has the far plane's depth exactly, so a pixel shows
+// the sky exactly where no voxel moved its depth off the value the view is cleared to. No epsilon: the sky pass tests
+// for equality.
+[[nodiscard]] constexpr bool IsFarPerspectiveDepth(float _depth) noexcept
+{
+  return _depth == PERSPECTIVE_FAR_DEPTH;
+}
+
 // Normalized device coordinates of a pixel's centre: x right and y up, both in [-1, 1].
 [[nodiscard]] Float2 PixelCenterNdc(std::uint32_t _pixelX, std::uint32_t _pixelY, std::uint32_t _widthPixels,
                                     std::uint32_t _heightPixels) noexcept;

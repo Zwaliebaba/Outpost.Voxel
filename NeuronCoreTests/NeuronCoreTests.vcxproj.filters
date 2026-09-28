@@ -10,12 +10,16 @@
     <ClInclude Include="RepositoryFile.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomTests.cpp" />
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
+    <ClCompile Include="HalfTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="SkyTests.cpp" />
     <ClCompile Include="SplatBoundsTests.cpp" />
+    <ClCompile Include="StarCatalogTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />
     <ClCompile Include="VoxelGridTests.cpp" />
     <ClCompile Include="VoxFile.cpp" />
