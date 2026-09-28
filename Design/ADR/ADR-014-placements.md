@@ -136,7 +136,7 @@ An entity whose model has several parts is drawn by one placement per part, each
 - **A whole placement.** The tracer takes the ray into the part's space in double precision and walks the grid there. It tests the cells the ray passes near with the box the GPU draws, in the world, through the same permutation.
 - **A detonated placement.** It tests the posed boxes one by one.
 - **`VoxelGrid`'s walk** became `GridWalk`, which `VoxelGrid::Trace` now uses too. A probe traced 1,000,000 rays through the station and through 30 random models of up to three parts, before the change and after it. It found `Trace` unchanged, bit for bit: 299,596 hits.
-- **Against brute force** over every placed box, on 12 seeded random scenes of aligned, rigid and detonated placements, the tracer agrees on all 6,000 rays, 3,216 of which hit.
+- **Against brute force** over every placed box, on 12 seeded random scenes of aligned, rigid and detonated placements, the tracer agrees on all 6,000 rays. Under GCC 3,216 of them hit, and under MSVC 3,219 (below).
 
 **The station sample** (`GameLib`).
 - **Its placements.** The scene holds one whole placement per part, unturned, at the part's origin, with ids in file order.
@@ -171,7 +171,20 @@ An entity whose model has several parts is drawn by one placement per part, each
     - the lighting through each model's palette, in one image where the station's white glows and the capital ship's does not.
   - **The splat, lighting, debug view and measurement suites,** ported to placements. The explosion's tests now detonate placements, and add turned debris against the twin.
   - **The layout echo.**
-- **The edge rule's limits.** The limits of mismatches on an edge are set from CI's first measured run (§15).
+- **The edge rule's limit.** `PlacementSplatTests` allows four mismatches on an edge per image or map, as the other splat suites do. That is headroom over the one its first measured run found (below).
+
+**On WARP in CI**, MSVC's Debug|x64 build, on 2026-09-28. All 149 tests of the two suites passed.
+- **Against the scene tracer.** The three models' placements matched the tracer in every pixel of three views: from the origin, grazing a turned capital ship across the near plane, and from 10,000 units back, where 359 pixels show a voxel. They matched in every texel of the sun's map too. Not one pixel differed, even on an edge.
+- **Two permutations, one image.** Symmetric placements drew the same through either permutation. Placements detonated at time 0 drew the same as whole ones. In each case one pixel of the view differed, on an edge, and the sun's maps agreed exactly.
+- **The measurement variants** drew what the standard pass draws in every pixel, whole and detonated at 0.5 s.
+- **The lighting** matched its twin in every pixel, through each model's palette. The station showed 3,270 pixels, 112 of them white, and the capital ship 1,047, 37 of them white.
+- **The ported suites** found no mismatch on an edge in any image or map:
+  - the station's fifteen views;
+  - the sun's maps;
+  - the exploded block;
+  - the new turned debris at four times, with its shadow.
+- **Overdraw.** The count over turned placements, 34,427 invocations, lies within the twin's rectangles, 31,753 to 37,315.
+- **The CPU figures.** MSVC's `NeuronCoreTests` figures equal GCC's but for one: the scene tracer's hits, 3,219 of 6,000 against GCC's 3,216. The two builds' maths libraries round `exp`, `sin` and `cos` differently, which moves the random scenes' detonated boxes by a last bit. Half the rays are aimed at voxel corners, where the last bit decides a hit. Each build agrees with its own brute force, which is what the test asserts.
 
 ## What this forecloses
 

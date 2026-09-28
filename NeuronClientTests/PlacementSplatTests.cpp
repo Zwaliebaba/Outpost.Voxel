@@ -72,11 +72,13 @@ constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 constexpr float PLACED_DEPTH_TOLERANCE = 1.0e-4f;
 constexpr float PLACED_NORMAL_TOLERANCE = 2.0e-3f;
 
-// Mismatches on an edge allowed per image or map, which Design/SpaceScene.md §15 sets from the first measured run. Until
-// that run, these are provisional: the near images' rounding is that of the other splat tests, a few ten-thousandths of
-// a voxel, and the far image's twenty times it, since a float's spacing at 10,000 units is 2^-10.
-constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 16;
-constexpr std::uint32_t FAR_EDGE_MISMATCH_LIMIT = 64;
+// Mismatches on an edge allowed per image or map, which Design/SpaceScene.md §15 sets from the first measured run. That
+// run, on WARP in CI on 2026-09-28, found none against the scene tracer in any image or map, the one from 10,000 units
+// included, and one in each of two views drawn both ways: symmetric placements through either permutation, and
+// placements detonated at time 0 against the whole ones. The bound is not zero for the reason the other splat tests give:
+// SampleRenderer.md §14 assumes no bit equality between CPU and GPU, and the two permutations intersect a box each in
+// their own way, so a ray within rounding of an edge can land on either side of it. Four is headroom.
+constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
 // The lighting's tolerances, LightingPassTests': half-precision HDR color and 8-bit filter weights.
 constexpr float HDR_RELATIVE_TOLERANCE = 1.0e-3f;
@@ -421,15 +423,14 @@ public:
         {
           const wchar_t* name;
           NeuronCore::PerspectiveView view;
-          std::uint32_t edgeLimit;
         };
-        const std::array<Camera, 3> cameras{{{L"from the origin", FromTheOrigin(), EDGE_MISMATCH_LIMIT},
-                                             {L"grazing a turned ship", GrazingTheShip(three, placements[1]), EDGE_MISMATCH_LIMIT},
-                                             {L"from 10,000 units", FromFarAway(), FAR_EDGE_MISMATCH_LIMIT}}};
+        const std::array<Camera, 3> cameras{{{L"from the origin", FromTheOrigin()},
+                                             {L"grazing a turned ship", GrazingTheShip(three, placements[1])},
+                                             {L"from 10,000 units", FromFarAway()}}};
         for (const Camera& camera : cameras)
         {
           Report(camera.name, CompareWithTracer(camera.view, tracer, boxes, RenderSplat(_device, scene, placements, pass, camera.view)),
-                 camera.edgeLimit);
+                 EDGE_MISMATCH_LIMIT);
         }
 
         const NeuronClient::SplatPass shadowPass(_device, NeuronClient::SplatPass::Kind::Shadow);
