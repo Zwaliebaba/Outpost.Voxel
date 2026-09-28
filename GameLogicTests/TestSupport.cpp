@@ -48,13 +48,10 @@ std::filesystem::path GameDataDirectory()
 std::unique_ptr<GameLogic::Sector> MakeSector(const GameLogic::SectorParameters& _parameters)
 {
   auto sector = GameLogic::Sector::Create(_parameters, GameDataDirectory());
-  if (!sector)
-  {
-    const std::string refusal = std::format("{}: {}", GameLogic::SectorRefusalName(sector.error().refusal), sector.error().detail);
-    Assert::Fail(std::wstring(refusal.begin(), refusal.end()).c_str());
-    return nullptr;
-  }
-  return std::move(*sector);
+  const std::string refusal =
+    sector ? std::string() : std::format("{}: {}", GameLogic::SectorRefusalName(sector.error().refusal), sector.error().detail);
+  Assert::IsTrue(sector.has_value(), std::wstring(refusal.begin(), refusal.end()).c_str());
+  return sector ? std::move(*sector) : nullptr;
 }
 
 NeuronCore::Snapshot Describe(const GameLogic::Sector& _sector)

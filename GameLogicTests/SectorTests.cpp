@@ -304,15 +304,10 @@ struct Client
 // The last snapshot among _messages.
 [[nodiscard]] NeuronCore::Snapshot LastSnapshot(const std::vector<NeuronCore::Message>& _messages)
 {
-  for (auto message = _messages.rbegin(); message != _messages.rend(); ++message)
-  {
-    if (const auto* snapshot = std::get_if<NeuronCore::Snapshot>(&*message))
-    {
-      return *snapshot;
-    }
-  }
-  Assert::Fail(L"a snapshot arrived");
-  return {};
+  const auto last = std::find_if(_messages.rbegin(), _messages.rend(), [](const NeuronCore::Message& _message)
+                                 { return std::holds_alternative<NeuronCore::Snapshot>(_message); });
+  Assert::IsTrue(last != _messages.rend(), L"a snapshot arrived");
+  return last == _messages.rend() ? NeuronCore::Snapshot{} : std::get<NeuronCore::Snapshot>(*last);
 }
 
 // The bytes of the file _name in GameData.
