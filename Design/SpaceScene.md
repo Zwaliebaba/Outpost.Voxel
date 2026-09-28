@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered but its last, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14; S-M0, N-M0, S-M1, S-M2 and S-M3 are done (§16) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md`, the eighth adding D14 and the last by [`GameConcept.md`](GameConcept.md); S-M0, N-M0, S-M1, S-M2 and S-M3 are done, and the game concept, which the owner accepted on 2026-09-28, defers S-M5, S-M6 and S-M7 until after its slice and takes S-M8 and S-M9 into its G-M3 (§16) · **Date:** 2026-09-28
 **Builds on:** [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md), the renderer, and [`Archive/SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md), its measured performance (§3.3); [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout; [ADR-012](ADR/ADR-012-arm64-platform.md), ARM64 beside x64 · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). `SampleRenderer.md` is archived as the record of what M0 to M5 built, so it is not rewritten: what this design changes there is said here (§3), and the archive's status line points to it.
@@ -466,6 +466,8 @@ What it takes from the look is some softness where history is rejected or clampe
 
 S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S-M4. Bloom depends on nothing this plan adds, so it may land earlier still, even before S-M1, if the owner wants to see it sooner.
 
+**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, and with it a new order (its G22 and §12.1). S-M4 still ends with the owner's check. S-M5, S-M6 and S-M7, the look, wait until after the concept's slice, which plays without them. S-M8 and S-M9 move into its G-M3, revised: the bench measures a battle, and the levers hold on damaged placements, where §7.6 has them give way. The rows above say what each milestone delivers; the concept says when.
+
 ## 17. Risks and open questions
 
 **Answered by the owner on 2026-09-28:**
@@ -495,11 +497,11 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 23. **The world is a `Sector`.** It is one bounded region, and `Universe` stays free for whatever holds several. The owner named it while S-M3 was built.
 24. **`--bench` runs the one-station preset until S-M8 (§14):** in lockstep, with the server detonating the station. The owner answered this while S-M4 was built, and ADR-018 records it.
 
-**Open, asked while S-M4 was built:**
+**Answered by the game concept, which the owner accepted on 2026-09-28:**
 
-25. **How N and B find the flights' leaders (§13).** No flight crosses the wire (§5.1), so the client cannot tell a leader from a wingman. A flag in the entity record's reserved half-word would say it, at the price of a new protocol version and a game concept on the wire (S13). Until the owner answers, N and B cycle every entity in the order of their ids (ADR-018).
+25. **How N and B find the flights' leaders (§13).** No flight crosses the wire (§5.1), so the client cannot tell a leader from a wingman. A flag in the entity record's reserved half-word would have said it, at the price of a new protocol version and a game concept on the wire (S13). The game concept answers it otherwise ([`GameConcept.md`](GameConcept.md) §12.1): selection replaces the cycling, and an entity's side crosses the wire in its protocol version 2. Until its G-M2, N and B cycle every entity in the order of their ids (ADR-018).
 
-One question is open.
+No question is open.
 
 **Risks:**
 
