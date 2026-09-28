@@ -1,6 +1,6 @@
 # Outpost.Voxel — Game Concept
 
-**Status:** accepted by the owner, 2026-09-28; G1 to G11 are the owner's answers of that day and G20 to G26 the proposals of §14 the owner took, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14); G-M0 is done (§12.2) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; G1 to G11 are the owner's answers of that day and G20 to G27 the proposals of §13 and §14 the owner took, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14); G-M0 is done (§12.2) · **Date:** 2026-09-28
 **Builds on:** [`SpaceScene.md`](SpaceScene.md), the world, the client/server boundary and the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md), parts and hardpoints; [ADR-003](ADR/ADR-003-engine-and-game-layout.md), [ADR-014](ADR/ADR-014-placements.md), [ADR-015](ADR/ADR-015-client-server-boundary.md), [ADR-017](ADR/ADR-017-sector.md) and [ADR-018](ADR/ADR-018-client.md) · **Reference game:** Warzone 2100
 
 This document says what the game is: the player's role, the match, construction, stations, the economy, combat, command and the opponent, and in what order the next phase builds them (§12). It is the parent of the technical designs that follow, one for each of its milestones; each of those says how its part is built, and `AGENTS.md` says how the code is written. It changes no code. Where it departs from `SpaceScene.md` or `NeuronVoxelFormat.md` it says so (§13), and since the owner accepted it, those documents say so too.
@@ -39,8 +39,9 @@ The engine keeps what `SpaceScene.md` built: the authoritative server on a threa
 | G24 | One palette entry of every design and every module shows the side's color. | Owner, 2026-09-28; §5.3 |
 | G25 | Traders cannot be attacked in the slice, and deal with a side only while it alone has a ship within their trade radius. | Owner, 2026-09-28; §7.3 |
 | G26 | A station's structures share power through their connectors, and a structure cut off from the core is unpowered. | Owner, 2026-09-28; §6 |
+| G27 | G16 is a conformance rule, `AGENTS.md` R19: the opponent plays through a session and nowhere else. | Owner, 2026-09-28; §13 |
 
-G12 to G19 are this document's own, each derived from the owner's answers in the section it names; accepting the document accepts them. G20 to G26 began as this document's proposals, and the owner took them on 2026-09-28.
+G12 to G19 are this document's own, each derived from the owner's answers in the section it names; accepting the document accepts them. G20 to G27 began as this document's proposals, and the owner took them on 2026-09-28.
 
 ## 2. Scope
 
@@ -222,7 +223,7 @@ The opponent plays the same game through the same door: a session over a loopbac
 
 It fields an authored library, designs made as the player's are (§5.2), and researches and trades by the same rules to reach them. Its play in the slice is one level: expand to the fields, keep its economy running, research toward its library, defend, and attack in waves once its fleet is strong enough. A stronger opponent is a design of its own.
 
-It is game code that reads snapshots and writes commands, so it belongs neither in `GameLogic`, which holds the world, nor in `GameLib`, which draws it. A project of its own, referencing only `NeuronCore` and the shared game library (§11.1), makes that boundary one the compiler keeps. Like every new project, it is an ADR (`AGENTS.md` §2).
+It is game code that reads snapshots and writes commands, so it belongs neither in `GameLogic`, which holds the world, nor in `GameLib`, which draws it. A project of its own, referencing only `NeuronCore` and the shared game library (§11.1), makes that boundary one the compiler keeps. Like every new project, it is an ADR (`AGENTS.md` §2). What the compiler cannot keep, `AGENTS.md` R19 does (G27).
 
 ## 11. What the engine must change
 
@@ -288,7 +289,7 @@ The owner accepted this concept on 2026-09-28. G-M0 recorded it where it changes
 - **`SpaceScene.md`:** its status line and §16 record §12.1's plan (G22), and §17 records question 25 as answered. S13 is superseded in part by designs on the wire, and §7.1's static buffer and §7.6's rule for damaged placements are amended, by the ADRs of G-M1 and G-M3.
 - **`NeuronVoxelFormat.md`:** its status line and §10 record §12.1's plan. Mounts and connectors are hardpoint types, and what they mean stays out of the file (N8), so the format does not change (G13).
 - **ADR-015** is amended by protocol version 2 and by snapshots that differ by side (G21). **ADR-003** is amended by the shared game library and the opponent's project, each with an ADR of its own.
-- **`AGENTS.md`:** the paragraph that names the designs names this one, and §2's table gains the new projects as their ADRs land. G16 may become a rule beside R18, that the opponent plays through a session and nowhere else, if the owner wants review to hold it to that.
+- **`AGENTS.md`:** the paragraph that names the designs names this one, and §2's table gains the new projects as their ADRs land. R19 makes G16 a rule beside R18, that the opponent plays through a session and nowhere else (G27), and R14's paragraph counts this document among the designs a rule may come from.
 
 ## 14. Risks and open questions
 
@@ -315,6 +316,7 @@ The owner accepted this concept on 2026-09-28. G-M0 recorded it where it changes
 19. **Traders cannot be attacked in the slice (G25, §7.3),** and deal with a side only while it alone holds their radius.
 20. **The setting waits for G-M4 (§4).** Ore, credits, station core, constructor and the modules' names stay working names until G-M4's HUD needs the setting's own; "Outpost" suggests a frontier.
 21. **A station's structures share power through their connectors (G26, §6),** and a structure cut off from the core is unpowered.
+22. **G16 is a conformance rule, `AGENTS.md` R19 (G27, §13).**
 
 **Risks:**
 
