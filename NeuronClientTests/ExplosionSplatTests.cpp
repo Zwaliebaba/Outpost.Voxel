@@ -36,7 +36,7 @@ namespace
 using NeuronCore::Float3;
 
 constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
-constexpr Float3 WORLD_UP{0.0f, 0.0f, 1.0f};
+constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
 // How far inside or outside a box a ray may pass and still be answered differently by the GPU and the twin, in voxel
 // units: the sliver the other splat tests use (Design/SampleRenderer.md §14).
@@ -133,7 +133,7 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
 {
   const Float3 center = (_envelope.lower + _envelope.upper) * 0.5f;
   const float radius = NeuronCore::Length(_envelope.upper - center);
-  const Float3 direction = NeuronCore::Normalize({0.6f, -0.8f, 0.55f});
+  const Float3 direction = NeuronCore::Normalize({0.6f, 0.55f, -0.8f});
   const float distance = radius / std::sin(0.5f * TEST_FOV_Y_RADIANS);
   return NeuronCore::MakePerspectiveView(center + direction * distance, center, WORLD_UP, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE,
                                          VIEW_WIDTH_PIXELS, VIEW_HEIGHT_PIXELS);
@@ -287,7 +287,7 @@ public:
         const NeuronClient::ExplosionConstants intact =
           NeuronClient::MakeExplosionConstants(NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
 
-        const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView({180.0f, -260.0f, 210.0f}, {0.0f, 0.0f, 110.0f}, WORLD_UP,
+        const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView({180.0f, 210.0f, -260.0f}, {0.0f, 110.0f, 0.0f}, WORLD_UP,
                                                                                  TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
         const NeuronClient::SplatPass aligned(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass oriented(_device, NeuronClient::SplatPass::Kind::View,

@@ -109,7 +109,7 @@ public:
         const NeuronCore::VoxelGrid grid(model);
         const NeuronClient::VoxelScene scene(_device, model);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow);
-        const NeuronCore::OrthographicView view = TestShadowView(model, {0.0f, 0.0f, 1.0f}, 128.0f, 256);
+        const NeuronCore::OrthographicView view = TestShadowView(model, {0.0f, 1.0f, 0.0f}, 128.0f, 256);
         const std::vector<float> depth = RenderShadowSplat(_device, scene, pass, view);
 
         Comparison comparison;

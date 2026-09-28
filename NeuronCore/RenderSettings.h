@@ -14,7 +14,7 @@ namespace NeuronCore
 struct RenderSettings
 {
   float sunElevationRadians; // _inf _angle, the first value: above the horizon
-  float sunAzimuthRadians;   // _inf _angle, the second value: from -Y towards +X
+  float sunAzimuthRadians;   // _inf _angle, the second value: from -Y towards +X in MagicaVoxel's axes (SunDirection)
   Float3 sunColor;           // _inf _k
   float sunIntensity;        // _inf _i
   Float3 skyColor;           // _uni _k

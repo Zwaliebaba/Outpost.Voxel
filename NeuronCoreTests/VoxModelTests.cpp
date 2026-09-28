@@ -37,8 +37,10 @@ constexpr std::size_t PLACEMENT_CHUNK = 4;
 constexpr std::size_t SHAPE_CHUNK = 5;
 constexpr std::size_t PALETTE_CHUNK = 6;
 
-// An L of three voxels in palette entries 1, 2 and 16, the lowest and highest the reader accepts.
+// An L of three voxels in palette entries 1, 2 and 16, the lowest and highest the reader accepts. The file is in
+// MagicaVoxel's axes; the engine sees it with y and z swapped (Design/NeuronVoxelFormat.md §12).
 constexpr Int3 L_SIZE{4, 3, 5};
+constexpr Int3 ENGINE_L_SIZE{4, 5, 3};
 constexpr std::array<FileVoxel, 3> L_VOXELS{{{0, 0, 0, 1}, {1, 0, 0, 2}, {1, 2, 3, 16}}};
 
 // A second model: one voxel in entry 5.
@@ -107,20 +109,23 @@ void AreEqualInt3(Int3 _expected, Int3 _actual, const wchar_t* _what)
 TEST_CLASS(VoxModelTests)
 {
 public:
+  // Design/NeuronVoxelFormat.md §12.4: the asymmetric L lands with every coordinate, its size and its translation swapped
+  // into the engine's axes. MagicaVoxel's voxel (1, 2, 3) is the engine's (1, 3, 2), and the translation 10 -20 30 is
+  // (10, 30, -20), from which the origin takes floor((4, 5, 3) / 2).
   TEST_METHOD(ReadsOneModel)
   {
     const NeuronCore::VoxModel model = ExpectAccepted(WithTranslation("10 -20 30"), L"the L");
     Assert::AreEqual(200, model.version);
     Assert::AreEqual(std::size_t{1}, model.instances.size());
     const NeuronCore::ModelInstance& instance = model.instances.front();
-    AreEqualInt3({8, -21, 28}, instance.origin, L"origin: the translation minus floor(size / 2)");
-    AreEqualInt3(L_SIZE, instance.size, L"size");
+    AreEqualInt3({8, 28, -21}, instance.origin, L"origin: the translation minus floor(size / 2)");
+    AreEqualInt3(ENGINE_L_SIZE, instance.size, L"size");
     Assert::AreEqual(0u, instance.firstRecord);
     Assert::AreEqual(3u, instance.recordCount);
 
-    // Colors arrive as the palette entry minus one.
+    // Colors arrive as the palette entry minus one, and the records keep the file's order.
     const std::vector<std::uint32_t> records{NeuronCore::PackVoxelRecord({0, 0, 0, 0}), NeuronCore::PackVoxelRecord({1, 0, 0, 1}),
-                                             NeuronCore::PackVoxelRecord({1, 2, 3, 15})};
+                                             NeuronCore::PackVoxelRecord({1, 3, 2, 15})};
     Assert::IsTrue(model.records == records, L"records");
 
     for (std::size_t i = 0; i < model.palette.size(); ++i)
@@ -402,17 +407,17 @@ public:
     std::vector<Bytes> chunks = OneModelChunks({3, 4, 5}, voxels, "10 20 30");
     chunks[ROOT_CHUNK] = TransformChunk(0, {}, 1, -1, {{{"_t", "1 2 3"}}});
     const NeuronCore::VoxModel model = ExpectAccepted(VoxFile(chunks), L"two translations");
-    // floor((3, 4, 5) / 2) is (1, 2, 2).
-    AreEqualInt3({10, 20, 31}, model.instances.front().origin, L"origin");
+    // In the engine's axes the translations sum to (11, 33, 22) and the size is (3, 5, 4), whose half is (1, 2, 2).
+    AreEqualInt3({10, 31, 20}, model.instances.front().origin, L"origin");
 
     const NeuronCore::VoxModel negative = ExpectAccepted(VoxFile(OneModelChunks({3, 4, 5}, voxels, "-7 -8 -9")), L"negative");
-    AreEqualInt3({-8, -10, -11}, negative.instances.front().origin, L"negative origin");
+    AreEqualInt3({-8, -11, -10}, negative.instances.front().origin, L"negative origin");
   }
 
   TEST_METHOD(RefusesFarTranslations)
   {
     const NeuronCore::VoxModel edge = ExpectAccepted(VoxFile(OneModelChunks(DOT_SIZE, DOT_VOXELS, "1048576 -1048576 0")), L"the limit");
-    AreEqualInt3({1048576, -1048576, 0}, edge.instances.front().origin, L"origin at the limit");
+    AreEqualInt3({1048576, 0, -1048576}, edge.instances.front().origin, L"origin at the limit");
 
     for (const std::string_view translation : {"1048577 0 0", "0 -1048577 0", "0 0 2147483647", "-2147483648 0 0"})
     {
@@ -446,7 +451,7 @@ public:
     Assert::AreEqual(std::size_t{3}, model.instances.size());
     const std::array<std::uint32_t, 3> firsts{0, 1, 4};
     const std::array<std::uint32_t, 3> counts{1, 3, 1};
-    const std::array<Int3, 3> origins{Int3{0, 0, 0}, Int3{3, -1, -2}, Int3{0, 9, 0}};
+    const std::array<Int3, 3> origins{Int3{0, 0, 0}, Int3{3, -2, -1}, Int3{0, 0, 9}};
     for (std::size_t i = 0; i < firsts.size(); ++i)
     {
       Assert::AreEqual(firsts[i], model.instances[i].firstRecord);
@@ -455,7 +460,7 @@ public:
     }
     Assert::AreEqual(std::size_t{5}, model.records.size());
     Assert::AreEqual(NeuronCore::PackVoxelRecord({0, 0, 0, 4}), model.records[0]);
-    Assert::AreEqual(NeuronCore::PackVoxelRecord({1, 2, 3, 15}), model.records[3]);
+    Assert::AreEqual(NeuronCore::PackVoxelRecord({1, 3, 2, 15}), model.records[3]);
     Assert::AreEqual(model.records[0], model.records[4]);
   }
 

@@ -50,7 +50,7 @@ constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 // SeamsLetNoBackgroundThrough.
 constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
-constexpr Float3 WORLD_UP{0.0f, 0.0f, 1.0f};
+constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
 struct Comparison
 {
@@ -155,21 +155,21 @@ void Report(const wchar_t* _camera, const Comparison& _comparison)
     std::format(L"{}: {} mismatches on an edge, more than {}", _camera, _comparison.edgeMismatches, EDGE_MISMATCH_LIMIT).c_str());
 }
 
-// The centre of the voxel nearest the south of the station, and among those the one nearest (0, *, 60): where a close
-// camera finds a wall to look at.
+// The centre of the voxel nearest the south of the station, which is -Z, and among those the one nearest (0, 60, *):
+// where a close camera finds a wall to look at.
 [[nodiscard]] Float3 SouthernmostVoxel(const NeuronCore::VoxModel& _model)
 {
   Float3 best{};
-  float bestY = std::numeric_limits<float>::infinity();
+  float bestZ = std::numeric_limits<float>::infinity();
   float bestOffset = std::numeric_limits<float>::infinity();
   for (std::uint32_t record = 0; record < _model.records.size(); ++record)
   {
     const Float3 center = RecordBox(_model, record).center;
-    const float offset = std::abs(center.x) + std::abs(center.z - 60.0f);
-    if (center.y < bestY || (center.y == bestY && offset < bestOffset))
+    const float offset = std::abs(center.x) + std::abs(center.y - 60.0f);
+    if (center.z < bestZ || (center.z == bestZ && offset < bestOffset))
     {
       best = center;
-      bestY = center.y;
+      bestZ = center.z;
       bestOffset = offset;
     }
   }
@@ -182,21 +182,21 @@ void Report(const wchar_t* _camera, const Comparison& _comparison)
   return NeuronCore::MakePerspectiveView(_eye, _target, WORLD_UP, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, _widthPixels, _heightPixels);
 }
 
-// An upright square wall of _side × _side voxels in the plane y = 0, records row after row with x fastest.
+// An upright square wall of _side × _side voxels in the plane z = 0, records row after row with x fastest.
 [[nodiscard]] NeuronCore::VoxModel Wall(std::uint32_t _side)
 {
   NeuronCore::VoxModel model{};
   model.version = 150;
-  for (std::uint32_t z = 0; z < _side; ++z)
+  for (std::uint32_t y = 0; y < _side; ++y)
   {
     for (std::uint32_t x = 0; x < _side; ++x)
     {
-      model.records.push_back(NeuronCore::PackVoxelRecord({static_cast<std::uint8_t>(x), 0, static_cast<std::uint8_t>(z),
-                                                           static_cast<std::uint8_t>((x + z) % NeuronCore::PALETTE_ENTRY_COUNT)}));
+      model.records.push_back(NeuronCore::PackVoxelRecord({static_cast<std::uint8_t>(x), static_cast<std::uint8_t>(y), 0,
+                                                           static_cast<std::uint8_t>((x + y) % NeuronCore::PALETTE_ENTRY_COUNT)}));
     }
   }
   const auto side = static_cast<std::int32_t>(_side);
-  model.instances.push_back({{0, 0, 0}, {side, 1, side}, 0, static_cast<std::uint32_t>(model.records.size())});
+  model.instances.push_back({{0, 0, 0}, {side, side, 1}, 0, static_cast<std::uint32_t>(model.records.size())});
   for (NeuronCore::PaletteEntry& entry : model.palette)
   {
     entry = {128, 128, 128, 255, false, 0.0f, 0.0f};
@@ -232,9 +232,9 @@ public:
         };
         const std::array<Drawing, 3> drawings{{{L"", &standard}, {L", plain depth", &plainDepth}, {L", overdraw", &overdraw}}};
 
-        const Float3 center{0.5f, 0.5f, 127.5f};
+        const Float3 center{0.5f, 127.5f, 0.5f};
         const Float3 wall = SouthernmostVoxel(model);
-        const float face = wall.y - 0.5f;
+        const float face = wall.z - 0.5f;
         struct Camera
         {
           const wchar_t* name;
@@ -243,14 +243,14 @@ public:
         };
         const std::array<Camera, 5> cameras{{
           // The application's default: elevated three-quarter view at the framing distance (§3).
-          {L"three-quarter", center + Float3{-318.43f, -318.43f, 260.0f}, center},
+          {L"three-quarter", center + Float3{-318.43f, 260.0f, -318.43f}, center},
           // Level and axis-aligned, so that the centre row and column have exactly-zero components.
-          {L"level from the west", {-519.5f, 0.5f, 127.5f}, center},
-          {L"from above", {40.5f, -30.5f, 690.0f}, center},
+          {L"level from the west", {-519.5f, 127.5f, 0.5f}, center},
+          {L"from above", {40.5f, 690.0f, -30.5f}, center},
           // Close enough that voxels span more than 20 pixels and take the precise bounds.
-          {L"close to the south wall", {wall.x + 0.3f, face - 3.0f, wall.z + 0.2f}, wall},
+          {L"close to the south wall", {wall.x + 0.3f, wall.y + 0.2f, face - 3.0f}, wall},
           // Along the wall at a grazing angle from just in front of it, so that boxes beside the eye cross the near plane.
-          {L"grazing the south wall", {wall.x - 0.4f, face - 0.35f, wall.z + 0.3f}, wall + Float3{10.0f, 0.0f, 0.0f}},
+          {L"grazing the south wall", {wall.x - 0.4f, wall.y + 0.3f, face - 0.35f}, wall + Float3{10.0f, 0.0f, 0.0f}},
         }};
         for (const Camera& camera : cameras)
         {
@@ -278,7 +278,7 @@ public:
         const NeuronCore::VoxelGrid grid(model);
         const NeuronClient::VoxelScene scene(_device, model);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
-        const NeuronCore::PerspectiveView view = TestView({4.0f, -20.0f, 4.0f}, {4.0f, 0.0f, 4.0f}, IMAGE_PIXELS, IMAGE_PIXELS);
+        const NeuronCore::PerspectiveView view = TestView({4.0f, 4.0f, -20.0f}, {4.0f, 4.0f, 0.0f}, IMAGE_PIXELS, IMAGE_PIXELS);
         const SplatImage image = RenderSplat(_device, scene, pass, view);
         Report(L"wall", Compare(view, model, grid, image));
 
@@ -289,9 +289,9 @@ public:
           {
             // Every ray that meets the wall's plane inside its outline must find a voxel.
             const NeuronCore::Ray ray = NeuronCore::PerspectiveRay(view, x, y);
-            const Float3 onWall = ray.origin + ray.direction * (-ray.origin.y / ray.direction.y);
+            const Float3 onWall = ray.origin + ray.direction * (-ray.origin.z / ray.direction.z);
             const bool inside =
-              onWall.x > EDGE_EPSILON && onWall.x < SIDE - EDGE_EPSILON && onWall.z > EDGE_EPSILON && onWall.z < SIDE - EDGE_EPSILON;
+              onWall.x > EDGE_EPSILON && onWall.x < SIDE - EDGE_EPSILON && onWall.y > EDGE_EPSILON && onWall.y < SIDE - EDGE_EPSILON;
             const std::uint32_t voxel = image.visibility[2 * (static_cast<std::size_t>(y) * IMAGE_PIXELS + x)];
             if (inside)
             {

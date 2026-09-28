@@ -1,6 +1,6 @@
 # ADR-009 — The explosion's motion model and its defaults
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M4 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15)
+**Status:** accepted, 2026-09-27 · **Lands with:** M4 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes
 
 ## Context
 

@@ -53,8 +53,8 @@ constexpr float EXPLOSION_SECONDS = 1.5f;
 // The view splat tests' three-quarter camera: the application's default view of the station (§3).
 [[nodiscard]] NeuronCore::PerspectiveView ThreeQuarterView() noexcept
 {
-  const Float3 center{0.5f, 0.5f, 127.5f};
-  return NeuronCore::MakePerspectiveView(center + Float3{-318.43f, -318.43f, 260.0f}, center, {0.0f, 0.0f, 1.0f}, TEST_FOV_Y_RADIANS,
+  const Float3 center{0.5f, 127.5f, 0.5f};
+  return NeuronCore::MakePerspectiveView(center + Float3{-318.43f, 260.0f, -318.43f}, center, {0.0f, 1.0f, 0.0f}, TEST_FOV_Y_RADIANS,
                                          TEST_NEAR_PLANE, WIDTH_PIXELS, HEIGHT_PIXELS);
 }
 
