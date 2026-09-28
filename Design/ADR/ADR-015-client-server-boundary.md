@@ -136,6 +136,7 @@ The host's thread and its clients share nothing but the loopback's queues.
 - **Under forced contraction,** 142 and 8 pass. The one failure is `TracesThePinnedVoxels`, 9 pixels of the three-quarter image, which fails the same way on `main` (ADR-014).
 - **ThreadSanitizer** reports nothing over `LoopbackTransportTests`' two threads, or over `NeuronServerTests`, whose host runs its own thread.
 - **In CI,** MSVC's Debug|x64 build, on 2026-09-28: all 192 tests of the four suites pass, and clang-tidy is clean over the tree's 99 translation units.
+- **On the owner's machines,** on 2026-09-28, the three suites pass on ARM64 and on x64. That is S-M3's "done when" (§16): the host's thread and the loopback's are the tree's first, and ARM64 orders memory more weakly than x64 (§6.3, ADR-012).
 
 ## What this forecloses
 
