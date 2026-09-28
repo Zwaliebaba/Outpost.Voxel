@@ -72,10 +72,15 @@ So a voxel keeps its jitter, its speed and its spins. The jitter's "height" is i
 - **Where the debris ends.** Final displacements run from 137 to 410 voxels, with a median of 250. The field ends within 413 of the origin, with a median of 311.
 - **How fast the motion is made,** by arithmetic: 22 % by 0.25 s, 63 % by 1 s, 86 % by 2 s, 95 % by 3 s and 99.3 % by 5 s.
 
+**On WARP in CI**, MSVC's Debug|x64 build, on 2026-09-28:
+- **The block.** The oriented splats drew it exactly as the twin poses it, at 0.1, 0.4 and 1 s and at its stop time, 5.53 s. That held in the view, in its plain-depth and overdraw variants, and in the sun's map: no pixel differed, not even on an edge.
+- **Time 0.** The oriented permutations drew exactly what the aligned ones did.
+- **The CPU figures.** MSVC's station figures equal the probe's and the GCC suite's, to the digits the tests print.
+
 **What the defaults were chosen for.**
 - **The shadow map.** The envelope stays inside the map's 1,024-unit square, which is centred on the station's box: 35.29 + 420.87 = 456.16 of 512. The station's test holds the defaults to that.
 - **A burst.** The core leaves at up to 420 voxels a second, and the debris ends at one and a half to two times the station's size. The field has all but stopped well inside the bench's ten seconds of flight.
-- **The owner's eye.** The owner tunes the look by eye when S-M1 runs on hardware (SpaceScene §17, question 13). The values accepted become the defaults, recorded here in the commit that sets them.
+- **The owner's eye.** The owner tunes the look by eye when S-M1 runs on hardware (SpaceScene §17, question 13). The values accepted become the defaults, recorded here in the commit that sets them. On 2026-09-28 the owner ran S-M1 on hardware, saw the station lit without a floor, detonated and restored, and accepted the defaults above as they stand, debris ending square to the axes included.
 
 **What uses the envelope.**
 - **The shadow view** is fitted once around the sphere's box, in the same 1,024-unit square about the station's box as before. It no longer reaches down to a floor.
