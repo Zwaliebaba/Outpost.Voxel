@@ -93,6 +93,15 @@ Its tests in `Tests/NvfFormatTests.py` are `NvfModelTests`', case for case and n
 - a negative w accepted;
 - origins not summed down the tree.
 
+**N-M3, natively.** With Python 3.11.15, `NvfFormat.py` reads the golden file and the three assets and writes each back byte for byte; reading and writing the station took 0.15 s, timed once. The 29 tests of `NvfFormatTests` pass, and pass with warnings turned into errors. GCC 13.3's `NeuronCoreTests` pass all 186, with the writer's name check and the two new cases.
+
+**N-M3's mutations.** 33 faults went into `NvfFormat.py` by hand, one at a time. 32 failed a test at once. The survivor, a part of no voxels accepted, went unnoticed because the case meant to catch it also broke the voxel count, which the reader then refused by the same name. The case now keeps the count, in both languages, and the same fault in `NvfModel.cpp` fails it too. Removing either half of the writer's name check, the parts' or the hardpoints', fails a test in each language.
+
+**N-M3 in CI.** Run 36466992290 on N-M3's commit:
+- the Linux job's system Python passes `NvfFormatTests`' 29 tests;
+- all 258 tests of the four C++ suites pass, and the assets are up to date;
+- clang-tidy is clean over 116 translation units.
+
 ## What this forecloses
 
 - **A second layout.** Records are read and written through the structs, which the `static_assert`s hold to §4.
