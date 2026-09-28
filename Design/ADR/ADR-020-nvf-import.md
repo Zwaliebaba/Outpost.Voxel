@@ -120,6 +120,13 @@ The assets' previews, and how long Blender 4.2 took to import each one:
 - An export from the session that had imported the older voxels was refused, and left the file as it was.
 - Imported again, both hardpoints were there.
 
+**The checklist, headless, on the frigate.** Blender 4.2.23 without its interface ran every step of `Checklist.md` on a copy of the frigate, with the extension installed from its zip as a user installs it. All 27 checks passed. The 3D cursor was placed by casting a ray onto the hull, as Shift and a right-click does. A headless run cannot look at the viewport, the panel or the dialogs, so the checklist by hand stays the owner's.
+
+**N-M4 in CI.** Run 36472236316 built N-M4's last commit before main's game concept was merged:
+- the Linux job's system Python passes the extension's 59 tests, and skips the 7 that need `bpy`;
+- all 258 C++ tests pass, and the assets are up to date;
+- clang-tidy is clean over 116 translation units.
+
 **A crash, found and fixed.** Blender 4.2's `popup_menu` crashes in background mode, which the headless tests use. Validate shows its popup only when Blender has its interface.
 
 ## What this forecloses
