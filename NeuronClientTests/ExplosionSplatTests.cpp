@@ -85,6 +85,22 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
     std::format(L"{}: {} mismatches on an edge, more than {}", _image, _comparison.edgeMismatches, EDGE_MISMATCH_LIMIT).c_str());
 }
 
+// Two drawings of one view that must agree: the same voxel and normal in every pixel, and the same depth to rounding. A
+// pixel that differs counts as a mismatch on an edge, where rounding alone can tip a voxel's seam either way.
+[[nodiscard]] Comparison CompareDrawings(const SplatImage& _expected, const SplatImage& _actual)
+{
+  Comparison result;
+  for (std::size_t pixel = 0; pixel < _expected.depth.size(); ++pixel)
+  {
+    const std::uint32_t voxel = _expected.visibility[2 * pixel];
+    ++(voxel == NeuronCore::NO_VOXEL ? result.misses : result.hits);
+    const bool same = voxel == _actual.visibility[2 * pixel] && _expected.visibility[2 * pixel + 1] == _actual.visibility[2 * pixel + 1] &&
+                      std::abs(_expected.depth[pixel] - _actual.depth[pixel]) <= 1.0e-6f * _expected.depth[pixel];
+    result.edgeMismatches += same ? 0u : 1u;
+  }
+  return result;
+}
+
 // The block's explosion: the defaults' shape, scaled to an 8-voxel block, so that its debris stays within a camera's
 // reach and every voxel still covers a few pixels.
 [[nodiscard]] NeuronCore::ExplosionParameters BlockExplosion(const NeuronCore::VoxModel& _model)
@@ -276,19 +292,8 @@ public:
         const NeuronClient::SplatPass aligned(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass oriented(_device, NeuronClient::SplatPass::Kind::View,
                                                NeuronClient::SplatPass::Permutation::Oriented);
-        const SplatImage alignedImage = RenderSplat(_device, scene, aligned, view);
-        const SplatImage orientedImage = RenderSplat(_device, scene, oriented, view, intact);
-        Comparison viewComparison;
-        for (std::size_t pixel = 0; pixel < alignedImage.depth.size(); ++pixel)
-        {
-          const std::uint32_t voxel = alignedImage.visibility[2 * pixel];
-          ++(voxel == NeuronCore::NO_VOXEL ? viewComparison.misses : viewComparison.hits);
-          const bool same = voxel == orientedImage.visibility[2 * pixel] &&
-                            alignedImage.visibility[2 * pixel + 1] == orientedImage.visibility[2 * pixel + 1] &&
-                            std::abs(alignedImage.depth[pixel] - orientedImage.depth[pixel]) <= 1.0e-6f * alignedImage.depth[pixel];
-          viewComparison.edgeMismatches += same ? 0u : 1u;
-        }
-        Report(L"view at time 0", viewComparison);
+        Report(L"view at time 0",
+               CompareDrawings(RenderSplat(_device, scene, aligned, view), RenderSplat(_device, scene, oriented, view, intact)));
 
         const NeuronCore::OrthographicView sun =
           TestShadowView(model, NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE), 160.0f, MAP_PIXELS);
@@ -308,6 +313,7 @@ public:
   }
 
   // §14: a synthetic 8³ model at several times, against brute-force intersection of every box where the twin poses it.
+  // The oriented measurement variants (§9.3, §11) draw exactly what the standard pass draws.
   TEST_METHOD(ExplodedBlockMatchesTheTwin)
   {
     RunGpuTest(
@@ -319,13 +325,23 @@ public:
         const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
         const NeuronCore::PerspectiveView view = EnvelopeView(envelope);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented);
+        const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
+                                                 NeuronClient::SplatPass::Permutation::Oriented,
+                                                 NeuronClient::SplatPass::Variant::PlainDepth);
+        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented,
+                                               NeuronClient::SplatPass::Variant::Overdraw);
         for (const float time : BLOCK_TIMES_SECONDS)
         {
-          const SplatImage image = RenderSplat(_device, scene, pass, view, NeuronClient::MakeExplosionConstants(parameters, time));
+          const NeuronClient::ExplosionConstants constants = NeuronClient::MakeExplosionConstants(parameters, time);
+          const SplatImage image = RenderSplat(_device, scene, pass, view, constants);
           const Comparison comparison =
             CompareView(view, PosedBoxes(model, parameters, time, 0.0f), PosedBoxes(model, parameters, time, EDGE_EPSILON),
                         PosedBoxes(model, parameters, time, -EDGE_EPSILON), image);
           Report(std::format(L"block at {} s", time), comparison);
+          Report(std::format(L"block at {} s, plain depth", time),
+                 CompareDrawings(image, RenderSplat(_device, scene, plainDepth, view, constants)));
+          Report(std::format(L"block at {} s, overdraw", time),
+                 CompareDrawings(image, RenderSplat(_device, scene, overdraw, view, constants)));
         }
       });
   }
