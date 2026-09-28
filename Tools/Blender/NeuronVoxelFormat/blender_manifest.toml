@@ -1,0 +1,23 @@
+schema_version = "1.0.0"
+
+# Outpost.Voxel's model format in Blender (Design/NeuronVoxelFormat.md §7): import an .nvf, author its hardpoints and
+# pivots, export it again.
+id = "neuron_voxel_format"
+version = "1.0.0"
+name = "Neuron Voxel Format"
+tagline = "Hardpoints and pivots for Outpost.Voxel's voxel models"
+maintainer = "Outpost.Voxel"
+type = "add-on"
+
+# The first LTS with extensions; tested on it and on the current LTS.
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+[build]
+# The tests and the checklist run from the repository, and need no place in the extension.
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/Tests/",
+  "/Checklist.md",
+]

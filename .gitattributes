@@ -93,6 +93,7 @@
 
 # LF in the working tree: what the Linux CI job reads, and what reads the same either way.
 *.py            text eol=lf
+*.toml          text eol=lf
 *.sh            text eol=lf
 *.yml           text eol=lf
 *.yaml          text eol=lf
@@ -103,3 +104,6 @@
 # normalization pass can never corrupt one.
 *.rc            -text
 *.rc2           -text
+
+# NVF models are binary (Design/NeuronVoxelFormat.md §3). NvfImport --dump prints one as text for review.
+*.nvf           binary

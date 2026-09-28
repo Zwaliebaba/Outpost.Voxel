@@ -230,6 +230,7 @@
     <ClCompile Include="SnapshotBufferTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
+    <ClCompile Include="VoxelSceneTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli" />

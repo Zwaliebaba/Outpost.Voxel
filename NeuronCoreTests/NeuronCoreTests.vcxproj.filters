@@ -6,6 +6,8 @@
     <ClInclude Include="SeededRandom.h" />
     <ClInclude Include="VoxFile.h" />
     <ClInclude Include="CubeSymmetry.h" />
+    <ClInclude Include="NvfGolden.h" />
+    <ClInclude Include="RepositoryFile.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
@@ -28,5 +30,9 @@
     <ClCompile Include="SceneTracerTests.cpp" />
     <ClCompile Include="LoopbackTransportTests.cpp" />
     <ClCompile Include="MessageTests.cpp" />
+    <ClCompile Include="NvfGolden.cpp" />
+    <ClCompile Include="NvfModelTests.cpp" />
+    <ClCompile Include="RepositoryFile.cpp" />
+    <ClCompile Include="NvfImportTests.cpp" />
   </ItemGroup>
 </Project>

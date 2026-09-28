@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Box.h"
+#include "RigidTransform.h"
 #include "VoxFile.h"
 #include "VoxModel.h"
 #include "VoxelRecord.h"
@@ -47,6 +48,75 @@ constexpr std::array<FileVoxel, 3> L_VOXELS{{{0, 0, 0, 1}, {1, 0, 0, 2}, {1, 2, 
 // A second model: one voxel in entry 5.
 constexpr Int3 DOT_SIZE{1, 1, 1};
 constexpr std::array<FileVoxel, 1> DOT_VOXELS{{{0, 0, 0, 5}}};
+
+// A marker as Design/NeuronVoxelFormat.md §5 draws one: an arrow three voxels long along MagicaVoxel's +Y, which is the
+// engine's forward, +Z. Odd in every dimension, so it may be turned.
+constexpr Int3 ARROW_SIZE{1, 3, 1};
+constexpr std::array<FileVoxel, 3> ARROW_VOXELS{{{0, 0, 0, 3}, {0, 1, 0, 3}, {0, 2, 0, 16}}};
+
+// _r = 33: row 0 picks y, row 1 picks x negated, row 2 picks z. It turns MagicaVoxel's +Y to +X: a quarter turn about +Z.
+constexpr std::string_view Y_TO_X_ROTATION = "33";
+
+// MagicaVoxel's y and z swapped, which converts a vector either way (Design/NeuronVoxelFormat.md §4.1).
+[[nodiscard]] constexpr NeuronCore::Float3 Swap(NeuronCore::Float3 _vector) noexcept
+{
+  return {_vector.x, _vector.z, _vector.y};
+}
+
+// _r decoded as MagicaVoxel-file-format-vox-extension.txt describes it, apart from the reader's own decoding: the matrix
+// row by row, or nothing when a column is named twice or out of range.
+[[nodiscard]] std::optional<std::array<std::array<float, 3>, 3>> DecodeRotation(std::uint32_t _bits)
+{
+  const std::uint32_t first = _bits & 3u;
+  const std::uint32_t second = (_bits >> 2u) & 3u;
+  if (first > 2 || second > 2 || first == second)
+  {
+    return std::nullopt;
+  }
+  const std::array<std::uint32_t, 3> columns{first, second, 3 - first - second};
+  std::array<std::array<float, 3>, 3> rows{};
+  for (std::uint32_t row = 0; row < 3; ++row)
+  {
+    rows[row][columns[row]] = ((_bits >> (4u + row)) & 1u) != 0u ? -1.0f : 1.0f;
+  }
+  return rows;
+}
+
+// _rows times _vector.
+[[nodiscard]] NeuronCore::Float3 Multiply(const std::array<std::array<float, 3>, 3>& _rows, NeuronCore::Float3 _vector) noexcept
+{
+  const auto row = [&_rows, _vector](std::size_t _row)
+  { return _rows[_row][0] * _vector.x + _rows[_row][1] * _vector.y + _rows[_row][2] * _vector.z; };
+  return {row(0), row(1), row(2)};
+}
+
+// The engine's image of each axis under the MagicaVoxel rotation _rows: swap in, turn, swap out.
+[[nodiscard]] NeuronCore::Rotation EngineRotation(const std::array<std::array<float, 3>, 3>& _rows) noexcept
+{
+  const auto image = [&_rows](NeuronCore::Float3 _axis) { return Swap(Multiply(_rows, Swap(_axis))); };
+  return {image({1.0f, 0.0f, 0.0f}), image({0.0f, 1.0f, 0.0f}), image({0.0f, 0.0f, 1.0f})};
+}
+
+void AreEqualFloat3(NeuronCore::Float3 _expected, NeuronCore::Float3 _actual, const wchar_t* _what)
+{
+  Assert::AreEqual(_expected.x, _actual.x, _what);
+  Assert::AreEqual(_expected.y, _actual.y, _what);
+  Assert::AreEqual(_expected.z, _actual.z, _what);
+}
+
+// A scene of one model placed by node 2, whose rotation is _rotation, with the scene graph of OneModelChunks.
+[[nodiscard]] Bytes TurnedModel(Int3 _size, std::span<const FileVoxel> _voxels, std::string_view _translation, std::string_view _rotation,
+                                std::string_view _name = {})
+{
+  std::vector<Bytes> chunks = OneModelChunks(_size, _voxels, _translation);
+  NeuronCore::VoxAttributes attributes;
+  if (!_name.empty())
+  {
+    attributes.emplace("_name", _name);
+  }
+  chunks[PLACEMENT_CHUNK] = TransformChunk(2, attributes, 3, 0, {{{"_t", std::string(_translation)}, {"_r", std::string(_rotation)}}});
+  return VoxFile(chunks);
+}
 
 [[nodiscard]] std::vector<Bytes> LChunks(std::string_view _translation = "0 0 0")
 {
@@ -340,7 +410,8 @@ public:
 
   TEST_METHOD(RefusesRotations)
   {
-    // _r packs a signed permutation; 4 is the identity: row 0 picks x, row 1 picks y, and nothing is negated.
+    // _r packs a signed permutation; 4 is the identity: row 0 picks x, row 1 picks y, and nothing is negated. The L is even
+    // in x, so the identity is the only rotation it may have (Design/NeuronVoxelFormat.md §6.1).
     const NeuronCore::VoxModel identity = ExpectAccepted(WithPlacement({}, 0, {{{"_t", "0 0 0"}, {"_r", "4"}}}), L"_r 4");
     Assert::AreEqual(std::size_t{1}, identity.instances.size());
 
@@ -353,6 +424,154 @@ public:
     std::vector<Bytes> chunks = LChunks();
     chunks[ROOT_CHUNK] = TransformChunk(0, {}, 1, -1, {{{"_r", "20"}}});
     ExpectRefusal(VoxError::UnsupportedRotation, VoxFile(chunks), L"_r on the root");
+  }
+
+  // Design/NeuronVoxelFormat.md §6.1: a model odd in every dimension may be turned by any of the cube's 24 rotations,
+  // which the reader conjugates into the engine's axes. A model with an even dimension may not, and a reflection or a
+  // value that names one column twice is refused on either. All 128 values of the seven bits are tried.
+  TEST_METHOD(TurnsOnlyModelsOddInEveryDimension)
+  {
+    const std::array<FileVoxel, 1> middle{{{1, 0, 2, 7}}};
+    std::size_t turned = 0;
+    std::size_t reflections = 0;
+    std::size_t malformed = 0;
+    for (std::uint32_t bits = 0; bits < 128; ++bits)
+    {
+      const std::string rotation = std::to_string(bits);
+      const std::wstring what = std::format(L"_r {}", bits);
+      const std::optional<std::array<std::array<float, 3>, 3>> rows = DecodeRotation(bits);
+      const bool proper =
+        rows && NeuronCore::Dot(NeuronCore::Cross(Multiply(*rows, {1.0f, 0.0f, 0.0f}), Multiply(*rows, {0.0f, 1.0f, 0.0f})),
+                                Multiply(*rows, {0.0f, 0.0f, 1.0f})) > 0.0f;
+      reflections += rows && !proper ? 1 : 0;
+      malformed += rows ? 0 : 1;
+
+      const Bytes odd = TurnedModel({3, 1, 5}, middle, "10 20 30", rotation);
+      if (!proper)
+      {
+        ExpectRefusal(VoxError::UnsupportedRotation, odd, what + L" on a model odd in every dimension");
+        ExpectRefusal(VoxError::UnsupportedRotation, TurnedModel(L_SIZE, L_VOXELS, "0 0 0", rotation), what + L" on the L");
+        continue;
+      }
+      ++turned;
+      const NeuronCore::VoxModel model = ExpectAccepted(odd, what);
+      const NeuronCore::ModelInstance& instance = model.instances.front();
+      const NeuronCore::Rotation expected = EngineRotation(*rows);
+      AreEqualFloat3(expected.axisX, instance.rotation.axisX, (what + L": the image of +X").c_str());
+      AreEqualFloat3(expected.axisY, instance.rotation.axisY, (what + L": the image of +Y").c_str());
+      AreEqualFloat3(expected.axisZ, instance.rotation.axisZ, (what + L": the image of +Z").c_str());
+      // The origin is where the unturned model's corner lies, whatever the turn: (10, 30, 20) minus floor((3, 5, 1) / 2).
+      AreEqualInt3({9, 28, 20}, instance.origin, what.c_str());
+
+      // Even in one dimension only, each dimension in turn: in MagicaVoxel's axes x, then z, then y, which are the
+      // engine's x, y and z.
+      const std::array<FileVoxel, 1> corner{{{0, 0, 0, 7}}};
+      for (const Int3 size : {Int3{2, 1, 1}, Int3{1, 1, 2}, Int3{1, 2, 1}})
+      {
+        const Bytes even = TurnedModel(size, corner, "0 0 0", rotation);
+        const std::wstring evenWhat = std::format(L"{} on a model of {} x {} x {}", what, size.x, size.y, size.z);
+        if (bits == 4)
+        {
+          static_cast<void>(ExpectAccepted(even, evenWhat + L": the identity"));
+        }
+        else
+        {
+          ExpectRefusal(VoxError::UnsupportedRotation, even, evenWhat);
+        }
+      }
+    }
+    Assert::AreEqual(std::size_t{24}, turned, L"the cube's rotations");
+    Assert::AreEqual(std::size_t{24}, reflections, L"the cube's reflections");
+    Assert::AreEqual(std::size_t{80}, malformed, L"values that name a column twice or out of range");
+
+    for (const std::string_view text : {"", "4 ", "+4", "-4", "128", "260", "four", "4.0"})
+    {
+      ExpectRefusal(VoxError::UnsupportedRotation, TurnedModel({3, 1, 5}, middle, "0 0 0", text), L"_r \"" + Widen(text) + L"\"");
+    }
+  }
+
+  // A turned group would turn its models about the group's own pivot, which has no tested answer, so only the transform
+  // directly above a model may turn it (§6.1).
+  TEST_METHOD(RefusesTurnedGroups)
+  {
+    std::vector<Bytes> chunks = OneModelChunks(ARROW_SIZE, ARROW_VOXELS, "0 0 0");
+    chunks[ROOT_CHUNK] = TransformChunk(0, {}, 1, -1, {{{"_r", std::string(Y_TO_X_ROTATION)}}});
+    ExpectRefusal(VoxError::UnsupportedRotation, VoxFile(chunks), L"the root turned");
+
+    chunks = OneModelChunks(ARROW_SIZE, ARROW_VOXELS, "0 0 0");
+    chunks[PLACEMENT_CHUNK] = TransformChunk(2, {}, 4, 0, {{{"_r", std::string(Y_TO_X_ROTATION)}}});
+    chunks.push_back(GroupChunk(4, {}, {5}));
+    chunks.push_back(TransformChunk(5, {}, 3, 0, {{}}));
+    ExpectRefusal(VoxError::UnsupportedRotation, VoxFile(chunks), L"a group turned");
+  }
+
+  // Design/NeuronVoxelFormat.md §6.1: each model carries the _name of the transform that places it, which is how the
+  // importer tells parts from markers. A name on a transform above a group names no model, and is not read.
+  TEST_METHOD(ReadsTheNamesOfPlacingNodes)
+  {
+    const std::vector<Bytes> chunks{
+      SizeChunk(L_SIZE),
+      VoxelsChunk(L_VOXELS),
+      SizeChunk(DOT_SIZE),
+      VoxelsChunk(DOT_VOXELS),
+      TransformChunk(0, {{"_name", "scene"}}, 1, -1, {{}}),
+      GroupChunk(1, {}, {2, 4, 6}),
+      TransformChunk(2, {{"_name", "hull"}}, 3, 0, {{{"_t", "0 0 0"}}}),
+      ShapeChunk(3, {0}),
+      TransformChunk(4, {{"_name", "hull@engine.main"}}, 5, 0, {{{"_t", "5 0 0"}}}),
+      ShapeChunk(5, {1}),
+      TransformChunk(6, {}, 7, 0, {{{"_t", "0 9 0"}}}),
+      ShapeChunk(7, {1}),
+      PaletteChunk(),
+    };
+    const NeuronCore::VoxModel model = ExpectAccepted(VoxFile(chunks), L"three instances, two named");
+    Assert::AreEqual(std::size_t{3}, model.instances.size());
+    Assert::AreEqual(std::string("hull"), model.instances[0].name);
+    Assert::AreEqual(std::string("hull@engine.main"), model.instances[1].name);
+    Assert::AreEqual(std::string(), model.instances[2].name, L"an unnamed node");
+    for (const NeuronCore::ModelInstance& instance : model.instances)
+    {
+      AreEqualFloat3({1.0f, 0.0f, 0.0f}, instance.rotation.axisX, L"unturned");
+      AreEqualFloat3({0.0f, 1.0f, 0.0f}, instance.rotation.axisY, L"unturned");
+      AreEqualFloat3({0.0f, 0.0f, 1.0f}, instance.rotation.axisZ, L"unturned");
+    }
+  }
+
+  // Design/NeuronVoxelFormat.md §9: an asymmetric model with a voxel only at MagicaVoxel's (1, 2, 3), and a marker turned
+  // to point along +X. The voxel lands at the engine's (1, 3, 2) and the marker's forward, +Z in its own frame, at +X.
+  TEST_METHOD(ReadsAMarkerInTheEnginesAxes)
+  {
+    const std::array<FileVoxel, 1> single{{{1, 2, 3, 9}}};
+    const std::vector<Bytes> chunks{
+      SizeChunk(L_SIZE),
+      VoxelsChunk(single),
+      SizeChunk(ARROW_SIZE),
+      VoxelsChunk(ARROW_VOXELS),
+      TransformChunk(0, {}, 1, -1, {{}}),
+      GroupChunk(1, {}, {2, 4}),
+      TransformChunk(2, {{"_name", "main"}}, 3, 0, {{{"_t", "0 0 0"}}}),
+      ShapeChunk(3, {0}),
+      TransformChunk(4, {{"_name", "main@weapon.front"}}, 5, 0, {{{"_t", "10 20 30"}, {"_r", std::string(Y_TO_X_ROTATION)}}}),
+      ShapeChunk(5, {1}),
+      PaletteChunk(),
+    };
+    const NeuronCore::VoxModel model = ExpectAccepted(VoxFile(chunks), L"a model and a turned marker");
+    Assert::AreEqual(NeuronCore::PackVoxelRecord({1, 3, 2, 8}), model.records[model.instances[0].firstRecord], L"the voxel, swapped");
+
+    const NeuronCore::ModelInstance& marker = model.instances[1];
+    AreEqualFloat3({1.0f, 0.0f, 0.0f}, NeuronCore::RotateVector(marker.rotation, {0.0f, 0.0f, 1.0f}), L"forward points along +X");
+    AreEqualFloat3({0.0f, 1.0f, 0.0f}, NeuronCore::RotateVector(marker.rotation, {0.0f, 1.0f, 0.0f}), L"up stays +Y");
+    // Its centre voxel stays at its translation, (10, 30, 20) in the engine's axes, whatever the turn.
+    AreEqualInt3({10, 30, 20}, marker.origin + Int3{marker.size.x / 2, marker.size.y / 2, marker.size.z / 2}, L"the centre voxel's cell");
+
+    // The arrow runs along +X now, through its centre voxel: from (9, 30, 20) to (11, 30, 20), where unturned it ran along
+    // +Z from (10, 30, 19). The box around the model and the arrow holds the arrow where its turn puts it.
+    NeuronCore::VoxModel arrow = model;
+    arrow.instances.erase(arrow.instances.begin());
+    const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(arrow);
+    Assert::IsTrue(bounds.has_value(), L"the arrow has bounds");
+    AreEqualInt3({9, 30, 20}, bounds.value_or(NeuronCore::VoxelBounds{}).lower, L"the turned arrow's lower corner");
+    AreEqualInt3({12, 31, 21}, bounds.value_or(NeuronCore::VoxelBounds{}).upper, L"the turned arrow's upper corner");
   }
 
   TEST_METHOD(RefusesAnimation)

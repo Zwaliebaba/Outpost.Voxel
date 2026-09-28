@@ -195,8 +195,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CubeSymmetry.h" />
+    <ClInclude Include="NvfGolden.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PinnedStation.h" />
+    <ClInclude Include="RepositoryFile.h" />
     <ClInclude Include="SeededRandom.h" />
     <ClInclude Include="VoxFile.h" />
   </ItemGroup>
@@ -209,12 +211,16 @@
     <ClCompile Include="LoopbackTransportTests.cpp" />
     <ClCompile Include="MessageTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
+    <ClCompile Include="NvfGolden.cpp" />
+    <ClCompile Include="NvfImportTests.cpp" />
+    <ClCompile Include="NvfModelTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="PlacementTests.cpp" />
     <ClCompile Include="RenderSettingsTests.cpp" />
+    <ClCompile Include="RepositoryFile.cpp" />
     <ClCompile Include="RigidTransformTests.cpp" />
     <ClCompile Include="SceneTracerTests.cpp" />
     <ClCompile Include="SplatBoundsTests.cpp" />

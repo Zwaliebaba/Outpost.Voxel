@@ -2,6 +2,7 @@
 
 #include "Box.h"
 #include "Float3.h"
+#include "RigidTransform.h"
 #include "VoxelRecord.h"
 
 #include <array>
@@ -61,13 +62,19 @@ struct PaletteEntry
   float flux;    // the material's _flux, 0 when absent
 };
 
-// One placed model: a range of the record buffer, and where it sits (§3, §7.5).
+// One placed model: a range of the record buffer, and where it sits (§3, §7.5). A model turns about its centre voxel,
+// the voxel floor(size / 2), which stays in the cell origin + floor(size / 2) however it is turned: voxel v lies in the
+// cell origin + floor(size / 2) + rotation(v - floor(size / 2)). Only a model odd in every dimension can be turned, since
+// only then is its centre voxel its middle (Design/NeuronVoxelFormat.md §5, §6.1).
 struct ModelInstance
 {
-  Int3 origin; // world position of the minimum corner of voxel (0, 0, 0): the translation minus floor(size / 2)
+  Int3 origin; // world position of the minimum corner of voxel (0, 0, 0) as the model lies unturned: the translation minus
+               // floor(size / 2)
   Int3 size;   // the model's SIZE, in voxels
   std::uint32_t firstRecord;
   std::uint32_t recordCount;
+  Rotation rotation = IDENTITY_ROTATION; // one of the cube's 24 rotations, in the engine's axes
+  std::string name;                      // the _name of the transform node that places it; empty when it has none
 };
 
 // A validated MagicaVoxel scene, flattened into what the renderer draws. Its voxels, sizes and origins are in the
@@ -83,10 +90,11 @@ struct VoxModel
 };
 
 // Accepts versions 150 and 200, skips chunks it does not know, follows the scene graph from node 0, applies
-// translations and skips hidden nodes and layers. Refuses a rotation other than the identity, more than one frame or
-// model per node, a color entry outside 1-16, a model larger than 256, a voxel outside its model or on top of another,
-// a translation that takes a model further than MAX_TRANSLATION from the origin, and any size or count that disagrees
-// with its chunk.
+// translations, keeps the name of the node that places each model, and skips hidden nodes and layers. Accepts a
+// rotation other than the identity only on the node that places a model odd in every dimension, and turns it into the
+// engine's axes; refuses any other, and a reflection. Refuses more than one frame or model per node, a color entry
+// outside 1-16, a model larger than 256, a voxel outside its model or on top of another, a translation that takes a
+// model further than MAX_TRANSLATION from the origin, and any size or count that disagrees with its chunk.
 [[nodiscard]] std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _bytes);
 
 // A .vox file's bytes, whole: what ParseVoxModel reads, and what a welcome's manifest hashes (Design/SpaceScene.md §6.2).
@@ -97,11 +105,12 @@ struct VoxModel
 // The axis-aligned unit box whose minimum corner is _minCorner: how every voxel of an intact model is drawn.
 [[nodiscard]] Box CellBox(Int3 _minCorner) noexcept;
 
-// The box that _record, a packed record of _instance, is drawn as while the model is intact.
+// The box that _record, a packed record of _instance, is drawn as while the model is intact. _instance is unturned: the
+// renderer draws no turned instance (Design/NeuronVoxelFormat.md §6.1).
 [[nodiscard]] Box VoxelBox(const ModelInstance& _instance, std::uint32_t _record) noexcept;
 
 // The box around every voxel of a model, in the model's own space: each voxel is the unit cell at its minimum corner, its
-// part's origin included. An entity stands where the middle of its model's box is (Design/SpaceScene.md §5.1), so the
+// part's origin and turn included. An entity stands where the middle of its model's box is (Design/SpaceScene.md §5.1), so the
 // server that places it and the client that draws it measure the box through this one function.
 struct VoxelBounds
 {

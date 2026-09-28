@@ -181,6 +181,24 @@ jobs:
           & $vstest $suites /Platform:x64 /Logger:trx /ResultsDirectory:TestResults
           if ($LASTEXITCODE -ne 0) { throw "vstest reported failures." }
 
+      # Every model's .nvf must be what importing its .vox gives (Design/NeuronVoxelFormat.md §9): an
+      # .nvf stale against its .vox, a .vox without one, or a .vox NvfImport refuses fails here. --check
+      # merges with the .nvf as an import would, so the hardpoints Blender authored are part of what is
+      # compared, and it writes nothing.
+      - name: Check the models against their sources
+        shell: pwsh
+        run: |
+          $tool = "x64\$env:CONFIGURATION\NvfImport.exe"
+          if (-not (Test-Path $tool)) { throw "$tool was not built." }
+          $sources = @(Get-ChildItem -Path GameData -Filter '*.vox' -File)
+          if ($sources.Count -eq 0) { throw "GameData holds no .vox, so there is nothing to check." }
+          $failed = 0
+          foreach ($source in $sources) {
+            & $tool $source.FullName ([IO.Path]::ChangeExtension($source.FullName, '.nvf')) --check
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          if ($failed -ne 0) { throw "$failed of $($sources.Count) model(s) in GameData are stale against their .vox or refused." }
+
       # After the build, so that a compile error is reported as a compile error rather than as
       # forty linter findings about a file that does not parse.
       - name: Run clang-tidy
@@ -223,3 +241,12 @@ jobs:
 
       - name: Check formatting
         run: python3 Build/CheckFormat.py --clang-format clang-format-18
+
+      # The Blender extension's Python, on the system Python (Design/NeuronVoxelFormat.md §9). NvfFormat.py, the twin of
+      # NeuronCore's NVF reader and writer (AGENTS.md R20), and Geometry.py and Rebuild.py, which hold what the extension
+      # decides, import nothing from Blender. NvfFormat.py's tests write and read the golden file, corrupt it as
+      # NvfModelTests.cpp does, and read NvfError's names from NvfModel.h, so a drift between the two implementations
+      # fails here or in the Windows job. The tests that drive Blender itself skip here, since the runner has no bpy.
+      # From Python 3.12, unittest fails a run that finds no test.
+      - name: Test the Blender extension's Python
+        run: python3 -m unittest discover --start-directory Tools/Blender/NeuronVoxelFormat/Tests --pattern '*Tests.py' --verbose

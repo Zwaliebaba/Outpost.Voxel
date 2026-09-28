@@ -53,6 +53,11 @@ max_line_length = 120
 end_of_line = lf
 indent_size = 2
 
+# The Blender extension's manifest, beside its Python.
+[*.toml]
+end_of_line = lf
+indent_size = 2
+
 [*.md]
 end_of_line = lf
 trim_trailing_whitespace = false
