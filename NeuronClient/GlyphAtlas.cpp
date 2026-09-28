@@ -140,9 +140,10 @@ std::optional<GlyphAtlas::Glyph> GlyphAtlas::Rasterize(const Key& _key)
   winrt::com_ptr<IDWriteGlyphRunAnalysis> analysis;
   winrt::check_hresult(m_factory->CreateGlyphRunAnalysis(&run, nullptr, RENDERING_MODE, MEASURING_MODE, DWRITE_GRID_FIT_MODE_ENABLED,
                                                          DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE, 0.0f, 0.0f, analysis.put()));
-  // An antialiased texture comes as ClearType's three bytes a pixel; in grayscale the three are equal.
+  // Grayscale coverage comes as one byte a pixel through the 1x1 texture type, which the documentation still calls
+  // bi-level; asked for ClearType's 3x1 texture, a grayscale analysis has nothing to give.
   RECT bounds{};
-  winrt::check_hresult(analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds));
+  winrt::check_hresult(analysis->GetAlphaTextureBounds(DWRITE_TEXTURE_ALIASED_1x1, &bounds));
   if (bounds.right <= bounds.left || bounds.bottom <= bounds.top)
   {
     return Glyph{0, 0, 0, 0, 0, 0};
@@ -156,17 +157,13 @@ std::optional<GlyphAtlas::Glyph> GlyphAtlas::Rasterize(const Key& _key)
     m_full = true;
     return std::nullopt;
   }
-  std::vector<BYTE> coverage(static_cast<std::size_t>(width) * height * 3);
+  std::vector<BYTE> coverage(static_cast<std::size_t>(width) * height);
   winrt::check_hresult(
-    analysis->CreateAlphaTexture(DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, coverage.data(), static_cast<UINT32>(coverage.size())));
+    analysis->CreateAlphaTexture(DWRITE_TEXTURE_ALIASED_1x1, &bounds, coverage.data(), static_cast<UINT32>(coverage.size())));
   for (std::uint32_t row = 0; row < height; ++row)
   {
-    for (std::uint32_t column = 0; column < width; ++column)
-    {
-      const std::size_t at = 3 * (static_cast<std::size_t>(row) * width + column);
-      const std::uint32_t sum = std::uint32_t{coverage[at]} + coverage[at + 1] + coverage[at + 2];
-      m_texels[static_cast<std::size_t>(y + row) * SIZE_PIXELS + x + column] = static_cast<std::uint8_t>(sum / 3u);
-    }
+    std::memcpy(m_texels.data() + static_cast<std::size_t>(y + row) * SIZE_PIXELS + x,
+                coverage.data() + static_cast<std::size_t>(row) * width, width);
   }
   m_dirtyTop = std::min(m_dirtyTop, y);
   m_dirtyBottom = std::max(m_dirtyBottom, y + height);

@@ -217,17 +217,20 @@ public:
                                .c_str());
         Assert::IsTrue(glyph->widthPixels > 0 && glyph->heightPixels > 0, L"a zero has ink");
         std::uint32_t inked = 0;
+        std::uint32_t partly = 0;
         for (std::uint32_t y = 0; y < glyph->heightPixels; ++y)
         {
           for (std::uint32_t x = 0; x < glyph->widthPixels; ++x)
           {
-            inked +=
-              atlas.Texels()[static_cast<std::size_t>(glyph->atlasY + y) * NeuronClient::GlyphAtlas::SIZE_PIXELS + glyph->atlasX + x] != 0
-                ? 1u
-                : 0u;
+            const std::uint8_t texel =
+              atlas.Texels()[static_cast<std::size_t>(glyph->atlasY + y) * NeuronClient::GlyphAtlas::SIZE_PIXELS + glyph->atlasX + x];
+            inked += texel != 0 ? 1u : 0u;
+            partly += texel != 0 && texel != 255 ? 1u : 0u;
           }
         }
+        Logger::WriteMessage(std::format(L"{} texels with coverage, {} of them partly covered\n", inked, partly).c_str());
         Assert::IsTrue(inked > 0, L"the zero's texels have coverage");
+        Assert::IsTrue(partly > 0, L"the edges are antialiased in grayscale, not bi-level");
         Assert::AreEqual(std::size_t{1}, atlas.GlyphCount());
       });
   }
