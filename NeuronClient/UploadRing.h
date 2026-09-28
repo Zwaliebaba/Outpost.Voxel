@@ -33,6 +33,11 @@ public:
     m_usedBytes = 0;
   }
 
+  [[nodiscard]] std::uint64_t CapacityBytes() const noexcept
+  {
+    return m_capacityBytes;
+  }
+
   // Copies _bytes in and returns their GPU address. Throws when the ring is full.
   [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS PushBytes(std::span<const std::byte> _bytes);
 

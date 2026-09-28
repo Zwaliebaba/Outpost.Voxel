@@ -21,6 +21,7 @@
     <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="MeasurementTests.cpp" />
     <ClCompile Include="ShadowSplatTests.cpp" />
+    <ClCompile Include="PlacementSplatTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli">

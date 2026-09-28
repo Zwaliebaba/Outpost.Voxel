@@ -1,6 +1,6 @@
 # ADR-006 — Depth conventions
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15)
+**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-014](ADR-014-placements.md), the tie rule across placements
 
 ## Context
 

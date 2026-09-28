@@ -6,7 +6,10 @@
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
 #include "PinnedStation.h"
+#include "Placement.h"
 #include "RenderSettings.h"
+#include "RigidTransform.h"
+#include "SceneTracer.h"
 #include "TraceHit.h"
 #include "VoxFile.h"
 #include "VoxModel.h"
@@ -689,6 +692,52 @@ public:
     ExpectPinnedImage(
       L"from the sun", PINNED_FROM_THE_SUN, grid, centers, [&sun](std::uint32_t _x, std::uint32_t _y)
       { return NeuronCore::OrthographicRay(sun, _x, _y); }, 0.0f, PINNED_SUN_PIXELS, PINNED_SUN_PIXELS);
+  }
+
+  // Design/SpaceScene.md §16, S-M2: the station as one placement, placed as the application places it, traces as its
+  // grid does in every pixel of the pinned views: the same voxel, whose id is its record, at the same distance, with the
+  // same normal. So the pins hold through the placement too.
+  TEST_METHOD(TracesThroughOnePlacementAsItsGridDoes)
+  {
+    const NeuronCore::VoxModel model = LoadMilitaryStation();
+    const NeuronCore::VoxelGrid grid(model);
+    const Int3 origin = model.instances.front().origin;
+    std::array<NeuronCore::Placement, 1> placements{NeuronCore::PlacePart(
+      model, 0, 0, 0,
+      {NeuronCore::IDENTITY_ROTATION, {static_cast<float>(origin.x), static_cast<float>(origin.y), static_cast<float>(origin.z)}})};
+    Assert::IsTrue(NeuronCore::AssignVoxelIds(placements));
+    Assert::IsTrue(NeuronCore::IsAlignedPlacement(placements[0]), L"the station draws aligned");
+    const NeuronCore::SceneTracer tracer({&model, 1}, placements);
+
+    std::uint32_t hits = 0;
+    for (const PinnedCamera& camera : PINNED_CAMERAS)
+    {
+      const NeuronCore::PerspectiveView view =
+        NeuronCore::MakePerspectiveView(FromPinnedAxes(camera.eye), FromPinnedAxes(PINNED_TARGET), FromPinnedAxes(PINNED_UP),
+                                        PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
+      for (std::uint32_t y = 0; y < PINNED_HEIGHT_PIXELS; ++y)
+      {
+        for (std::uint32_t x = 0; x < PINNED_WIDTH_PIXELS; ++x)
+        {
+          const NeuronCore::Ray ray = NeuronCore::PerspectiveRay(view, x, y);
+          const NeuronCore::TraceHit expected = grid.Trace(ray, view.nearPlane);
+          ExpectSameHit(expected, tracer.Trace(ray, view.nearPlane), std::format(L"{}, pixel {} {}", camera.name, x, y));
+          hits += expected.voxel != NeuronCore::NO_VOXEL ? 1u : 0u;
+        }
+      }
+    }
+    const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);
+    for (std::uint32_t y = 0; y < PINNED_SUN_PIXELS; ++y)
+    {
+      for (std::uint32_t x = 0; x < PINNED_SUN_PIXELS; ++x)
+      {
+        const NeuronCore::Ray ray = NeuronCore::OrthographicRay(sun, x, y);
+        const NeuronCore::TraceHit expected = grid.Trace(ray, 0.0f);
+        ExpectSameHit(expected, tracer.Trace(ray, 0.0f), std::format(L"from the sun, pixel {} {}", x, y));
+        hits += expected.voxel != NeuronCore::NO_VOXEL ? 1u : 0u;
+      }
+    }
+    Logger::WriteMessage(std::format(L"{} pixels show the station, through its grid and through its placement alike\n", hits).c_str());
   }
 
   // §12.4's pin for the lighting: a white surface under the station's sun and sky for fixed normals, and the level

@@ -2,12 +2,13 @@
 
 // The splat pass (Design/Archive/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
-// and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
-// perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes while the model is intact
-// and oriented ones, posed by the detonation, once it is not (Design/SpaceScene.md §5.5). PLAIN_DEPTH and COUNT_OVERDRAW
-// make the view splat's measurement variants (§14): one writes plain SV_Depth instead of conservative depth, so that
-// PSInvocations shows what conservative depth saves, and the other counts its invocations per pixel for the overdraw
-// view.
+// and in the view splat its id and normal. A draw is one placement (Design/SpaceScene.md §7): the root constant names it
+// in the frame's structured buffer of placements. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is
+// the perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes for a whole placement
+// turned by a symmetry of the cube and oriented ones for any other, posed by its detonation once it has one (§7.2,
+// §7.7). PLAIN_DEPTH and COUNT_OVERDRAW make the view splat's measurement variants (§14): one writes plain SV_Depth
+// instead of conservative depth, so that PSInvocations shows what conservative depth saves, and the other counts its
+// invocations per pixel for the overdraw view.
 
 #ifndef ORIENTED
 #   error "the entry-point file sets ORIENTED"
@@ -30,10 +31,10 @@
 // Every ray the pass casts starts outside the box it tests (§9.3).
 #define CAN_START_IN_BOX 0
 
-#include "InstanceConstants.hlsli"
 #include "OrthographicView.hlsli"
 #include "Packing.hlsli"
 #include "PerspectiveView.hlsli"
+#include "Placement.hlsli"
 #include "Ray.hlsli"
 #include "RayBox.hlsli"
 #include "ShadowViewConstants.hlsli"
@@ -48,11 +49,16 @@ ConstantBuffer<ShadowViewConstants> g_view : register(b0);
 #else
 ConstantBuffer<ViewConstants> g_view : register(b0);
 #endif
-ConstantBuffer<InstanceConstants> g_instance : register(b1);
+// One 32-bit root constant: the draw's placement.
+cbuffer SplatDraw : register(b1)
+{
+  uint g_placement;
+};
 #if ORIENTED
 ConstantBuffer<ExplosionConstants> g_explosion : register(b2);
 #endif
 StructuredBuffer<uint> g_records : register(t0);
+StructuredBuffer<PlacementConstants> g_placements : register(t1);
 #if COUNT_OVERDRAW
 RWTexture2D<uint> g_overdraw : register(u0);
 #endif
@@ -62,13 +68,14 @@ RWTexture2D<uint> g_overdraw : register(u0);
 static const uint RECTANGLES_PER_INSTANCE = 256;
 
 // A pixel shader that writes conservative depth reads SV_Position at the centroid; without MSAA that is the pixel's centre.
-// An oriented box travels with its voxel's pose: the center and the three axes of its rotation (§9.2, step 5).
+// The box travels with its voxel: its center in the world, and for an oriented box the three axes of its rotation (§9.2,
+// step 5).
 struct SplatVaryings
 {
   noperspective centroid float4 position : SV_Position;
   nointerpolation uint voxel : VOXEL;
-#if ORIENTED
   nointerpolation float3 center : CENTER;
+#if ORIENTED
   nointerpolation float3 axisX : AXIS_X;
   nointerpolation float3 axisY : AXIS_Y;
   nointerpolation float3 axisZ : AXIS_Z;
@@ -93,40 +100,53 @@ struct SplatTargets
 };
 #endif
 
-// The box an intact voxel is drawn as. The C++ twin is VoxelBox in NeuronCore/VoxModel.h (R15).
-Box VoxelBox(uint _voxel)
+// The box voxel _local of _placement is drawn as, whose packed record is _record (Design/SpaceScene.md §7.2, §7.7). In
+// the aligned permutation, its cell's center taken into the world, which a symmetry of the cube leaves axis-aligned. In
+// the oriented one, its pose in the part's space, taken into the world: at rest while the placement is whole or its
+// detonation's time is 0, and otherwise posed, its hash counting from the model-local hash base. Rest or posed, the center
+// goes through the one TransformPoint. The C++ twin is PlacedVoxelBox in NeuronCore/Placement.h (R15).
+Box PlacedVoxelBox(PlacementConstants _placement, uint _local, uint _record)
 {
-  VoxelRecord record = UnpackVoxelRecord(g_records[_voxel]);
-  int3 minCorner = g_instance.modelOrigin + int3(record.x, record.y, record.z);
-  return MakeAxisAlignedBox(float3(minCorner) + 0.5, float3(0.5, 0.5, 0.5));
+  VoxelRecord record = UnpackVoxelRecord(_record);
+  float3 restCenter = float3(float(record.x), float(record.y), float(record.z)) + 0.5;
+#if ORIENTED
+  VoxelPose pose;
+  pose.center = restCenter;
+  pose.axisX = float3(1.0, 0.0, 0.0);
+  pose.axisY = float3(0.0, 1.0, 0.0);
+  pose.axisZ = float3(0.0, 0.0, 1.0);
+  if (g_explosion.timeSeconds > 0.0)
+  {
+    pose = ExplosionPose(g_explosion.hashBase + _local, restCenter, g_explosion);
+  }
+  return MakeOrientedBox(TransformPoint(_placement, pose.center), float3(0.5, 0.5, 0.5), RotateVector(_placement, pose.axisX),
+                         RotateVector(_placement, pose.axisY), RotateVector(_placement, pose.axisZ));
+#else
+  return MakeAxisAlignedBox(TransformPoint(_placement, restCenter), float3(0.5, 0.5, 0.5));
+#endif
 }
 
-// Vertex v of instance i is corner v mod 4 of voxel 256 i + v / 4 (§9.1). A voxel past the end of the model, or one the
-// bounds cull, becomes a degenerate rectangle outside the viewport, which draws nothing.
+// Vertex v of instance i is corner v mod 4 of the placement's voxel 256 i + v / 4 (§9.1). A voxel past the end of the
+// placement, or one the bounds cull, becomes a degenerate rectangle outside the viewport, which draws nothing.
 SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_InstanceID)
 {
   SplatVaryings varyings;
   varyings.position = float4(-2.0, -2.0, 0.0, 1.0);
   varyings.voxel = NO_VOXEL;
-#if ORIENTED
   varyings.center = float3(0.0, 0.0, 0.0);
+#if ORIENTED
   varyings.axisX = float3(1.0, 0.0, 0.0);
   varyings.axisY = float3(0.0, 1.0, 0.0);
   varyings.axisZ = float3(0.0, 0.0, 1.0);
 #endif
 
+  PlacementConstants placement = g_placements[g_placement];
   uint local = _instance * RECTANGLES_PER_INSTANCE + _vertex / 4u;
-  if (local >= g_instance.recordCount)
+  if (local >= placement.recordCount)
   {
     return varyings;
   }
-  uint voxel = g_instance.firstRecord + local;
-  Box box = VoxelBox(voxel);
-#if ORIENTED
-  // Design/SpaceScene.md §5.5: the detonation replaces the center and supplies a rotation.
-  VoxelPose pose = ExplosionPose(voxel, box.center, g_explosion);
-  box = MakeOrientedBox(pose.center, box.radius, pose.axisX, pose.axisY, pose.axisZ);
-#endif
+  Box box = PlacedVoxelBox(placement, local, g_records[placement.firstRecord + local]);
 #if ORTHOGRAPHIC
   SplatBounds bounds = OrthographicSplatBounds(box, g_view);
 #else
@@ -140,9 +160,10 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   float x = (corner & 1u) != 0u ? bounds.maxNdc.x : bounds.minNdc.x;
   float y = (corner & 2u) != 0u ? bounds.maxNdc.y : bounds.minNdc.y;
   varyings.position = float4(x, y, bounds.depth, 1.0);
-  varyings.voxel = voxel;
-#if ORIENTED
+  // Design/SpaceScene.md §7.3: a voxel's id is its placement's first voxel's plus its index in the placement.
+  varyings.voxel = placement.firstVoxel + local;
   varyings.center = box.center;
+#if ORIENTED
   varyings.axisX = box.axisX;
   varyings.axisY = box.axisY;
   varyings.axisZ = box.axisZ;
@@ -150,13 +171,13 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   return varyings;
 }
 
-// The box the pixel's voxel is drawn as: where it lies intact, or where the vertex shader posed it.
+// The box the pixel's voxel is drawn as, where the vertex shader put it.
 Box SplatBox(SplatVaryings _varyings)
 {
 #if ORIENTED
   return MakeOrientedBox(_varyings.center, float3(0.5, 0.5, 0.5), _varyings.axisX, _varyings.axisY, _varyings.axisZ);
 #else
-  return VoxelBox(_varyings.voxel);
+  return MakeAxisAlignedBox(_varyings.center, float3(0.5, 0.5, 0.5));
 #endif
 }
 

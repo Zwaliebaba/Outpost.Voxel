@@ -35,35 +35,45 @@ enum HashStream : std::uint32_t
 };
 constexpr std::uint32_t HASH_STREAMS = 8;
 
-// A number in [0, 1) from the top 24 bits of the hash, which a float holds exactly.
-[[nodiscard]] float HashUnit(std::uint32_t _voxel, HashStream _stream) noexcept
+// How far apart two seeds put a voxel's hash inputs: 2^32 over the golden ratio, which spreads consecutive seeds over the
+// whole range of inputs. Seed 0 adds nothing (ADR-014).
+constexpr std::uint32_t SEED_STEP = 0x9E3779B9u;
+
+// Voxel _voxel's random bits for _stream in the detonation with _seed.
+[[nodiscard]] std::uint32_t VoxelHash(std::uint32_t _voxel, HashStream _stream, std::uint32_t _seed) noexcept
 {
-  return static_cast<float>(PcgHash(_voxel * HASH_STREAMS + _stream) >> 8u) * (1.0f / 16777216.0f);
+  return PcgHash(_voxel * HASH_STREAMS + _stream + _seed * SEED_STEP);
+}
+
+// A number in [0, 1) from the top 24 bits of the hash, which a float holds exactly.
+[[nodiscard]] float HashUnit(std::uint32_t _voxel, HashStream _stream, std::uint32_t _seed) noexcept
+{
+  return static_cast<float>(VoxelHash(_voxel, _stream, _seed) >> 8u) * (1.0f / 16777216.0f);
 }
 
 // A unit vector uniform on the sphere: its y uniform in [-1, 1), its heading about the y axis uniform.
-[[nodiscard]] Float3 Jitter(std::uint32_t _voxel) noexcept
+[[nodiscard]] Float3 Jitter(std::uint32_t _voxel, std::uint32_t _seed) noexcept
 {
-  const float height = 2.0f * HashUnit(_voxel, JitterHeight) - 1.0f;
-  const float angle = TWO_PI * HashUnit(_voxel, JitterAngle);
+  const float height = 2.0f * HashUnit(_voxel, JitterHeight, _seed) - 1.0f;
+  const float angle = TWO_PI * HashUnit(_voxel, JitterAngle, _seed);
   const float ring = std::sqrt(std::max(1.0f - height * height, 0.0f));
   return {ring * std::cos(angle), height, ring * std::sin(angle)};
 }
 
-// Away from the blast origin, jittered by hash, at a speed that falls off with distance. A voxel with no direction away
-// from the origin, one at the origin itself, flies along its jitter.
+// Away from the blast origin, jittered by hash, at a speed that falls off with distance, plus the inherited velocity. A
+// voxel with no direction away from the origin, one at the origin itself, flies along its jitter.
 [[nodiscard]] Float3 LaunchVelocity(std::uint32_t _voxel, Float3 _restCenter, const ExplosionParameters& _parameters) noexcept
 {
   const Float3 offset = _restCenter - _parameters.blastOrigin;
   const float distance = Length(offset);
   const Float3 away = distance > 0.0f ? offset * (1.0f / distance) : Float3{0.0f, 0.0f, 0.0f};
-  const Float3 jitter = Jitter(_voxel);
+  const Float3 jitter = Jitter(_voxel, _parameters.seed);
   const Float3 sum = away + jitter * _parameters.directionJitter;
   const float sumLength = Length(sum);
   const Float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0f / sumLength) : jitter;
-  const float variation = 1.0f + _parameters.speedJitter * (2.0f * HashUnit(_voxel, SpeedVariation) - 1.0f);
+  const float variation = 1.0f + _parameters.speedJitter * (2.0f * HashUnit(_voxel, SpeedVariation, _parameters.seed) - 1.0f);
   const float speed = _parameters.launchSpeed / (1.0f + distance / _parameters.falloffDistance) * variation;
-  return direction * speed;
+  return direction * speed + _parameters.inheritedVelocity;
 }
 
 // How much of its motion the drag has let a voxel make by _timeSeconds: 1 - e^(-drag t), from 0 at the detonation
@@ -124,14 +134,14 @@ void QuarterTurnCosSin(float _quarterTurns, float& _cos, float& _sin) noexcept
 }
 
 // A spin's whole number of quarter turns: 1 to maxQuarterTurns either way, or none if that is 0.
-[[nodiscard]] float SpinQuarterTurns(std::uint32_t _voxel, HashStream _stream, std::uint32_t _maxQuarterTurns) noexcept
+[[nodiscard]] float SpinQuarterTurns(std::uint32_t _voxel, HashStream _stream, const ExplosionParameters& _parameters) noexcept
 {
-  if (_maxQuarterTurns == 0u)
+  if (_parameters.maxQuarterTurns == 0u)
   {
     return 0.0f;
   }
-  const std::uint32_t hash = PcgHash(_voxel * HASH_STREAMS + _stream);
-  const float turns = static_cast<float>(1u + (hash >> 1u) % _maxQuarterTurns);
+  const std::uint32_t hash = VoxelHash(_voxel, _stream, _parameters.seed);
+  const float turns = static_cast<float>(1u + (hash >> 1u) % _parameters.maxQuarterTurns);
   return (hash & 1u) != 0u ? -turns : turns;
 }
 
@@ -145,7 +155,9 @@ ExplosionParameters DefaultExplosionParameters(Float3 _blastOrigin) noexcept
           .directionJitter = 0.35f,
           .speedJitter = 0.2f,
           .drag = 1.0f,
-          .maxQuarterTurns = 4u};
+          .maxQuarterTurns = 4u,
+          .inheritedVelocity = {0.0f, 0.0f, 0.0f},
+          .seed = 0u};
 }
 
 VoxelPose ExplosionPose(std::uint32_t _voxel, Float3 _restCenter, const ExplosionParameters& _parameters, float _timeSeconds) noexcept
@@ -157,15 +169,15 @@ VoxelPose ExplosionPose(std::uint32_t _voxel, Float3 _restCenter, const Explosio
 
   // Two different coordinate axes, each turned through its whole number of quarter turns as the drag lets the motion
   // run, so that each spin slows with the flight and the voxel ends square to the axes.
-  const std::uint32_t axes = PcgHash(_voxel * HASH_STREAMS + SpinAxes);
+  const std::uint32_t axes = VoxelHash(_voxel, SpinAxes, _parameters.seed);
   const std::uint32_t firstAxis = axes % 3u;
   const std::uint32_t secondAxis = (firstAxis + 1u + (axes >> 16u) % 2u) % 3u;
   float firstCos = 1.0f;
   float firstSin = 0.0f;
   float secondCos = 1.0f;
   float secondSin = 0.0f;
-  QuarterTurnCosSin(SpinQuarterTurns(_voxel, FirstSpin, _parameters.maxQuarterTurns) * made, firstCos, firstSin);
-  QuarterTurnCosSin(SpinQuarterTurns(_voxel, SecondSpin, _parameters.maxQuarterTurns) * made, secondCos, secondSin);
+  QuarterTurnCosSin(SpinQuarterTurns(_voxel, FirstSpin, _parameters) * made, firstCos, firstSin);
+  QuarterTurnCosSin(SpinQuarterTurns(_voxel, SecondSpin, _parameters) * made, secondCos, secondSin);
 
   return {center, Spin(firstAxis, firstCos, firstSin, secondAxis, secondCos, secondSin, {1.0f, 0.0f, 0.0f}),
           Spin(firstAxis, firstCos, firstSin, secondAxis, secondCos, secondSin, {0.0f, 1.0f, 0.0f}),
@@ -193,11 +205,25 @@ ExplosionEnvelope BoundExplosion(const ExplosionParameters& _parameters, Float3 
   const float reach = fastest / _parameters.drag;
   const float centers = std::max(reach, farthest + reach / (1.0f + farthest / _parameters.falloffDistance));
 
-  // What is left of the motion at time t is e^(-drag t) of it: at most reach for a center, and for a point of the voxel
-  // a quarter turn's travel for each quarter turn its two spins have left.
-  const float travel = reach + 2.0f * static_cast<float>(_parameters.maxQuarterTurns) * CORNER_TRAVEL_PER_QUARTER_TURN;
+  // The inherited velocity joins every launch, so it moves every voxel alike: the sphere's center drifts by it over the
+  // drag, and the sphere keeps its radius.
+  const Float3 drift = _parameters.inheritedVelocity * (1.0f / _parameters.drag);
+
+  // What is left of the motion at time t is e^(-drag t) of it: at most reach plus the drift for a center, and for a point
+  // of the voxel a quarter turn's travel for each quarter turn its two spins have left.
+  const float travel = reach + Length(drift) + 2.0f * static_cast<float>(_parameters.maxQuarterTurns) * CORNER_TRAVEL_PER_QUARTER_TURN;
   const float stopSeconds = travel > EXPLOSION_STOP_DISTANCE ? std::log(travel / EXPLOSION_STOP_DISTANCE) / _parameters.drag : 0.0f;
-  return {_parameters.blastOrigin, centers + VOXEL_BOUNDING_RADIUS, stopSeconds};
+  return {_parameters.blastOrigin, centers + VOXEL_BOUNDING_RADIUS, drift, stopSeconds};
+}
+
+Sphere EnvelopeSphereAt(const ExplosionEnvelope& _envelope, const ExplosionParameters& _parameters, float _timeSeconds) noexcept
+{
+  return {_envelope.center + _envelope.drift * MotionMade(_parameters.drag, _timeSeconds), _envelope.radius};
+}
+
+Sphere EnvelopeSphere(const ExplosionEnvelope& _envelope) noexcept
+{
+  return {_envelope.center + _envelope.drift * 0.5f, _envelope.radius + 0.5f * Length(_envelope.drift)};
 }
 
 Float3 VoxelCentroid(const VoxModel& _model) noexcept

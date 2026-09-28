@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Float3.h"
+#include "Sphere.h"
 #include "VoxModel.h"
 
 #include <cstdint>
@@ -9,7 +10,8 @@ namespace NeuronCore
 {
 
 // The detonation's parameter block (Design/SpaceScene.md §5.5). Lengths are in voxels and times in seconds, and nothing in
-// it has an up: there is no gravity and no ground. Design/ADR/ADR-013 records the defaults and how they were chosen.
+// it has an up: there is no gravity and no ground. Design/ADR/ADR-013 records the defaults and how they were chosen, and
+// Design/ADR/ADR-014 the inherited velocity and the seed, which a detonation brings with it (§7.7).
 struct ExplosionParameters
 {
   Float3 blastOrigin;            // what every voxel is launched away from
@@ -19,6 +21,8 @@ struct ExplosionParameters
   float speedJitter;             // the launch speed varies by up to this fraction either way
   float drag;                    // per second: a voxel's speed and spin fall as e^(-drag t); positive
   std::uint32_t maxQuarterTurns; // each of a voxel's two spins turns through 1 to this many quarter turns, either way
+  Float3 inheritedVelocity;      // added to every voxel's launch: the velocity the entity had when it detonated
+  std::uint32_t seed;            // mixed into every voxel's hash, so that two detonations of one model differ
 };
 
 // Half a voxel's diagonal: no point of a voxel, however it is turned, is farther than this from its center.
@@ -37,26 +41,39 @@ struct VoxelPose
   Float3 axisZ;
 };
 
-// The defaults of ADR-013, around _blastOrigin.
+// The defaults of ADR-013, around _blastOrigin, with no inherited velocity and seed 0.
 [[nodiscard]] ExplosionParameters DefaultExplosionParameters(Float3 _blastOrigin) noexcept;
 
 // pose(i, t) of §5.5: where voxel _voxel, whose center is _restCenter while the model is intact, is _timeSeconds after the
 // detonation. At time 0 it is exactly its intact self. It slows under the drag towards where it ends, turned by a whole
-// number of quarter turns about each of its two spin axes. The twin of ExplosionPose in Shader/Explosion.hlsli (R15).
+// number of quarter turns about each of its two spin axes. Its launch is the jittered one away from the blast origin plus
+// the inherited velocity, and the drag slows both. With no inherited velocity and seed 0, every voxel moves as ADR-013
+// has it. The twin of ExplosionPose in Shader/Explosion.hlsli (R15).
 [[nodiscard]] VoxelPose ExplosionPose(std::uint32_t _voxel, Float3 _restCenter, const ExplosionParameters& _parameters,
                                       float _timeSeconds) noexcept;
 
-// The envelope of §5.5, bounded in closed form from the parameters and the box of the intact voxels: a sphere about the
-// blast origin that every voxel's box stays inside, and a time from which every voxel has drifted to a stop, no point of
-// it farther than EXPLOSION_STOP_DISTANCE from where it ends.
+// The envelope of §5.5, bounded in closed form from the parameters and the box of the intact voxels: a sphere that every
+// voxel's box stays inside, and a time from which every voxel has drifted to a stop, no point of it farther than
+// EXPLOSION_STOP_DISTANCE from where it ends. The sphere starts about the blast origin, and the inherited velocity carries
+// it as it carries every voxel: by the time t it has moved drift × (1 - e^(-drag t)).
 struct ExplosionEnvelope
 {
-  Float3 center;
+  Float3 center; // at the detonation: the blast origin
   float radius;
+  Float3 drift; // how far the center moves in all: the inherited velocity over the drag
   float stopSeconds;
 };
 
 [[nodiscard]] ExplosionEnvelope BoundExplosion(const ExplosionParameters& _parameters, Float3 _lower, Float3 _upper) noexcept;
+
+// The sphere every voxel's box is inside at _timeSeconds after the detonation: the envelope's, as far along its drift as
+// the drag has let the motion go. Culling uses it (§7.4).
+[[nodiscard]] Sphere EnvelopeSphereAt(const ExplosionEnvelope& _envelope, const ExplosionParameters& _parameters,
+                                      float _timeSeconds) noexcept;
+
+// The sphere every voxel's box stays inside at every time: around the whole of the drift. What the shadow view is fitted
+// around, and what F frames.
+[[nodiscard]] Sphere EnvelopeSphere(const ExplosionEnvelope& _envelope) noexcept;
 
 // The mean of every voxel's center, which is where the blast comes from by default (§5.5). A model with no voxel has
 // none, and gives the origin.

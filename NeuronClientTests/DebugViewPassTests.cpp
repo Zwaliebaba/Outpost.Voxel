@@ -19,6 +19,7 @@
 #include "Lighting.h"
 #include "OctahedralNormal.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
 #include "RenderSettings.h"
 #include "TraceHit.h"
 #include "VoxModel.h"
@@ -30,6 +31,7 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <optional>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -59,11 +61,11 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const std::vector<NeuronCore::Placement> placements = WholePlacements(model);
         const NeuronClient::SplatPass viewSplat(_device, NeuronClient::SplatPass::Kind::View);
         // The overdraw view shows what the overdraw variant counts (§11).
         const NeuronClient::SplatPass overdrawSplat(_device, NeuronClient::SplatPass::Kind::View,
-                                                    NeuronClient::SplatPass::Permutation::Aligned,
                                                     NeuronClient::SplatPass::Variant::Overdraw);
         const NeuronClient::SplatPass shadowSplat(_device, NeuronClient::SplatPass::Kind::Shadow);
         const NeuronClient::DebugViewPass debugView(_device, COLOR_FORMAT);
@@ -89,6 +91,7 @@ public:
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(view));
         const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = constants.Push(NeuronClient::MakeShadowViewConstants(shadowView));
+        const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
 
         const std::size_t pixels = static_cast<std::size_t>(view.widthPixels) * view.heightPixels;
         std::vector<std::uint32_t> visibility(pixels * 2);
@@ -104,14 +107,14 @@ public:
               std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
               _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
               shadowMap.BeginSplat(_list);
-              shadowSplat.Record(_list, scene, shadowViewConstants);
+              shadowSplat.Record(_list, scene, shadowViewConstants, pushed.constants, pushed.draws);
               shadowMap.EndSplat(_list);
               targets.BeginSplat(_list);
               if (splat.CountsOverdraw())
               {
                 targets.BeginOverdraw(_list);
               }
-              splat.Record(_list, scene, viewConstants, 0, targets.OverdrawWriteTable());
+              splat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws, targets.OverdrawWriteTable());
               if (splat.CountsOverdraw())
               {
                 targets.EndOverdraw(_list);
@@ -119,7 +122,8 @@ public:
               targets.EndSplat(_list);
               const D3D12_CPU_DESCRIPTOR_HANDLE target = rtvHeap.Cpu(colorView);
               _list->OMSetRenderTargets(1, &target, FALSE, nullptr);
-              debugView.Record(_list, targets, shadowMap, scene, viewConstants, debug);
+              debugView.Record(_list, targets, shadowMap, scene, viewConstants, pushed.constants,
+                               static_cast<std::uint32_t>(placements.size()), debug);
             });
           const std::vector<std::byte> visibilityBytes = NeuronClient::ReadTexture2D(
             _device, targets.Visibility(), NeuronClient::ViewTargets::READABLE, NeuronClient::ViewTargets::VISIBILITY_BYTES_PER_PIXEL);
@@ -163,9 +167,11 @@ public:
               {
                 const std::uint32_t voxel = visibility[2 * pixel];
                 Float3 albedo{};
-                if (voxel != NeuronCore::NO_VOXEL)
+                if (const std::optional<NeuronCore::PlacedVoxel> placed = NeuronCore::FindVoxel(placements, voxel))
                 {
-                  albedo = scene.PaletteValues().materials[NeuronCore::UnpackVoxelRecord(model.records[voxel]).color].albedo;
+                  albedo = scene.PaletteValues(placed->paletteIndex)
+                             .materials[NeuronCore::UnpackVoxelRecord(model.records[placed->record]).color]
+                             .albedo;
                 }
                 expected = NeuronCore::DebugViewColor(debug, voxel, NeuronCore::UnpackOctahedralNormal(visibility[2 * pixel + 1]), albedo);
               }

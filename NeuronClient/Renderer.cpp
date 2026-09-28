@@ -2,11 +2,18 @@
 
 #include "Renderer.h"
 
-#include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "LightingConstants.h"
 #include "ShadowViewConstants.h"
 #include "ViewConstants.h"
+
+#include "Sphere.h"
+#include "TraceHit.h"
+
+#include <algorithm>
+#include <cstddef>
+#include <format>
+#include <stdexcept>
 
 namespace NeuronClient
 {
@@ -22,12 +29,61 @@ constexpr std::uint32_t DSV_CAPACITY = 4;
 constexpr std::uint32_t SHADER_CAPACITY = 16;
 constexpr std::uint32_t CPU_CAPACITY = 4;
 
-// Per-frame constants: a handful of 256-byte pieces.
+// Per-frame constants to start with: a handful of 256-byte pieces and a thousand placements. A frame that needs more
+// grows its ring (Design/SpaceScene.md §7.4).
 constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
+
+// The view's, the sun's and the lighting's constants, one aligned piece each, besides the placements.
+constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{3} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
+// Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
+// no bound: records beyond the scene's, a palette it lacks, and ids that fall back, overlap or reach NO_VOXEL, which the
+// binary search over them and the visibility buffer rely on (Design/SpaceScene.md §7.3).
+void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Placement> _placements)
+{
+  std::uint64_t nextVoxel = 0;
+  for (std::size_t i = 0; i < _placements.size(); ++i)
+  {
+    const NeuronCore::Placement& placement = _placements[i];
+    if (std::uint64_t{placement.firstRecord} + placement.recordCount > _scene.RecordCount())
+    {
+      throw std::invalid_argument(std::format("Placement {} draws records beyond the scene's {}.", i, _scene.RecordCount()));
+    }
+    if (placement.paletteIndex >= _scene.ModelCount())
+    {
+      throw std::invalid_argument(
+        std::format("Placement {} takes palette {}, of the scene's {}.", i, placement.paletteIndex, _scene.ModelCount()));
+    }
+    if (placement.firstVoxel < nextVoxel)
+    {
+      throw std::invalid_argument(std::format("Placement {}'s ids start at {}, among the ones before it.", i, placement.firstVoxel));
+    }
+    nextVoxel = std::uint64_t{placement.firstVoxel} + placement.recordCount;
+    if (nextVoxel > NeuronCore::NO_VOXEL)
+    {
+      throw std::invalid_argument(std::format("Placement {}'s ids reach NO_VOXEL.", i));
+    }
+  }
+}
+
+// The draws of the placements _indices names, in that order.
+[[nodiscard]] std::vector<SplatDraw> DrawsOf(const SplatPlacements& _placements, const std::vector<std::uint32_t>& _indices)
+{
+  std::vector<SplatDraw> draws;
+  draws.reserve(_indices.size());
+  for (const std::uint32_t index : _indices)
+  {
+    draws.push_back(_placements.draws[index]);
+  }
+  return draws;
+}
 
 } // namespace
 
-Renderer::Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model)
+Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models)
   : m_device(_desc.device),
     m_rtvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, RTV_CAPACITY, false, L"Render target views"),
     m_dsvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DSV_CAPACITY, false, L"Depth stencil views"),
@@ -36,17 +92,12 @@ Renderer::Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model
     m_swapChain(m_device, _desc.window, _desc.widthPixels, _desc.heightPixels, FRAMES_IN_FLIGHT, m_rtvHeap),
     m_targets(m_rtvHeap, m_dsvHeap, m_shaderHeap, m_cpuHeap),
     m_shadowView(_desc.shadowView),
-    m_explosion(_desc.explosion),
     m_shadowMap(m_device, m_dsvHeap, m_shaderHeap, _desc.shadowView.widthPixels),
-    m_scene(m_device, _model),
+    m_scene(m_device, _models),
     m_shadowSplat(m_device, SplatPass::Kind::Shadow),
     m_viewSplat(m_device, SplatPass::Kind::View),
-    m_shadowSplatOriented(m_device, SplatPass::Kind::Shadow, SplatPass::Permutation::Oriented),
-    m_viewSplatOriented(m_device, SplatPass::Kind::View, SplatPass::Permutation::Oriented),
-    m_viewSplatPlainDepth(m_device, SplatPass::Kind::View, SplatPass::Permutation::Aligned, SplatPass::Variant::PlainDepth),
-    m_viewSplatOrientedPlainDepth(m_device, SplatPass::Kind::View, SplatPass::Permutation::Oriented, SplatPass::Variant::PlainDepth),
-    m_viewSplatOverdraw(m_device, SplatPass::Kind::View, SplatPass::Permutation::Aligned, SplatPass::Variant::Overdraw),
-    m_viewSplatOrientedOverdraw(m_device, SplatPass::Kind::View, SplatPass::Permutation::Oriented, SplatPass::Variant::Overdraw),
+    m_viewSplatPlainDepth(m_device, SplatPass::Kind::View, SplatPass::Variant::PlainDepth),
+    m_viewSplatOverdraw(m_device, SplatPass::Kind::View, SplatPass::Variant::Overdraw),
     m_coverage(m_device),
     m_lighting(m_device),
     m_toneMap(m_device, SwapChain::VIEW_FORMAT),
@@ -91,29 +142,52 @@ void Renderer::Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels)
   m_targets.Resize(m_device, _widthPixels, _heightPixels);
 }
 
-void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSettings& _settings)
+void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const NeuronCore::Placement> _placements,
+                      const FrameSettings& _settings)
 {
+  CheckPlacements(m_scene, _placements);
   Frame& frame = m_frames[m_frameIndex];
   m_swapChain.WaitForFrame();
   m_device.WaitFor(frame.fenceValue);
-  // The GPU has finished the frame this slot carried last, so its measurements can be read (§8).
+  // The GPU has finished the frame this slot carried last, so its measurements can be read (§8), with its draw counts.
   if (std::optional<FrameStatistics> statistics = m_queries.Read(m_frameIndex))
   {
+    statistics->draws = frame.draws;
     m_statistics.push_back(*statistics);
   }
   winrt::check_hresult(frame.allocator->Reset());
   winrt::check_hresult(m_list->Reset(frame.allocator.get(), nullptr));
+
+  // The frame's constants grow with its placements, at 64 bytes each and an aligned piece for each detonation
+  // (Design/SpaceScene.md §7.4). The GPU has finished with this slot's ring, so a larger one can take its place.
+  const std::uint64_t neededBytes = FIXED_CONSTANTS_BYTES + SplatPlacementBytes(_placements);
+  if (neededBytes > frame.constants->CapacityBytes())
+  {
+    frame.constants =
+      std::make_unique<UploadRing>(m_device, std::max(neededBytes, 2 * frame.constants->CapacityBytes()), L"Frame constants");
+  }
   frame.constants->Reset();
+  const auto placementCount = static_cast<std::uint32_t>(_placements.size());
   const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = frame.constants->Push(MakeViewConstants(_view));
   const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = frame.constants->Push(MakeShadowViewConstants(m_shadowView));
-  const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants = frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView));
-  const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants =
-    frame.constants->Push(MakeExplosionConstants(m_explosion, _settings.explosionSeconds));
+  const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants =
+    frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView, placementCount));
+  const SplatPlacements placements = PushSplatPlacements(*frame.constants, _placements);
 
-  // At time 0 every voxel is intact, and the aligned permutation draws; after it, the oriented one (Design/SpaceScene.md
-  // §5.5).
-  const bool exploding = _settings.explosionSeconds > 0.0f;
-  const SplatPass& shadowSplat = exploding ? m_shadowSplatOriented : m_shadowSplat;
+  // Each view culls the placements by their spheres; the camera draws what it keeps nearest first, and the sun in their
+  // order (§7.4).
+  std::vector<NeuronCore::Sphere> spheres;
+  spheres.reserve(_placements.size());
+  for (const NeuronCore::Placement& placement : _placements)
+  {
+    spheres.push_back(NeuronCore::PlacementSphere(placement));
+  }
+  const std::vector<SplatDraw> viewDraws = DrawsOf(placements, NeuronCore::ListViewDraws(_view, spheres));
+  const std::vector<SplatDraw> shadowDraws = DrawsOf(placements, NeuronCore::ListShadowDraws(m_shadowView, spheres));
+  const auto viewDrawn = static_cast<std::uint32_t>(viewDraws.size());
+  const auto shadowDrawn = static_cast<std::uint32_t>(shadowDraws.size());
+  frame.draws = {viewDrawn, placementCount - viewDrawn, shadowDrawn, placementCount - shadowDrawn};
+
   // The overdraw view needs the view splat's overdraw variant; otherwise the frame chooses between conservative and plain
   // depth (§9.3, §11).
   SplatPass::Variant variant = _settings.plainDepth ? SplatPass::Variant::PlainDepth : SplatPass::Variant::Standard;
@@ -121,7 +195,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   {
     variant = SplatPass::Variant::Overdraw;
   }
-  const SplatPass& viewSplat = ViewSplat(exploding, variant);
+  const SplatPass& viewSplat = ViewSplat(variant);
 
   // A pass's time runs from its predecessor's timestamp to its own, taken after its last draw or dispatch, so that the
   // transitions between two passes count to the second (§8).
@@ -130,7 +204,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
   m_queries.Begin(list, m_frameIndex, m_frameNumber);
   m_shadowMap.BeginSplat(list);
-  shadowSplat.Record(list, m_scene, shadowViewConstants, explosionConstants);
+  m_shadowSplat.Record(list, m_scene, shadowViewConstants, placements.constants, shadowDraws);
   m_queries.EndPass(list, m_frameIndex, GpuPass::ShadowSplat);
   m_shadowMap.EndSplat(list);
   m_targets.BeginSplat(list);
@@ -139,7 +213,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
     m_targets.BeginOverdraw(list);
   }
   m_queries.BeginStatistics(list, m_frameIndex);
-  viewSplat.Record(list, m_scene, viewConstants, explosionConstants, m_targets.OverdrawWriteTable());
+  viewSplat.Record(list, m_scene, viewConstants, placements.constants, viewDraws, m_targets.OverdrawWriteTable());
   m_queries.EndStatistics(list, m_frameIndex);
   m_queries.EndPass(list, m_frameIndex, GpuPass::ViewSplat);
   if (viewSplat.CountsOverdraw())
@@ -157,7 +231,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   if (!_settings.debugView)
   {
     m_targets.BeginLighting(list);
-    m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants);
+    m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants, placements.constants);
     m_queries.EndPass(list, m_frameIndex, GpuPass::Lighting);
     m_targets.EndLighting(list);
   }
@@ -169,7 +243,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   list->OMSetRenderTargets(1, &target, FALSE, nullptr);
   if (_settings.debugView)
   {
-    m_debugView.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, *_settings.debugView);
+    m_debugView.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, placements.constants, placementCount, *_settings.debugView);
     m_queries.EndPass(list, m_frameIndex, GpuPass::DebugView);
   }
   else
@@ -205,25 +279,27 @@ void Renderer::FinishFrames()
   // The slot the next frame takes holds the oldest frame still unread.
   for (std::uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i)
   {
-    if (std::optional<FrameStatistics> statistics = m_queries.Read((m_frameIndex + i) % FRAMES_IN_FLIGHT))
+    const std::uint32_t slot = (m_frameIndex + i) % FRAMES_IN_FLIGHT;
+    if (std::optional<FrameStatistics> statistics = m_queries.Read(slot))
     {
+      statistics->draws = m_frames[slot].draws;
       m_statistics.push_back(*statistics);
     }
   }
 }
 
-const SplatPass& Renderer::ViewSplat(bool _exploding, SplatPass::Variant _variant) const noexcept
+const SplatPass& Renderer::ViewSplat(SplatPass::Variant _variant) const noexcept
 {
   switch (_variant)
   {
   case SplatPass::Variant::PlainDepth:
-    return _exploding ? m_viewSplatOrientedPlainDepth : m_viewSplatPlainDepth;
+    return m_viewSplatPlainDepth;
   case SplatPass::Variant::Overdraw:
-    return _exploding ? m_viewSplatOrientedOverdraw : m_viewSplatOverdraw;
+    return m_viewSplatOverdraw;
   case SplatPass::Variant::Standard:
     break;
   }
-  return _exploding ? m_viewSplatOriented : m_viewSplat;
+  return m_viewSplat;
 }
 
 } // namespace NeuronClient

@@ -11,6 +11,6 @@ struct LightingConstants
   float3 skyColor;
   float skyIntensity;
   float3 groundColor;
-  uint padding; // 0: the background starts the next 16 bytes
+  uint placementCount; // in the frame's structured buffer of placements
   float3 background;
 };

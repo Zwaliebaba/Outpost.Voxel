@@ -9,6 +9,7 @@
 #include "Float3.h"
 #include "OctahedralNormal.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
 #include "Ray.h"
 #include "TraceHit.h"
 #include "VoxModel.h"
@@ -217,14 +218,13 @@ public:
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
         const NeuronCore::VoxelGrid grid(model);
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const std::vector<NeuronCore::Placement> placements = WholePlacements(model);
         // The measurement variants (§9.3, §11) must draw exactly what the standard pass draws.
         const NeuronClient::SplatPass standard(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
-                                                 NeuronClient::SplatPass::Permutation::Aligned,
                                                  NeuronClient::SplatPass::Variant::PlainDepth);
-        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Aligned,
-                                               NeuronClient::SplatPass::Variant::Overdraw);
+        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
         struct Drawing
         {
           const wchar_t* suffix;
@@ -258,7 +258,7 @@ public:
           for (const Drawing& drawing : drawings)
           {
             Report((std::wstring(camera.name) + drawing.suffix).c_str(),
-                   Compare(view, model, grid, RenderSplat(_device, scene, *drawing.pass, view)));
+                   Compare(view, model, grid, RenderSplat(_device, scene, placements, *drawing.pass, view)));
           }
         }
       });
@@ -276,10 +276,10 @@ public:
         constexpr std::uint32_t IMAGE_PIXELS = 81;
         const NeuronCore::VoxModel model = Wall(SIDE);
         const NeuronCore::VoxelGrid grid(model);
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronCore::PerspectiveView view = TestView({4.0f, 4.0f, -20.0f}, {4.0f, 4.0f, 0.0f}, IMAGE_PIXELS, IMAGE_PIXELS);
-        const SplatImage image = RenderSplat(_device, scene, pass, view);
+        const SplatImage image = RenderSplat(_device, scene, WholePlacements(model), pass, view);
         Report(L"wall", Compare(view, model, grid, image));
 
         std::uint32_t seamPixels = 0;

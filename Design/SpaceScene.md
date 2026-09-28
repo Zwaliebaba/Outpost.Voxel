@@ -206,9 +206,9 @@ The client relates its clock to the server's by an offset estimated from arrival
 
 ### 7.1 Models and palettes
 
-When the welcome arrives, the client loads each named model. The renderer puts all their records in one static buffer, model after model, and their palettes in an array, one `PaletteConstants` each, as today. A model's records are stored once however many placements draw them: the defaults draw 1,033,408 voxels from 236,976 records, 947,904 bytes.
+When the welcome arrives, the client loads each named model. The renderer puts all their records in one static buffer, model after model, and their palettes in a structured buffer, one `PaletteConstants` each. A model's records are stored once however many placements draw them: the defaults draw 1,033,408 voxels from 236,976 records, 947,904 bytes.
 
-A `.vox` model can hold several placed models of its own (`ModelInstance`), and each is a part with its own origin. The three assets have one part each. A placement draws every part of its model, with the part's origin folded into its transform, which is the shape NVF's tree of parts will need (N2).
+A `.vox` model can hold several placed models of its own (`ModelInstance`), and each is a part with its own origin. The three assets have one part each. An entity is drawn by one placement for each part of its model, with the part's origin folded into the placement's transform, which is the shape NVF's tree of parts will need (N2).
 
 ### 7.2 Rigid transforms, aligned and oriented
 
@@ -222,9 +222,9 @@ The twin is `PlacedVoxelBox`, beside `VoxelBox` in `NeuronCore`. The scene trace
 
 Today the visibility buffer's first word is the voxel's record index, which is unique because each record is drawn once. Shared records make it ambiguous, so it becomes a scene-wide id: the placement's base plus the record's index within its part. The bases are a running sum over the frame's placements in a stable order (by entity id, then part), not in draw order, so a voxel's id, and the voxel-index view's colors, hold still while the camera moves; temporal anti-aliasing relies on that too (§12.3). `NO_VOXEL` stays 0xFFFFFFFF, and the host refuses a frame whose voxels would reach it.
 
-The lighting pass and the debug views find a pixel's placement by binary search over the bases: six steps for the defaults' 52 placements, ten for a thousand. The placement then gives the record (its part's first record plus the offset) and the palette (its model's). The twin is a function beside `LightPixel`. Packing a placement index into the id's high bits would save the search, at the price of a cap on both the placements and the voxels per model. Widening the visibility buffer to four words would double its 16.6 MB at 1080p.
+The lighting pass and the debug views find a pixel's placement by binary search over the bases: six steps for the defaults' 52 placements, ten for a thousand. The placement then gives the record (its part's first record plus the offset) and the palette (its model's). The twins, `FindPlacement` and `FindVoxel`, sit beside `PlacedVoxelBox` (ADR-014). Packing a placement index into the id's high bits would save the search, at the price of a cap on both the placements and the voxels per model. Widening the visibility buffer to four words would double its 16.6 MB at 1080p.
 
-ADR-006's tie rule holds within a placement: its records draw in order, and the lower one keeps a tie. Across placements the first one drawn keeps it (§7.4). The world makes that moot by never letting two whole placements overlap.
+ADR-006's tie rule holds within a placement: its records draw in order, and the lower one keeps a tie. Across placements the first one drawn keeps it (§7.4). Stations never overlap (§5.2). Ships that fly through one another (§2) tie only where two voxels lie at exactly one depth, and the tests keep whole placements apart (ADR-014).
 
 ### 7.4 Draws, culling and order (amends SampleRenderer §4.2, item 10, and §9.1)
 
@@ -248,7 +248,7 @@ A placement that has detonated, or later takes damage, draws its full records at
 
 ### 7.7 Detonated placements
 
-A detonated placement draws every record through the oriented splat: the voxel's pose from §5.5, in the model's own space, then the placement's transform. So a station can detonate wherever it stands and however it is turned. The entity's transform freezes at the event, and its velocity then joins every voxel's launch, so a ship's debris carries on the way the ship was going. Ids do not change, so the lighting, the debug views and temporal anti-aliasing see the same voxels as before. Culling and the cascades use the sphere around the envelope §5.5 bounds, and the scene tracer builds the same posed boxes, through the same twin, for the tests (§15).
+A detonated placement draws every record through the oriented splat: the voxel's pose from §5.5, in its part's own space, hashed by its record index within its model and by the event's seed, then the placement's transform. So a station can detonate wherever it stands and however it is turned. The entity's transform freezes at the event, and its velocity then joins every voxel's launch, slowed by the drag with the rest of the motion (§17, question 20), so a ship's debris carries on the way the ship was going. Ids do not change, so the lighting, the debug views and temporal anti-aliasing see the same voxels as before. Culling and the cascades use the sphere around the envelope §5.5 bounds, and the scene tracer builds the same posed boxes, through the same twin, for the tests (§15).
 
 ## 8. The frame
 
@@ -485,6 +485,7 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 17. **N-M0's pins of the retired behaviors retire with them (§3.1).** S-M1 removes the thirteen gravity flights of `ExplodesAsPinned` and the ground half of `LightsAsPinned`'s column with the behavior they pin, and its ADR names each one; the four tracer images and the shades stay.
 18. **The changes after M5's note stand (§3.3):** S-M9 draws each lever off and on within a frame, `--stable-power` is off by default (§14), the loopback's queues are guarded by a mutex and S-M3 is done on ARM64 as well as x64 (§6.3, §16), and S-M1 leaves the archived `SampleRenderer.md` as it stands but for a status line that points here (§3.1).
 19. **D4, D13 and D14 as revised on 2026-09-28 stay in the archived `SampleRenderer.md`,** where the owner made them before it was archived.
+20. **A detonated entity's velocity slows under the drag with the rest of the motion (§7.7).** So its debris carries on the way it was going and comes to rest the velocity over the drag further on. The owner answered this while S-M2 was built, and ADR-014 records it.
 
 No question is open.
 
@@ -500,7 +501,7 @@ No question is open.
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. ADR-011 went to N-M0's axes and ADR-012 to ARM64, so the next free number is ADR-013.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation and ADR-014 to S-M2's placements, so the next free number is ADR-015.
 
 - **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.

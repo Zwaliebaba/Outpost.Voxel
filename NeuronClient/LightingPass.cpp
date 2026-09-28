@@ -22,11 +22,12 @@ enum RootParameter : std::uint8_t
   ViewConstantsParameter,
   ShadowViewConstantsParameter,
   LightingConstantsParameter,
-  PaletteParameter,
   RecordsParameter,
   DepthParameter,
   VisibilityParameter,
   ShadowMapParameter,
+  PlacementsParameter,
+  PalettesParameter,
   ColorParameter,
   RootParameterCount
 };
@@ -46,8 +47,6 @@ LightingPass::LightingPass(GraphicsDevice& _device)
   parameters[ShadowViewConstantsParameter].Descriptor = {1, 0};
   parameters[LightingConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[LightingConstantsParameter].Descriptor = {2, 0};
-  parameters[PaletteParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  parameters[PaletteParameter].Descriptor = {3, 0};
   parameters[RecordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[RecordsParameter].Descriptor = {0, 0};
   parameters[DepthParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -56,6 +55,10 @@ LightingPass::LightingPass(GraphicsDevice& _device)
   parameters[VisibilityParameter].DescriptorTable = {1, &visibilityRange};
   parameters[ShadowMapParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[ShadowMapParameter].DescriptorTable = {1, &shadowMapRange};
+  parameters[PlacementsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PlacementsParameter].Descriptor = {4, 0};
+  parameters[PalettesParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PalettesParameter].Descriptor = {5, 0};
   parameters[ColorParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[ColorParameter].DescriptorTable = {1, &colorRange};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
@@ -94,18 +97,20 @@ LightingPass::LightingPass(GraphicsDevice& _device)
 
 void LightingPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const ShadowMap& _shadowMap,
                           const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
-                          D3D12_GPU_VIRTUAL_ADDRESS _shadowViewConstants, D3D12_GPU_VIRTUAL_ADDRESS _lightingConstants) const
+                          D3D12_GPU_VIRTUAL_ADDRESS _shadowViewConstants, D3D12_GPU_VIRTUAL_ADDRESS _lightingConstants,
+                          D3D12_GPU_VIRTUAL_ADDRESS _placements) const
 {
   _list->SetComputeRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
   _list->SetComputeRootConstantBufferView(ViewConstantsParameter, _viewConstants);
   _list->SetComputeRootConstantBufferView(ShadowViewConstantsParameter, _shadowViewConstants);
   _list->SetComputeRootConstantBufferView(LightingConstantsParameter, _lightingConstants);
-  _list->SetComputeRootConstantBufferView(PaletteParameter, _scene.Palette());
   _list->SetComputeRootShaderResourceView(RecordsParameter, _scene.Records());
   _list->SetComputeRootDescriptorTable(DepthParameter, _targets.DepthTable());
   _list->SetComputeRootDescriptorTable(VisibilityParameter, _targets.VisibilityTable());
   _list->SetComputeRootDescriptorTable(ShadowMapParameter, _shadowMap.Table());
+  _list->SetComputeRootShaderResourceView(PlacementsParameter, _placements);
+  _list->SetComputeRootShaderResourceView(PalettesParameter, _scene.Palettes());
   _list->SetComputeRootDescriptorTable(ColorParameter, _targets.HdrColorWriteTable());
   _list->Dispatch((_targets.WidthPixels() + GROUP_PIXELS - 1) / GROUP_PIXELS, (_targets.HeightPixels() + GROUP_PIXELS - 1) / GROUP_PIXELS,
                   1);

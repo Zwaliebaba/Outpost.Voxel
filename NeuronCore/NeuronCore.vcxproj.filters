@@ -20,6 +20,11 @@
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="RenderSettings.h" />
     <ClInclude Include="ToneMap.h" />
+    <ClInclude Include="Placement.h" />
+    <ClInclude Include="Quaternion.h" />
+    <ClInclude Include="RigidTransform.h" />
+    <ClInclude Include="SceneTracer.h" />
+    <ClInclude Include="Sphere.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
@@ -35,5 +40,8 @@
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="RenderSettings.cpp" />
     <ClCompile Include="ToneMap.cpp" />
+    <ClCompile Include="Placement.cpp" />
+    <ClCompile Include="RigidTransform.cpp" />
+    <ClCompile Include="SceneTracer.cpp" />
   </ItemGroup>
 </Project>

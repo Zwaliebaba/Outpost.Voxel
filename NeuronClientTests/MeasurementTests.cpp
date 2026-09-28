@@ -2,7 +2,6 @@
 
 #include "CoveragePass.h"
 #include "DescriptorHeap.h"
-#include "ExplosionConstants.h"
 #include "FrameQueries.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
@@ -17,6 +16,8 @@
 #include "Explosion.h"
 #include "Float3.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
+#include "Quaternion.h"
 #include "SplatBounds.h"
 #include "TraceHit.h"
 #include "VoxModel.h"
@@ -29,6 +30,7 @@
 #include <cstring>
 #include <format>
 #include <optional>
+#include <span>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -56,26 +58,6 @@ constexpr float EXPLOSION_SECONDS = 0.25f;
   const Float3 center{0.5f, 127.5f, 0.5f};
   return NeuronCore::MakePerspectiveView(center + Float3{-318.43f, 260.0f, -318.43f}, center, {0.0f, 1.0f, 0.0f}, TEST_FOV_Y_RADIANS,
                                          TEST_NEAR_PLANE, WIDTH_PIXELS, HEIGHT_PIXELS);
-}
-
-// The boxes the view splat draws: intact, or posed by the explosion's twin at _timeSeconds.
-[[nodiscard]] std::vector<NeuronCore::Box> DrawnBoxes(const NeuronCore::VoxModel& _model,
-                                                      const std::optional<NeuronCore::ExplosionParameters>& _explosion, float _timeSeconds)
-{
-  std::vector<NeuronCore::Box> boxes;
-  boxes.reserve(_model.records.size());
-  for (std::uint32_t record = 0; record < _model.records.size(); ++record)
-  {
-    const NeuronCore::Box box = RecordBox(_model, record);
-    if (!_explosion)
-    {
-      boxes.push_back(box);
-      continue;
-    }
-    const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(record, box.center, *_explosion, _timeSeconds);
-    boxes.push_back(NeuronCore::MakeOrientedBox(pose.center, box.radius, pose.axisX, pose.axisY, pose.axisZ));
-  }
-  return boxes;
 }
 
 // Per pixel, how many of the twin's rectangles (§9.2) cover its centre for certain, and how many might.
@@ -125,13 +107,13 @@ struct RectangleCoverage
 }
 
 // The vertex shader's least work: every vertex of every rectangle of every instance the draws cover, once (§9.1).
-[[nodiscard]] std::uint64_t LeastVertexInvocations(const NeuronClient::VoxelScene& _scene) noexcept
+[[nodiscard]] std::uint64_t LeastVertexInvocations(std::span<const NeuronCore::Placement> _placements) noexcept
 {
   std::uint64_t vertices = 0;
-  for (const NeuronClient::SceneInstance& instance : _scene.Instances())
+  for (const NeuronCore::Placement& placement : _placements)
   {
     const std::uint64_t drawInstances =
-      (instance.recordCount + NeuronClient::SplatPass::RECTANGLES_PER_INSTANCE - 1) / NeuronClient::SplatPass::RECTANGLES_PER_INSTANCE;
+      (placement.recordCount + NeuronClient::SplatPass::RECTANGLES_PER_INSTANCE - 1) / NeuronClient::SplatPass::RECTANGLES_PER_INSTANCE;
     vertices += drawInstances * NeuronClient::SplatPass::RECTANGLES_PER_INSTANCE * 4;
   }
   return vertices;
@@ -146,27 +128,34 @@ TEST_CLASS(MeasurementTests)
 public:
   // §11: a pixel shader with a UAV side effect runs for every fragment, before any depth test, so the overdraw variant
   // counts every rectangle over each pixel's centre. The twin's rectangles bound the count from both sides, for the
-  // intact station and for the explosion.
+  // intact station, for the station turned any way about its middle, which draws oriented, and for the explosion
+  // (Design/SpaceScene.md §15).
   TEST_METHOD(OverdrawCountsEveryRectangleOverThePixel)
   {
     RunGpuTest(
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::PerspectiveView view = ThreeQuarterView();
         const NeuronCore::ExplosionParameters explosion = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-        const NeuronClient::SplatPass aligned(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Aligned,
-                                              NeuronClient::SplatPass::Variant::Overdraw);
-        const NeuronClient::SplatPass oriented(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented,
-                                               NeuronClient::SplatPass::Variant::Overdraw);
-        for (const bool exploded : {false, true})
+        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
+        std::vector<NeuronCore::Placement> turned{
+          PlaceCentered(model, 0, 0, 0, NeuronCore::RotationOf({0.21f, -0.37f, 0.12f, 0.896f}), {0.5f, 127.5f, 0.5f})};
+        Assert::IsTrue(NeuronCore::AssignVoxelIds(turned));
+        struct Case
         {
-          const SplatImage image =
-            exploded ? RenderSplat(_device, scene, oriented, view, NeuronClient::MakeExplosionConstants(explosion, EXPLOSION_SECONDS))
-                     : RenderSplat(_device, scene, aligned, view);
-          const RectangleCoverage coverage =
-            CoverageOf(DrawnBoxes(model, exploded ? std::optional(explosion) : std::nullopt, EXPLOSION_SECONDS), view);
+          const wchar_t* name;
+          std::vector<NeuronCore::Placement> placements;
+        };
+        const std::array<Case, 3> cases{{{L"intact", WholePlacements(model)},
+                                         {L"turned", turned},
+                                         {L"exploded", DetonatePlacements(WholePlacements(model), explosion, EXPLOSION_SECONDS)}}};
+        for (const Case& drawn : cases)
+        {
+          const std::vector<NeuronCore::Placement>& placements = drawn.placements;
+          const SplatImage image = RenderSplat(_device, scene, placements, overdraw, view);
+          const RectangleCoverage coverage = CoverageOf(PlacedBoxes(model.records, placements, 0.0f), view);
           std::uint64_t counted = 0;
           std::uint64_t surely = 0;
           std::uint64_t possibly = 0;
@@ -184,7 +173,7 @@ public:
                                      .c_str());
             }
           }
-          const wchar_t* name = exploded ? L"exploded" : L"intact";
+          const wchar_t* name = drawn.name;
           Logger::WriteMessage(
             std::format(L"{}: {} invocations counted, the twin's rectangles {} to {}\n", name, counted, surely, possibly).c_str());
           Assert::IsTrue(counted > 0, std::format(L"{}: something is counted", name).c_str());
@@ -202,14 +191,13 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, model);
+        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const std::vector<NeuronCore::Placement> placements = WholePlacements(model);
         const NeuronCore::PerspectiveView view = ThreeQuarterView();
         const NeuronClient::SplatPass standard(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
-                                                 NeuronClient::SplatPass::Permutation::Aligned,
                                                  NeuronClient::SplatPass::Variant::PlainDepth);
-        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Aligned,
-                                               NeuronClient::SplatPass::Variant::Overdraw);
+        const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
         const std::array<const NeuronClient::SplatPass*, 3> passes{&standard, &plainDepth, &overdraw};
         constexpr std::array<const wchar_t*, 3> NAMES{L"conservative depth", L"plain depth", L"overdraw"};
         const NeuronClient::CoveragePass coveragePass(_device);
@@ -223,6 +211,7 @@ public:
         targets.Resize(_device, view.widthPixels, view.heightPixels);
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(view));
+        const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
 
         std::array<std::uint64_t, 3> invocations{};
         for (std::uint32_t slot = 0; slot < passes.size(); ++slot)
@@ -240,7 +229,7 @@ public:
                 targets.BeginOverdraw(_list);
               }
               queries.BeginStatistics(_list, slot);
-              pass.Record(_list, scene, viewConstants, 0, targets.OverdrawWriteTable());
+              pass.Record(_list, scene, viewConstants, pushed.constants, pushed.draws, targets.OverdrawWriteTable());
               queries.EndStatistics(_list, slot);
               queries.EndPass(_list, slot, NeuronClient::GpuPass::ViewSplat);
               if (pass.CountsOverdraw())
@@ -294,7 +283,7 @@ public:
           Assert::IsTrue(measured.coveredPixels.has_value(), L"the frame counted coverage");
           Assert::AreEqual(voxelPixels, *measured.coveredPixels, L"the occlusion query counts exactly the covered pixels");
           Assert::IsTrue(measured.pixelShaderInvocations >= voxelPixels, L"every covered pixel ran the pixel shader");
-          Assert::IsTrue(measured.vertexShaderInvocations >= LeastVertexInvocations(scene), L"every vertex ran the vertex shader");
+          Assert::IsTrue(measured.vertexShaderInvocations >= LeastVertexInvocations(placements), L"every vertex ran the vertex shader");
           Assert::IsTrue(measured.primitives > 0, L"rectangles reached the rasterizer");
           if (pass.CountsOverdraw())
           {

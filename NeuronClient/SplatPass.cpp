@@ -2,10 +2,13 @@
 
 #include "SplatPass.h"
 
+#include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
+#include "PlacementConstants.h"
 #include "Shaders.h"
 #include "ShadowMap.h"
+#include "UploadRing.h"
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
@@ -25,12 +28,21 @@ namespace
 enum RootParameter : std::uint8_t
 {
   ViewConstantsParameter,
-  InstanceConstantsParameter,
+  DrawParameter,
   ExplosionConstantsParameter,
   RecordsParameter,
+  PlacementsParameter,
   OverdrawParameter,
   RootParameterCount
 };
+
+// Every piece an upload ring hands out starts on this boundary.
+constexpr std::uint64_t RING_ALIGNMENT_BYTES = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+
+[[nodiscard]] constexpr std::uint64_t RingBytes(std::uint64_t _bytes) noexcept
+{
+  return (_bytes + RING_ALIGNMENT_BYTES - 1) / RING_ALIGNMENT_BYTES * RING_ALIGNMENT_BYTES;
+}
 
 // The view is reversed-Z: it clears to the far plane and keeps the nearer depth, which is the greater one. The shadow
 // map is standard Z, where the nearer depth is the smaller one (§7.5, Design/ADR/ADR-006).
@@ -74,23 +86,68 @@ constexpr D3D12_COMPARISON_FUNC SHADOW_NEARER = D3D12_COMPARISON_FUNC_LESS;
 
 } // namespace
 
-SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutation, Variant _variant)
-  : m_permutation(_permutation),
-    m_variant(_variant)
+SplatPlacements PushSplatPlacements(UploadRing& _ring, std::span<const NeuronCore::Placement> _placements)
+{
+  std::vector<PlacementConstants> constants;
+  constants.reserve(_placements.size());
+  for (const NeuronCore::Placement& placement : _placements)
+  {
+    constants.push_back(MakePlacementConstants(placement));
+  }
+  SplatPlacements pushed{_ring.PushBytes(std::as_bytes(std::span(constants))), {}};
+  pushed.draws.reserve(_placements.size());
+  D3D12_GPU_VIRTUAL_ADDRESS rest = 0;
+  for (std::uint32_t i = 0; i < _placements.size(); ++i)
+  {
+    const NeuronCore::Placement& placement = _placements[i];
+    const bool oriented = !NeuronCore::IsAlignedPlacement(placement);
+    D3D12_GPU_VIRTUAL_ADDRESS explosion = 0;
+    if (placement.detonation.has_value())
+    {
+      explosion = _ring.Push(MakeExplosionConstants(placement));
+    }
+    else if (oriented)
+    {
+      if (rest == 0)
+      {
+        rest = _ring.Push(MakeExplosionConstants(placement));
+      }
+      explosion = rest;
+    }
+    pushed.draws.push_back({i, placement.recordCount, oriented, explosion});
+  }
+  return pushed;
+}
+
+std::uint64_t SplatPlacementBytes(std::span<const NeuronCore::Placement> _placements) noexcept
+{
+  std::uint64_t detonated = 0;
+  for (const NeuronCore::Placement& placement : _placements)
+  {
+    detonated += placement.detonation.has_value() ? 1u : 0u;
+  }
+  return RingBytes(_placements.size() * sizeof(PlacementConstants)) + (detonated + 1) * RingBytes(sizeof(ExplosionConstants));
+}
+
+SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Variant _variant)
+  : m_variant(_variant)
 {
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[ViewConstantsParameter].Descriptor = {0, 0};
   parameters[ViewConstantsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  parameters[InstanceConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  parameters[InstanceConstantsParameter].Descriptor = {1, 0};
-  parameters[InstanceConstantsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  parameters[DrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  parameters[DrawParameter].Constants = {1, 0, 1};
+  parameters[DrawParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   parameters[ExplosionConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[ExplosionConstantsParameter].Descriptor = {2, 0};
   parameters[ExplosionConstantsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   parameters[RecordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[RecordsParameter].Descriptor = {0, 0};
-  parameters[RecordsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  parameters[RecordsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  parameters[PlacementsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PlacementsParameter].Descriptor = {1, 0};
+  parameters[PlacementsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, 0};
   parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
@@ -105,43 +162,47 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
   m_rootSignature = CreateRootSignature(_device, rootSignature, L"Splat root signature");
 
   // No input layout: the vertex shader pulls everything by index. Culling is off, since a rectangle's winding means
-  // nothing, and depth clipping is on (§9.1).
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline = DefaultGraphicsPipeline();
-  pipeline.pRootSignature = m_rootSignature.get();
-  pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  const bool oriented = _permutation == Permutation::Oriented;
-  if (_kind == Kind::View)
+  // nothing, and depth clipping is on (§9.1). The two permutations share the root signature, so that a draw list can
+  // move between them with nothing rebound.
+  for (const bool oriented : {false, true})
   {
-    pipeline.VS = oriented ? ViewSplatOrientedVertexShader() : ViewSplatAlignedVertexShader();
-    pipeline.PS = ViewSplatPixelShader(oriented, _variant);
-    pipeline.DepthStencilState.DepthFunc = VIEW_NEARER;
-    pipeline.NumRenderTargets = 1;
-    pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
-    pipeline.DSVFormat = ViewTargets::DEPTH_FORMAT;
-  }
-  else
-  {
-    // Depth alone, into the map (§10).
-    pipeline.VS = oriented ? ShadowSplatOrientedVertexShader() : ShadowSplatAlignedVertexShader();
-    pipeline.PS = oriented ? ShadowSplatOrientedPixelShader() : ShadowSplatAlignedPixelShader();
-    pipeline.DepthStencilState.DepthFunc = SHADOW_NEARER;
-    pipeline.NumRenderTargets = 0;
-    pipeline.DSVFormat = ShadowMap::DEPTH_FORMAT;
-  }
-  winrt::check_hresult(_device.Device()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(m_pipeline.put())));
-  if (_kind == Kind::View)
-  {
-    constexpr std::array<const wchar_t*, 6> VIEW_NAMES{L"View splat, aligned",
-                                                       L"View splat, oriented",
-                                                       L"View splat, aligned, plain depth",
-                                                       L"View splat, oriented, plain depth",
-                                                       L"View splat, aligned, overdraw",
-                                                       L"View splat, oriented, overdraw"};
-    m_pipeline->SetName(VIEW_NAMES[2u * static_cast<std::size_t>(_variant) + (oriented ? 1u : 0u)]);
-  }
-  else
-  {
-    m_pipeline->SetName(oriented ? L"Shadow splat, oriented" : L"Shadow splat, aligned");
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline = DefaultGraphicsPipeline();
+    pipeline.pRootSignature = m_rootSignature.get();
+    pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    if (_kind == Kind::View)
+    {
+      pipeline.VS = oriented ? ViewSplatOrientedVertexShader() : ViewSplatAlignedVertexShader();
+      pipeline.PS = ViewSplatPixelShader(oriented, _variant);
+      pipeline.DepthStencilState.DepthFunc = VIEW_NEARER;
+      pipeline.NumRenderTargets = 1;
+      pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
+      pipeline.DSVFormat = ViewTargets::DEPTH_FORMAT;
+    }
+    else
+    {
+      // Depth alone, into the map (§10).
+      pipeline.VS = oriented ? ShadowSplatOrientedVertexShader() : ShadowSplatAlignedVertexShader();
+      pipeline.PS = oriented ? ShadowSplatOrientedPixelShader() : ShadowSplatAlignedPixelShader();
+      pipeline.DepthStencilState.DepthFunc = SHADOW_NEARER;
+      pipeline.NumRenderTargets = 0;
+      pipeline.DSVFormat = ShadowMap::DEPTH_FORMAT;
+    }
+    winrt::com_ptr<ID3D12PipelineState>& made = oriented ? m_orientedPipeline : m_alignedPipeline;
+    winrt::check_hresult(_device.Device()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(made.put())));
+    if (_kind == Kind::View)
+    {
+      constexpr std::array<const wchar_t*, 6> VIEW_NAMES{L"View splat, aligned",
+                                                         L"View splat, oriented",
+                                                         L"View splat, aligned, plain depth",
+                                                         L"View splat, oriented, plain depth",
+                                                         L"View splat, aligned, overdraw",
+                                                         L"View splat, oriented, overdraw"};
+      made->SetName(VIEW_NAMES[2u * static_cast<std::size_t>(_variant) + (oriented ? 1u : 0u)]);
+    }
+    else
+    {
+      made->SetName(oriented ? L"Shadow splat, oriented" : L"Shadow splat, aligned");
+    }
   }
 
   const std::array<std::uint16_t, RECTANGLE_INDEX_COUNT> indices = RectangleIndices();
@@ -150,30 +211,38 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
 }
 
 void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
-                       D3D12_GPU_VIRTUAL_ADDRESS _explosionConstants, D3D12_GPU_DESCRIPTOR_HANDLE _overdrawTable) const
+                       D3D12_GPU_VIRTUAL_ADDRESS _placements, std::span<const SplatDraw> _draws,
+                       D3D12_GPU_DESCRIPTOR_HANDLE _overdrawTable) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
-  _list->SetPipelineState(m_pipeline.get());
   _list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   _list->IASetIndexBuffer(&m_indexView);
   _list->SetGraphicsRootConstantBufferView(ViewConstantsParameter, _viewConstants);
-  if (m_permutation == Permutation::Oriented)
-  {
-    _list->SetGraphicsRootConstantBufferView(ExplosionConstantsParameter, _explosionConstants);
-  }
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
+  _list->SetGraphicsRootShaderResourceView(PlacementsParameter, _placements);
   if (m_variant == Variant::Overdraw)
   {
     _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _overdrawTable);
   }
-  for (const SceneInstance& instance : _scene.Instances())
+  const ID3D12PipelineState* bound = nullptr;
+  for (const SplatDraw& draw : _draws)
   {
-    if (instance.recordCount == 0)
+    if (draw.recordCount == 0)
     {
       continue;
     }
-    _list->SetGraphicsRootConstantBufferView(InstanceConstantsParameter, instance.constants);
-    const UINT instances = (instance.recordCount + RECTANGLES_PER_INSTANCE - 1) / RECTANGLES_PER_INSTANCE;
+    ID3D12PipelineState* pipeline = draw.oriented ? m_orientedPipeline.get() : m_alignedPipeline.get();
+    if (pipeline != bound)
+    {
+      _list->SetPipelineState(pipeline);
+      bound = pipeline;
+    }
+    _list->SetGraphicsRoot32BitConstant(DrawParameter, draw.placement, 0);
+    if (draw.oriented)
+    {
+      _list->SetGraphicsRootConstantBufferView(ExplosionConstantsParameter, draw.explosion);
+    }
+    const UINT instances = (draw.recordCount + RECTANGLES_PER_INSTANCE - 1) / RECTANGLES_PER_INSTANCE;
     _list->DrawIndexedInstanced(RECTANGLE_INDEX_COUNT, instances, 0, 0, 0);
   }
 }

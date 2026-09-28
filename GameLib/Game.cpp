@@ -15,10 +15,10 @@
 #include "Scene.h"
 
 #include "DebugView.h"
-#include "Explosion.h"
 #include "Lighting.h"
 #include "OrthographicView.h"
 #include "RenderSettings.h"
+#include "Sphere.h"
 
 #include <algorithm>
 #include <array>
@@ -126,13 +126,14 @@ void RunClock(ExplosionClock& _clock, const InputState& _input, float _stopSecon
 }
 
 // The GPU's figures over one title interval (§8, §13): the mean of each pass over the frames that ran it, of the whole
-// frame, and of the view splat's pixel-shader invocations.
+// frame, and of the view splat's pixel-shader invocations; and the latest frame's draw counts (Design/SpaceScene.md §7.4).
 struct GpuFigures
 {
   std::array<double, NeuronClient::GPU_PASS_COUNT> passMilliseconds{};
   std::array<std::uint32_t, NeuronClient::GPU_PASS_COUNT> passFrames{};
   double gpuMilliseconds = 0.0;
   double pixelShaderInvocations = 0.0;
+  NeuronClient::DrawCounts draws{};
   std::uint32_t frames = 0;
 
   void Add(const NeuronClient::FrameStatistics& _statistics) noexcept
@@ -147,18 +148,12 @@ struct GpuFigures
     }
     gpuMilliseconds += _statistics.gpuMilliseconds;
     pixelShaderInvocations += static_cast<double>(_statistics.pixelShaderInvocations);
+    draws = _statistics.draws;
     ++frames;
   }
 };
 
-// The sphere around a box, which the camera frames.
-struct Sphere
-{
-  NeuronCore::Float3 center;
-  float radius;
-};
-
-void Steer(OrbitCamera& _camera, const Sphere& _framed, const InputState& _input, std::uint32_t _heightPixels, float _seconds)
+void Steer(OrbitCamera& _camera, const NeuronCore::Sphere& _framed, const InputState& _input, std::uint32_t _heightPixels, float _seconds)
 {
   if (_input.WasKeyPressed('F'))
   {
@@ -256,6 +251,8 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
       }
     }
     figures.push_back(std::format(L"PSInvocations {:.2f} M", _gpu.pixelShaderInvocations / _gpu.frames / 1.0e6));
+    figures.push_back(std::format(L"placements: view {} drawn, {} culled; sun {} drawn, {} culled", _gpu.draws.viewDrawn,
+                                  _gpu.draws.viewCulled, _gpu.draws.shadowDrawn, _gpu.draws.shadowCulled));
   }
   if (_brightestEmissive > 0.0f)
   {
@@ -310,15 +307,15 @@ void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>&
   _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
-// The sun's view (§10): fitted once around the detonation's envelope, which holds the model and all of its debris
+// The sun's view (§10): fitted once around the detonation's reach, which holds the model and all of its debris
 // (Design/SpaceScene.md §5.5), so that it never moves and shadows do not swim.
 [[nodiscard]] NeuronCore::OrthographicView FitShadowView(const Scene& _scene, const NeuronCore::RenderSettings& _settings,
-                                                         const NeuronCore::ExplosionEnvelope& _envelope) noexcept
+                                                         const ExplosionReach& _reach) noexcept
 {
   const NeuronCore::Float3 toSun = NeuronCore::SunDirection(_settings.sunElevationRadians, _settings.sunAzimuthRadians);
-  const NeuronCore::Float3 reach{_envelope.radius, _envelope.radius, _envelope.radius};
-  return NeuronCore::MakeShadowView(toSun, _scene.center, NeuronCore::SHADOW_HALF_EXTENT, _envelope.center - reach,
-                                    _envelope.center + reach, NeuronCore::SHADOW_MAP_PIXELS);
+  const NeuronCore::Float3 extent{_reach.sphere.radius, _reach.sphere.radius, _reach.sphere.radius};
+  return NeuronCore::MakeShadowView(toSun, _scene.center, NeuronCore::SHADOW_HALF_EXTENT, _reach.sphere.center - extent,
+                                    _reach.sphere.center + extent, NeuronCore::SHADOW_MAP_PIXELS);
 }
 
 } // namespace
@@ -328,15 +325,13 @@ void RunGame(const GameOptions& _options)
   const Scene scene = LoadScene(_options.voxPath);
   const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(scene.model.renderObjects);
   const float brightestEmissive = BrightestEmissiveScale(scene.model);
-  const NeuronCore::ExplosionParameters explosion = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(scene.model));
-  const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(explosion, scene.lower, scene.upper);
+  const ExplosionReach reach = BoundSceneExplosion(scene);
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   // --bench renders at its own size whatever the window's, and the swap chain stretches it over the window (§13).
   const NeuronClient::ClientSize size =
     _options.benchSeconds ? NeuronClient::ClientSize{BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS} : window.Size();
   NeuronClient::Renderer renderer(
-    {_options.device, window.Handle(), size.widthPixels, size.heightPixels, FitShadowView(scene, settings, envelope), explosion},
-    scene.model);
+    {_options.device, window.Handle(), size.widthPixels, size.heightPixels, FitShadowView(scene, settings, reach)}, {&scene.model, 1});
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -347,7 +342,7 @@ void RunGame(const GameOptions& _options)
     if (_options.benchSeconds)
     {
       if (const std::optional<std::wstring> summary =
-            RunBench(window, renderer, scene, settings, envelope.stopSeconds, *_options.benchSeconds))
+            RunBench(window, renderer, scene, settings, reach.stopSeconds, *_options.benchSeconds))
       {
         OutputDebugStringW(summary->c_str());
         MessageBoxW(window.Handle(), summary->c_str(), L"Outpost --bench", MB_OK | MB_ICONINFORMATION);
@@ -357,8 +352,7 @@ void RunGame(const GameOptions& _options)
     OrbitCamera camera(scene.center, scene.radius);
     Controls controls;
     ExplosionClock explosionClock;
-    const Sphere intact{scene.center, scene.radius};
-    const Sphere exploded{envelope.center, envelope.radius};
+    const NeuronCore::Sphere intact{scene.center, scene.radius};
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
@@ -370,9 +364,9 @@ void RunGame(const GameOptions& _options)
       const double seconds = clock.Tick();
       const NeuronClient::ClientSize current = window.Size();
       NeuronClient::InputState& input = window.Input();
-      Steer(camera, explosionClock.seconds > 0.0f ? exploded : intact, input, current.heightPixels, static_cast<float>(seconds));
+      Steer(camera, explosionClock.seconds > 0.0f ? reach.sphere : intact, input, current.heightPixels, static_cast<float>(seconds));
       Choose(controls, input, window.Handle());
-      RunClock(explosionClock, input, envelope.stopSeconds, static_cast<float>(seconds));
+      RunClock(explosionClock, input, reach.stopSeconds, static_cast<float>(seconds));
       input.EndFrame();
       if (current.widthPixels == 0 || current.heightPixels == 0)
       {
@@ -406,8 +400,8 @@ void RunGame(const GameOptions& _options)
         DrawFigures(renderer.Overlay(), figures, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
       }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels),
-                      {controls.debugView, lighting, settings.exposure, explosionClock.seconds, controls.vsync, false, false});
+      renderer.Render(camera.View(current.widthPixels, current.heightPixels), PlacementsAt(scene, explosionClock.seconds),
+                      {controls.debugView, lighting, settings.exposure, controls.vsync, false, false});
     }
   }
   catch (...)

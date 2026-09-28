@@ -186,11 +186,11 @@
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
-    <ClInclude Include="InstanceConstants.h" />
     <ClInclude Include="LightingConstants.h" />
     <ClInclude Include="LightingPass.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PlacementConstants.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
     <ClInclude Include="ShadowMap.h" />
@@ -224,6 +224,7 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PlacementConstants.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
@@ -355,7 +356,6 @@
     <None Include="Shader\ExplosionConstants.hlsli" />
     <None Include="Shader\FullScreen.hlsli" />
     <None Include="Shader\Hash.hlsli" />
-    <None Include="Shader\InstanceConstants.hlsli" />
     <None Include="Shader\Lighting.hlsli" />
     <None Include="Shader\LightingConstants.hlsli" />
     <None Include="Shader\LightingPass.hlsli" />
@@ -363,6 +363,8 @@
     <None Include="Shader\Packing.hlsli" />
     <None Include="Shader\PaletteConstants.hlsli" />
     <None Include="Shader\PerspectiveView.hlsli" />
+    <None Include="Shader\Placement.hlsli" />
+    <None Include="Shader\PlacementConstants.hlsli" />
     <None Include="Shader\Ray.hlsli" />
     <None Include="Shader\RayBox.hlsli" />
     <None Include="Shader\ShadowViewConstants.hlsli" />

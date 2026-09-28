@@ -194,6 +194,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CubeSymmetry.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PinnedStation.h" />
     <ClInclude Include="SeededRandom.h" />
@@ -201,6 +202,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
+    <ClCompile Include="CullingTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
@@ -209,7 +211,10 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PlacementTests.cpp" />
     <ClCompile Include="RenderSettingsTests.cpp" />
+    <ClCompile Include="RigidTransformTests.cpp" />
+    <ClCompile Include="SceneTracerTests.cpp" />
     <ClCompile Include="SplatBoundsTests.cpp" />
     <ClCompile Include="ToneMapTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />

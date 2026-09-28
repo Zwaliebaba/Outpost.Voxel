@@ -20,16 +20,17 @@
 #include "VoxelScene.h"
 
 #include "DebugView.h"
-#include "Explosion.h"
 #include "Lighting.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
+#include "Placement.h"
 #include "VoxModel.h"
 
 #include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace NeuronClient
@@ -42,16 +43,14 @@ struct RendererDesc
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
   NeuronCore::OrthographicView shadowView; // the sun's, fitted once to the scene (§10); its size is the shadow map's
-  NeuronCore::ExplosionParameters explosion;
 };
 
-// What a frame shows (§11, §13, Design/SpaceScene.md §5.5), and what it measures besides (§9.3, §14).
+// What a frame shows (§11, §13), and what it measures besides (§9.3, §14).
 struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
   NeuronCore::LightingParameters lighting;
   float exposure;
-  float explosionSeconds; // since the detonation; 0 is the intact model
   bool vsync;
   bool plainDepth;    // the view splat writes SV_Depth rather than conservative depth (§9.3); the overdraw view overrides it
   bool countCoverage; // counts the pixels a voxel covers (§14)
@@ -59,16 +58,19 @@ struct FrameSettings
 
 // The frame of Design/Archive/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
 // visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
-// their place, and last the canvas over it all (§13). Both splats draw the aligned permutation while the model is intact
-// and the oriented one once the detonation has started (Design/SpaceScene.md §5.5). Two frames are in flight, each with
-// its own allocator, constants, fence value and slot of queries: every pass is timed and the view splat's pipeline
-// statistics taken, and a frame's measurements come back with the Render two frames after it, through TakeStatistics.
+// their place, and last the canvas over it all (§13). What the splats draw is the frame's placements
+// (Design/SpaceScene.md §7): each view culls them by their spheres and draws each it keeps with one draw, through the
+// aligned permutation when it is whole and turned by a symmetry of the cube and the oriented one otherwise, the camera
+// nearest first (§7.4). Two frames are in flight, each with its own allocator, constants, fence value and slot of
+// queries: every pass is timed and the view splat's pipeline statistics taken, and a frame's measurements and draw
+// counts come back with the Render two frames after it, through TakeStatistics.
 class Renderer
 {
 public:
   static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
-  Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model);
+  // _models are the scene's, whose records and palettes the placements name (NeuronCore::SceneRecords).
+  Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
@@ -79,9 +81,11 @@ public:
   // Follows the window's client area. A zero size, a minimized window, renders nothing until the next resize.
   void Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels);
 
-  // Renders and presents one frame. _view must be the size the renderer was last resized to. On a failure, the catch
-  // block adds Device().DescribeRemoval() to its message while the device still exists (§13).
-  void Render(const NeuronCore::PerspectiveView& _view, const FrameSettings& _settings);
+  // Renders and presents one frame of _placements, whose ids NeuronCore::AssignVoxelIds gave them. _view must be the size
+  // the renderer was last resized to. Throws std::invalid_argument, before recording anything, for a placement that names
+  // records or a palette the scene lacks, or ids that fall back, overlap or reach NO_VOXEL (Design/SpaceScene.md §7.3).
+  // On a failure, the catch block adds Device().DescribeRemoval() to its message while the device still exists (§13).
+  void Render(const NeuronCore::PerspectiveView& _view, std::span<const NeuronCore::Placement> _placements, const FrameSettings& _settings);
 
   [[nodiscard]] const GraphicsDevice& Device() const noexcept
   {
@@ -122,10 +126,11 @@ private:
     winrt::com_ptr<ID3D12CommandAllocator> allocator;
     std::unique_ptr<UploadRing> constants;
     std::uint64_t fenceValue = 0;
+    DrawCounts draws{};
   };
 
-  // The view splat for the permutation the explosion's time calls for and the variant the frame asks for.
-  [[nodiscard]] const SplatPass& ViewSplat(bool _exploding, SplatPass::Variant _variant) const noexcept;
+  // The view splat for the variant the frame asks for.
+  [[nodiscard]] const SplatPass& ViewSplat(SplatPass::Variant _variant) const noexcept;
 
   GraphicsDevice m_device;
   DescriptorHeap m_rtvHeap;
@@ -135,17 +140,12 @@ private:
   SwapChain m_swapChain;
   ViewTargets m_targets;
   NeuronCore::OrthographicView m_shadowView;
-  NeuronCore::ExplosionParameters m_explosion;
   ShadowMap m_shadowMap;
   VoxelScene m_scene;
   SplatPass m_shadowSplat;
   SplatPass m_viewSplat;
-  SplatPass m_shadowSplatOriented;
-  SplatPass m_viewSplatOriented;
   SplatPass m_viewSplatPlainDepth;
-  SplatPass m_viewSplatOrientedPlainDepth;
   SplatPass m_viewSplatOverdraw;
-  SplatPass m_viewSplatOrientedOverdraw;
   CoveragePass m_coverage;
   LightingPass m_lighting;
   ToneMapPass m_toneMap;

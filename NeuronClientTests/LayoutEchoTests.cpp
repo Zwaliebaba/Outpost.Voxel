@@ -4,9 +4,9 @@
 #include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
-#include "InstanceConstants.h"
 #include "LightingConstants.h"
 #include "PaletteConstants.h"
+#include "PlacementConstants.h"
 #include "ShadowViewConstants.h"
 #include "TestSupport.h"
 #include "UploadRing.h"
@@ -33,11 +33,11 @@ namespace
 enum RootParameter : std::uint8_t
 {
   ViewParameter,
-  InstanceParameter,
-  PaletteParameter,
   ShadowViewParameter,
   LightingParameter,
   ExplosionParameter,
+  PalettesParameter,
+  PlacementsParameter,
   CanvasQuadsParameter,
   EchoParameter,
   RootParameterCount
@@ -77,29 +77,33 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const auto view = Sentinel<NeuronClient::ViewConstants>(1);
-        const auto instance = Sentinel<NeuronClient::InstanceConstants>(2);
-        const auto palette = Sentinel<NeuronClient::PaletteConstants>(3);
-        const auto shadowView = Sentinel<NeuronClient::ShadowViewConstants>(4);
-        const auto lighting = Sentinel<NeuronClient::LightingConstants>(5);
-        const auto explosion = Sentinel<NeuronClient::ExplosionConstants>(6);
-        const std::array<NeuronClient::CanvasQuad, 2> canvasQuads{Sentinel<NeuronClient::CanvasQuad>(7),
-                                                                  Sentinel<NeuronClient::CanvasQuad>(8)};
+        const auto shadowView = Sentinel<NeuronClient::ShadowViewConstants>(2);
+        const auto lighting = Sentinel<NeuronClient::LightingConstants>(3);
+        const auto explosion = Sentinel<NeuronClient::ExplosionConstants>(4);
+        const std::array<NeuronClient::PaletteConstants, 2> palettes{Sentinel<NeuronClient::PaletteConstants>(5),
+                                                                     Sentinel<NeuronClient::PaletteConstants>(6)};
+        const std::array<NeuronClient::PlacementConstants, 2> placements{Sentinel<NeuronClient::PlacementConstants>(7),
+                                                                         Sentinel<NeuronClient::PlacementConstants>(8)};
+        const std::array<NeuronClient::CanvasQuad, 2> canvasQuads{Sentinel<NeuronClient::CanvasQuad>(9),
+                                                                  Sentinel<NeuronClient::CanvasQuad>(10)};
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
-        AppendWords(expected, instance);
-        AppendWords(expected, palette);
         AppendWords(expected, shadowView);
         AppendWords(expected, lighting);
         AppendWords(expected, explosion);
+        AppendWords(expected, palettes);
+        AppendWords(expected, placements);
         AppendWords(expected, canvasQuads);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
-        const D3D12_GPU_VIRTUAL_ADDRESS instanceAddress = constants.Push(instance);
-        const D3D12_GPU_VIRTUAL_ADDRESS paletteAddress = constants.Push(palette);
         const D3D12_GPU_VIRTUAL_ADDRESS shadowViewAddress = constants.Push(shadowView);
         const D3D12_GPU_VIRTUAL_ADDRESS lightingAddress = constants.Push(lighting);
         const D3D12_GPU_VIRTUAL_ADDRESS explosionAddress = constants.Push(explosion);
+        const winrt::com_ptr<ID3D12Resource> paletteBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(palettes)), L"Layout echo palettes");
+        const winrt::com_ptr<ID3D12Resource> placementBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(placements)), L"Layout echo placements");
         const winrt::com_ptr<ID3D12Resource> canvasQuadBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(canvasQuads)), L"Layout echo canvas quads");
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
@@ -111,18 +115,18 @@ public:
         std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
         parameters[ViewParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[ViewParameter].Descriptor = {0, 0};
-        parameters[InstanceParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[InstanceParameter].Descriptor = {1, 0};
-        parameters[PaletteParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[PaletteParameter].Descriptor = {2, 0};
         parameters[ShadowViewParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[ShadowViewParameter].Descriptor = {3, 0};
+        parameters[ShadowViewParameter].Descriptor = {1, 0};
         parameters[LightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[LightingParameter].Descriptor = {4, 0};
+        parameters[LightingParameter].Descriptor = {2, 0};
         parameters[ExplosionParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[ExplosionParameter].Descriptor = {5, 0};
+        parameters[ExplosionParameter].Descriptor = {3, 0};
+        parameters[PalettesParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[PalettesParameter].Descriptor = {0, 0};
+        parameters[PlacementsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[PlacementsParameter].Descriptor = {1, 0};
         parameters[CanvasQuadsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-        parameters[CanvasQuadsParameter].Descriptor = {0, 0};
+        parameters[CanvasQuadsParameter].Descriptor = {2, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -144,11 +148,11 @@ public:
             _list->SetComputeRootSignature(rootSignature.get());
             _list->SetPipelineState(pipeline.get());
             _list->SetComputeRootConstantBufferView(ViewParameter, viewAddress);
-            _list->SetComputeRootConstantBufferView(InstanceParameter, instanceAddress);
-            _list->SetComputeRootConstantBufferView(PaletteParameter, paletteAddress);
             _list->SetComputeRootConstantBufferView(ShadowViewParameter, shadowViewAddress);
             _list->SetComputeRootConstantBufferView(LightingParameter, lightingAddress);
             _list->SetComputeRootConstantBufferView(ExplosionParameter, explosionAddress);
+            _list->SetComputeRootShaderResourceView(PalettesParameter, paletteBuffer->GetGPUVirtualAddress());
+            _list->SetComputeRootShaderResourceView(PlacementsParameter, placementBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootShaderResourceView(CanvasQuadsParameter, canvasQuadBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
