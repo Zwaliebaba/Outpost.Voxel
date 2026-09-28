@@ -7,11 +7,14 @@ Run from anywhere; CI runs it before the build (AGENTS.md §6):
 
 It checks, over the whole tree:
 
-  - the solution: exactly one .slnx at the root, x64 only, listing every .vcxproj in the tree and nothing else;
+  - the solution: exactly one .slnx at the root, x64 and ARM64 its platforms, listing every .vcxproj in the tree and
+    nothing else;
   - the project registry: .clang-tidy's HeaderFilterRegex matches every project and names no project that is gone;
-  - configurations: Debug|x64 and Release|x64, and nothing else (§3);
-  - the settings §3 fixes, stated explicitly in both configurations;
-  - Debug/Release alignment: the two differ only in the properties §3 lists, and in _DEBUG against NDEBUG;
+  - configurations: Debug and Release on x64 and on ARM64, and nothing else (§3, ADR-012);
+  - the settings §3 fixes, stated explicitly in every configuration, the instruction set per platform;
+  - Debug/Release alignment: on each platform the two differ only in the properties §3 lists, and in _DEBUG against
+    NDEBUG;
+  - platform alignment: in each configuration x64 and ARM64 differ only in the instruction set (§3, ADR-012);
   - OutDir and IntDir anchored on $(SolutionDir) (§3);
   - include directories: a project never lists its own folder, lists another project's folder only as
     $(SolutionDir)<Project>, and only with a reference to that project (§3);
@@ -38,7 +41,8 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parent.parent
 MSBUILD_NAMESPACE = '{http://schemas.microsoft.com/developer/msbuild/2003}'
 
-CONFIGURATIONS = ('Debug|x64', 'Release|x64')
+PLATFORMS = ('x64', 'ARM64')  # AGENTS.md §3, Design/ADR/ADR-012
+CONFIGURATIONS = tuple(f'{configuration}|{platform}' for platform in PLATFORMS for configuration in ('Debug', 'Release'))
 CPP_EXTENSIONS = {'.cpp', '.h'}
 HLSL_EXTENSIONS = {'.hlsl', '.hlsli'}
 SOURCE_EXTENSIONS = CPP_EXTENSIONS | HLSL_EXTENSIONS
@@ -58,8 +62,11 @@ REQUIRED_SETTINGS = {
   ('ClCompile', 'WarningLevel'): 'Level4',
   ('ClCompile', 'TreatWarningAsError'): 'true',
   ('ClCompile', 'FloatingPointModel'): 'Precise',
-  ('ClCompile', 'EnableEnhancedInstructionSet'): 'AdvancedVectorExtensions2',
 }
+# AGENTS.md §3 and Design/ADR/ADR-012: each platform's instruction set, /arch:AVX2 and /arch:armv8.7, stated in every
+# configuration. It is the one setting in which a configuration may differ between the two platforms.
+INSTRUCTION_SET = ('ClCompile', 'EnableEnhancedInstructionSet')
+INSTRUCTION_SETS = {'x64': 'AdvancedVectorExtensions2', 'ARM64': 'CPUExtensionRequirementsARMv87'}
 
 # Design/ADR/ADR-005: how every shader is compiled, in both configurations. -Gis keeps DXC from marking float operations
 # `fast`, which lets a driver assume no infinity or NaN, and Listing 5 is correct only because of both; -Qembed_debug
@@ -246,8 +253,8 @@ def configurations_of(element, inherited, project, findings):
                  "as '$(Configuration)|$(Platform)'=='Debug|x64'")
     return set()
   if match.group(1) not in CONFIGURATIONS:
-    findings.add(project.path, '§3', f'condition for {match.group(1)}; x64 Debug and Release are the only '
-                 'configurations')
+    findings.add(project.path, '§3', f'condition for {match.group(1)}; Debug and Release on x64 and ARM64 are the '
+                 'only configurations')
     return set()
   return {match.group(1)} & inherited
 
@@ -341,8 +348,8 @@ def load_solution(files, findings):
     findings.add(solution, 'xml', f'does not parse: {error}')
     return []
   platforms = {element.get('Name') for element in root.iter() if local_name(element.tag) == 'Platform'}
-  if platforms != {'x64'}:
-    findings.add(solution, '§3', f'declares platforms {sorted(platforms)}; x64 is the only platform')
+  if platforms != set(PLATFORMS):
+    findings.add(solution, '§3', f'declares platforms {sorted(platforms)}; x64 and ARM64 are the platforms')
   listed = []
   for element in root.iter():
     if local_name(element.tag) != 'Project':
@@ -393,7 +400,8 @@ def check_settings(project, findings):
                  f'{", ".join(CONFIGURATIONS)}')
   for configuration in CONFIGURATIONS:
     settings = project.settings[configuration]
-    for key, expected in REQUIRED_SETTINGS.items():
+    required = REQUIRED_SETTINGS | {INSTRUCTION_SET: INSTRUCTION_SETS[configuration.split('|')[1]]}
+    for key, expected in required.items():
       actual = settings.get(key)
       if actual != expected:
         findings.add(project.path, '§3', f'{configuration} {key[1]} is {actual or "not stated"}; must be stated '
@@ -405,20 +413,31 @@ def check_settings(project, findings):
                      '$(SolutionDir)')
     check_shader_settings(project, configuration, settings, findings)
 
-  debug = project.settings['Debug|x64']
-  release = project.settings['Release|x64']
-  for key in sorted(set(debug) | set(release)):
-    group, name = key
-    if name == 'PreprocessorDefinitions' and group in DEFINES_MAY_DIFFER_IN:
-      debug_defines = defines(debug.get(key))
-      release_defines = defines(release.get(key))
-      if ('_DEBUG' not in debug_defines or 'NDEBUG' in debug_defines or 'NDEBUG' not in release_defines
-          or '_DEBUG' in release_defines or debug_defines - {'_DEBUG'} != release_defines - {'NDEBUG'}):
-        findings.add(project.path, '§3', f'{group} PreprocessorDefinitions may differ only in _DEBUG (Debug) '
-                     f'against NDEBUG (Release): Debug has {sorted(debug_defines)}, Release {sorted(release_defines)}')
-    elif name not in MAY_DIFFER and debug.get(key) != release.get(key):
-      findings.add(project.path, '§3', f'{group} {name} differs between Debug ({debug.get(key, "absent")}) and '
-                   f'Release ({release.get(key, "absent")}); only the properties AGENTS.md §3 lists may')
+  for platform in PLATFORMS:
+    debug = project.settings[f'Debug|{platform}']
+    release = project.settings[f'Release|{platform}']
+    for key in sorted(set(debug) | set(release)):
+      group, name = key
+      if name == 'PreprocessorDefinitions' and group in DEFINES_MAY_DIFFER_IN:
+        debug_defines = defines(debug.get(key))
+        release_defines = defines(release.get(key))
+        if ('_DEBUG' not in debug_defines or 'NDEBUG' in debug_defines or 'NDEBUG' not in release_defines
+            or '_DEBUG' in release_defines or debug_defines - {'_DEBUG'} != release_defines - {'NDEBUG'}):
+          findings.add(project.path, '§3', f'{platform} {group} PreprocessorDefinitions may differ only in _DEBUG '
+                       f'(Debug) against NDEBUG (Release): Debug has {sorted(debug_defines)}, Release '
+                       f'{sorted(release_defines)}')
+      elif name not in MAY_DIFFER and debug.get(key) != release.get(key):
+        findings.add(project.path, '§3', f'{platform} {group} {name} differs between Debug ({debug.get(key, "absent")}) '
+                     f'and Release ({release.get(key, "absent")}); only the properties AGENTS.md §3 lists may')
+
+  # ADR-012: a configuration reads the same on both platforms, except for the instruction set.
+  for configuration in ('Debug', 'Release'):
+    x64 = project.settings[f'{configuration}|x64']
+    arm64 = project.settings[f'{configuration}|ARM64']
+    for key in sorted(set(x64) | set(arm64)):
+      if key != INSTRUCTION_SET and x64.get(key) != arm64.get(key):
+        findings.add(project.path, '§3', f'{configuration} {key[0]} {key[1]} differs between x64 '
+                     f'({x64.get(key, "absent")}) and ARM64 ({arm64.get(key, "absent")}); only the instruction set may')
 
 
 def check_shader_settings(project, configuration, settings, findings):

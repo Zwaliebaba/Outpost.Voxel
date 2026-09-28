@@ -33,7 +33,7 @@
       constants, `PascalCase` enumerators, no `I`/`C`/`Base` affixes
 - [ ] New, removed or moved files are in the `.vcxproj` **and** the `.filters`
 - [ ] A new project was added to `.clang-tidy`'s `HeaderFilterRegex`, or this PR adds none
-- [ ] Debug and Release still agree on everything AGENTS.md §3 says they must
+- [ ] Debug and Release, and x64 and ARM64, still agree on everything AGENTS.md §3 says they must
 - [ ] No warning silenced, no `ConformanceMode`/`LanguageStandard`/`WarningLevel` changed
 - [ ] Only the lines the task required were changed
 

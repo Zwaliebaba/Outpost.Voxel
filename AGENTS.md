@@ -126,7 +126,7 @@ private:
 | Rule | Enforced by |
 |---|---|
 | The naming table, R1, R3, R5, R8 | [`.clang-tidy`](.clang-tidy), gated in CI over the whole tree |
-| R2 affixes, R7 file names and project registration, R11 spellings, R12's ban on WRL, R17 HLSL files, §4's HLSL semantics, §2 directory shape, §3 build settings and Debug/Release alignment | `Build/CheckProjectFiles.py`, gated in CI |
+| R2 affixes, R7 file names and project registration, R11 spellings, R12's ban on WRL, R17 HLSL files, §4's HLSL semantics, §2 directory shape, §3 build settings and the alignment of Debug with Release and of ARM64 with x64 | `Build/CheckProjectFiles.py`, gated in CI |
 | R4, R6, R9, R10 | Review. Check your own diff against the table before handing it back. |
 
 **Both checkers run in CI on every change** (§6): `Build/RunClangTidy.py` drives clang-tidy over every hand-written translation unit with the switches its project sets, and `Build/CheckProjectFiles.py` carries what clang-tidy cannot express. Run them yourself before you push (§3). A rule that one of them could carry and does not is a gap in the checker; close it in the change that finds it.
@@ -150,7 +150,7 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 
 **Engine below, game above, client and server apart.** The `Neuron*` libraries are the engine and know nothing of this game; `GameLib` and `GameLogic` are the game and build on them. The client side (`NeuronClient`, `GameLib`) and the server side (`NeuronServer`, `GameLogic`) never reference each other: what both need lives in `NeuronCore`, or, for the game, in a shared game library created when the first such type appears. `Outpost.exe` is the client and, until the two are separated, the server process too, so it links both sides; when the server moves into its own `Server.exe`, that executable takes `GameLogic` and `NeuronServer`, and the client keeps the rest. A project lists every static library it links as a reference, and puts another project's folder on its include path only if it references it.
 
-Everything builds to `x64\<Configuration>\` at the root, which is where CI looks for the test DLLs, with intermediates under `x64\<Configuration>\obj\<Project>\`. Adding a project changes this table and needs an ADR of its own, as the layout did. The constraints below hold for every project, present and future.
+Everything builds to `<Platform>\<Configuration>\` at the root, where CI looks in `x64\Debug\` for the test DLLs, with intermediates under `<Platform>\<Configuration>\obj\<Project>\`. Adding a project changes this table and needs an ADR of its own, as the layout did. The constraints below hold for every project, present and future.
 
 **C++ is flat; shaders live in `Shader`.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter. The one subdirectory there is holds HLSL: shaders belong to the library that uses them and live in its `Shader` folder, `<Project>/Shader/`, beside no C++ (R17, ADR-003).
 
@@ -160,21 +160,23 @@ Everything builds to `x64\<Configuration>\` at the root, which is where CI looks
 
 **A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`** in the same commit that creates it. A project missing from that list has headers that nothing checks.
 
-**Build and IDE output is never committed** — `x64/`, `.vs/`, `*.user`, the restored NuGet packages in `packages/`, and anything a build step generates.
+**Build and IDE output is never committed** — `x64/`, `ARM64/`, `.vs/`, `*.user`, the restored NuGet packages in `packages/`, and anything a build step generates.
 
 ---
 
 ## 3. Build and verify
 
-**x64 is the only platform.** No Win32/x86 configuration in any project or solution; do not add one, and do not write code that only works at 32 bits.
+**x64 and ARM64 are the platforms** ([ADR-012](Design/ADR/ADR-012-arm64-platform.md)). Every project and the solution have Debug and Release on each, and nothing else: no Win32/x86 configuration, and no code that only works at 32 bits or on one of the two. CI builds and tests x64 only (§6).
 
-**The compiler settings are the settings.** Toolset `v145` (Visual Studio 2026), `/std:c++latest`, `/permissive-`, `/W4` with **warnings as errors**, `/fp:precise`, `/arch:AVX2`. There is no CMake. If a build error tempts you to change the toolset, lower the language standard, turn off `/permissive-` or silence a warning — **stop and report instead.**
+**The compiler settings are the settings.** Toolset `v145` (Visual Studio 2026), `/std:c++latest`, `/permissive-`, `/W4` with **warnings as errors**, `/fp:precise`, `/arch:AVX2` on x64 and `/arch:armv8.7` on ARM64. There is no CMake. If a build error tempts you to change the toolset, lower the language standard, turn off `/permissive-` or silence a warning — **stop and report instead.**
 
-**`/fp:precise` and `/arch:AVX2` are stated explicitly in every project file**, not inherited from an MSVC default — a default is not a decision. `/arch:AVX2` sets a CPU floor (Intel Haswell, AMD Excavator); an older CPU meets an illegal instruction, not a message. It also lets MSVC contract `a*b+c` into an FMA even under `/fp:precise`, so float results can differ from a build without it. If that matters for a piece of code, it is an ADR, not a local workaround.
+**`/fp:precise` and the instruction set are stated explicitly in every configuration**, not inherited from an MSVC default — a default is not a decision. `/arch:AVX2` sets a CPU floor (Intel Haswell, AMD Excavator); an older CPU meets an illegal instruction, not a message. It also lets MSVC contract `a*b+c` into an FMA even under `/fp:precise`, so float results can differ from a build without it. If that matters for a piece of code, it is an ADR, not a local workaround. `/arch:armv8.7` is ARM64's floor in the same way: it lets the compiler use any Armv8.7-A instruction, so an older ARM64 CPU can meet one it does not have.
 
 **Debug and Release are aligned by rule, not by luck.** Every setting that is not *about* optimisation reads identically in both configurations: language standard, conformance, warning level, include directories, precompiled header, floating-point model, instruction set. The two differ in exactly four things — `Optimization`, `_DEBUG` vs `NDEBUG`, `FunctionLevelLinking`/`IntrinsicFunctions`, and the linker's folding and LTCG switches. (MSBuild spells those four through a few more properties — `UseDebugLibraries`, `RuntimeLibrary` as the debug or release CRT, `LinkIncremental`, `WholeProgramOptimization`, `EnableCOMDATFolding`, `OptimizeReferences` — and that list is the whole of what may differ.)
 
-That alignment matters more than it looks, because **CI builds Debug only** (§6). Release is compiled by whoever ships, and a Release that quietly lost an include directory or sat on an older language standard would not be discovered until then. A static check of the two configurations is what stands in for the build nobody runs.
+**The two platforms are aligned the same way.** A configuration reads identically on x64 and ARM64 except for its instruction set, `EnableEnhancedInstructionSet`, and that is the whole of what may differ between them.
+
+That alignment matters more than it looks, because **CI builds Debug|x64 only** (§6). Release is compiled by whoever ships and ARM64 by whoever runs on it, and a Release or an ARM64 build that quietly lost an include directory or sat on an older language standard would not be discovered until then. A static check of the four configurations is what stands in for the builds CI does not run.
 
 **Build through the solution, never a `.vcxproj` directly.** Output paths and cross-project include directories are anchored on `$(SolutionDir)`, and MSBuild defines `SolutionDir` only for a solution build. Building a project file directly resolves every one of those paths against the *project* folder instead of the repository root. **It does not fail — that is the problem.** Output lands in the wrong folder, so the next solution build links against whichever copy is staler, and every cross-project include path becomes a directory that does not exist. The breakage is latent: it bites the first time a file reaches across projects, which may be weeks after someone got into the habit. To build one project, use `/t:<ProjectName>` on the solution.
 
@@ -190,6 +192,9 @@ msbuild Outpost.Voxel.slnx /t:<ProjectName> /p:Configuration=Debug /p:Platform=x
 
 # Release, before you claim anything about it.
 msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
+
+# ARM64: any of the above with /p:Platform=ARM64, on an ARM64 machine or with Visual Studio's ARM64 build tools.
+msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=ARM64 /m /v:minimal /nologo
 ```
 
 **A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
@@ -253,7 +258,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
-**CI does not build Release.** The Windows build is the slow half of the pipeline and a second configuration roughly doubles it for a tree where the two differ only in optimisation. What stands in for it is the static alignment check on the two configurations (§3) — and, before a release, an actual `Configuration=Release` build by whoever is shipping. If you change something that could plausibly break only under optimisation, build Release yourself and say so.
+**CI does not build Release or ARM64.** The Windows build is the slow half of the pipeline, and each further configuration roughly doubles it for a tree whose configurations differ only in optimisation and instruction set. What stands in for them is the static alignment check on the four configurations (§3) — and an actual build by whoever needs one: Release by whoever is shipping, before a release, and ARM64 by whoever runs on it (ADR-012). If you change something that could plausibly break only under optimisation, build Release yourself and say so. If it could break on one platform only — an intrinsic, or code that leans on x64's stronger memory ordering — build the other one and say so.
 
 **Commits and PRs.** Branch off `main`; small, focused commits with an imperative subject describing the change, not the process. One change per PR. CI must be green. Never commit build output, `.vs/` or `.user` files.
 
@@ -266,7 +271,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 - [ ] New, removed or moved files are in the `.vcxproj` **and** the `.filters` of every project involved.
 - [ ] A new project is registered in `.clang-tidy`'s `HeaderFilterRegex`.
 - [ ] No project's `ConformanceMode`, `LanguageStandard`, `WarningLevel` or `TreatWarningAsError` was changed, and no warning was silenced with a pragma.
-- [ ] Debug and Release still agree on everything §3 says they must.
+- [ ] Debug and Release, and x64 and ARM64, still agree on everything §3 says they must.
 - [ ] The checkers pass: `Build/CheckFormat.py`, `Build/CheckProjectFiles.py`, `Build/RunClangTidy.py`.
 - [ ] It builds Debug|x64, and every test suite runs and passes.
 - [ ] If it changes anything a user can see, hear or touch: it was **run**, not just built.

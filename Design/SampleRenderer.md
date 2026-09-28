@@ -503,7 +503,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
 - ADR-009, explosion motion model and its defaults (M4);
 - ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28);
-- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28).
+- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28);
+- ADR-012, ARM64 as a second platform beside x64, with CI kept on x64, recorded when the owner added it (2026-09-28).
 
 ## 18. References
 
