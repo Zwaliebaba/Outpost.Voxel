@@ -33,5 +33,6 @@
     <ClCompile Include="NvfGolden.cpp" />
     <ClCompile Include="NvfModelTests.cpp" />
     <ClCompile Include="RepositoryFile.cpp" />
+    <ClCompile Include="NvfImportTests.cpp" />
   </ItemGroup>
 </Project>

@@ -187,16 +187,16 @@ Hidden nodes and hidden layers are skipped, as the reader already does, so a hid
 - **Names.** `ModelInstance` gains `name`, the `_name` of the transform node that places it.
 - **Rotations on odd-sized models.** `ModelInstance` gains `rotation`: MagicaVoxel's `_r`, validated (two distinct axis indices, not a reflection) and conjugated into engine axes (§4.1), stored as one of the 24 proper axis-aligned rotations. The reader accepts a rotation other than the identity only when every dimension of the model is odd. Otherwise it still returns `UnsupportedRotation`, for the reason §7.1 gives.
 
-The renderer never draws a rotated instance, so `VoxelScene` refuses one by name. The sample's behavior on the three assets does not change.
+The renderer never draws a rotated instance, so `VoxelScene` refuses one by name. `OccupiedBounds` places a turned model's voxels where its turn puts them, about its centre voxel, so that the server measures what a marker covers (ADR-020). The sample's behavior on the three assets does not change.
 
 ### 6.2 Conversion
 
-The conversion lives in `NeuronCore` as `ImportVoxModel(const VoxModel&, const NvfModel* _previous) → std::expected<NvfModel, NvfImportError>`, so `NeuronCoreTests` exercises it. The executable is a thin command line around it.
+The conversion lives in `NeuronCore` as `ImportVoxModel(const VoxModel&, const NvfModel* _previous) → std::expected<NvfModel, std::vector<NvfImportError>>`, so `NeuronCoreTests` exercises it. It returns every refusal it finds, each naming its node, so that an artist fixes a file in one pass (ADR-020). The executable is a thin command line around it.
 
 1. Split instances into parts and markers by name (§5), and refuse a malformed name, a missing parent part, a duplicate, or a rotated part.
-2. Part translation: part 0's is its instance origin, and every other part's is its origin minus its parent's. Size and records are copied as they are, in their order. The reader has already put all of them in engine axes (§12), so the importer converts nothing.
-3. Marker position: the centre of the marker's centre voxel, minus its part's origin. Rotation: the instance's rotation, already in engine axes, turned into a quaternion from a fixed table of the 24 proper rotations, so the result is exact and the same on every run. Hardpoints from markers carry `FromVox`.
-4. **Merge with the previous `.nvf`.** Every previous hardpoint **without** `FromVox`, which means it was authored in Blender, is carried over, re-attached to its part by path. Previous `FromVox` hardpoints are dropped, and the current markers replace them. A carried-over hardpoint whose part no longer exists is an error, not a silent drop. So is a carried-over name that collides with a marker's name. Pivots follow the same rule: a pivot set in Blender (a part flag, `PivotAuthored`, bit 0 of the part's flags) survives unless a marker now sets it.
+2. Parts are ordered by path, which puts every parent first. Part translation: part 0's is its instance origin, and every other part's is its origin minus its parent's. Size and records are copied as they are, in their order. The reader has already put all of them in engine axes (§12), so the importer converts nothing.
+3. Marker position: the centre of the marker's centre voxel, minus its part's origin. Rotation: the instance's rotation, already in engine axes, turned into a quaternion from a fixed table of the 24 proper rotations, so the result is exact and the same on every run. The table spells each rotation with w > 0, or for a half turn with w = 0 and the first nonzero of x, y and z positive. Hardpoints from markers carry `FromVox`.
+4. **Merge with the previous `.nvf`.** Every previous hardpoint **without** `FromVox`, which means it was authored in Blender, is carried over, re-attached to its part by path. Previous `FromVox` hardpoints are dropped, and the current markers replace them. A carried-over hardpoint whose part no longer exists is an error, not a silent drop. So is a carried-over name that collides with a marker's name, and the refusal names the marker: a hardpoint moved in Blender has lost `FromVox` (§7), Blender owns it from then on, and the marker is what the artist deletes (§11, question 6). Pivots follow the same rule: a pivot set in Blender (a part flag, `PivotAuthored`, bit 0 of the part's flags) survives unless a marker now sets it, and goes with its part when the part is gone.
 
 ### 6.3 Command line
 
@@ -207,7 +207,7 @@ NvfImport <input.vox> <output.nvf> --check    exit 1 if importing would change o
 NvfImport --dump <file.nvf>                   print parts, pivots and hardpoints as text
 ```
 
-The tool writes to a temporary file and renames it over the output, so an error never leaves half a file behind. It prints one line per refusal, naming the node, and exits nonzero.
+The tool writes to a temporary file and renames it over the output, so an error never leaves half a file behind. It prints one line per refusal, naming the node and what to do about it, and exits nonzero. Its exit codes are 0 when it wrote the file or `--check` finds it up to date, 1 when `--check` finds it stale, and 2 for a refusal, a mistake on the command line, or a file it cannot read or write. It leaves an existing `.nvf` it cannot read as it is, unless `--replace` discards it (ADR-020).
 
 ## 7. Blender extension
 

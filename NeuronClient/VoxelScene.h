@@ -23,6 +23,8 @@ class GraphicsDevice;
 class VoxelScene
 {
 public:
+  // Throws std::invalid_argument for no voxel at all, and for a turned model, which the renderer never draws
+  // (Design/NeuronVoxelFormat.md §6.1).
   VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models);
 
   // The records as one StructuredBuffer<uint>.

@@ -212,6 +212,7 @@
     <ClCompile Include="MessageTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="NvfGolden.cpp" />
+    <ClCompile Include="NvfImportTests.cpp" />
     <ClCompile Include="NvfModelTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">

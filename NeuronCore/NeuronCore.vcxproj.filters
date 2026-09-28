@@ -29,6 +29,7 @@
     <ClInclude Include="Message.h" />
     <ClInclude Include="Transport.h" />
     <ClInclude Include="NvfModel.h" />
+    <ClInclude Include="NvfImport.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorSpace.cpp" />
@@ -51,5 +52,6 @@
     <ClCompile Include="Message.cpp" />
     <ClCompile Include="Quaternion.cpp" />
     <ClCompile Include="NvfModel.cpp" />
+    <ClCompile Include="NvfImport.cpp" />
   </ItemGroup>
 </Project>
