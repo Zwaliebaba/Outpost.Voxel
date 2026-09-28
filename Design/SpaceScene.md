@@ -1,7 +1,7 @@
 # Outpost.Voxel — Space Scene Design
 
 **Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14 · **Date:** 2026-09-28
-**Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
+**Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this changes in `SampleRenderer.md`.
 
@@ -16,7 +16,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 | # | Decision | Source |
 |---|---|---|
 | S1 | The space scene replaces the station sample. The ground plane goes, and the explosion loses its gravity: it becomes a zero-gravity detonation, still a pure function of voxel index and time (D3), so that stations and ships can explode. The station bench keeps its phases, under the new motion, until the space bench replaces it. | Owner, 2026-09-28 |
-| S2 | N-M0, the move to Direct3D's axes, lands before any code of the space scene. The retirement lands before N-M0, and what it leaves has no up axis, so N-M0 converts neither the ground nor the explosion. | Owner, 2026-09-28; §3.2 |
+| S2 | N-M0, the move to Direct3D's axes, lands before any code of the space scene. It landed on 2026-09-28 (ADR-011), and the retirement works on what it converted. | Owner, 2026-09-28; §3.2 |
 | S3 | The server is authoritative and runs on a thread of its own. Only encoded messages cross between server and client, through a `Transport`; within one process it is a `LoopbackTransport`. | Owner, 2026-09-28 |
 | S4 | The sky is the view from inside a galaxy: a band across the whole sky with a brighter core, star clouds and dust lanes, and a star field whose density follows the band. | Owner, 2026-09-28 |
 | S5 | The view keeps reversed-Z with an infinite far plane (D8, ADR-006), and every new pass uses it through ADR-006's helpers. The sky is drawn at the far plane and tested against it. | Owner, 2026-09-28; §9 |
@@ -59,15 +59,17 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 
 **`--bench` keeps its phases:** intact, in flight and at rest become intact, in flight and drifted to a stop, under the new motion, until S-M8's space bench replaces them. Its machinery stays: the warm-up, both depth variants of every frame, the coverage count, the CSV and the summary.
 
-**The documents.** In `SampleRenderer.md`, D2 and D3 stay, rewritten for zero gravity; §12 is rewritten to match; §11 loses the ground; §13 loses the G key and the time scale; and §14's pose tests become the zero-gravity ones. ADR-009 is superseded rather than edited, and ADR-008's ground paragraph is amended.
+**The documents.** In `SampleRenderer.md`, D2 and D3 stay, rewritten for zero gravity; §12 is rewritten to match; §11 loses the ground; §13 loses the G key and the time scale; and §14's pose tests become the zero-gravity ones. ADR-009 is superseded rather than edited, and ADR-011's row for the explosion and ADR-008's ground paragraph are amended.
 
-### 3.2 Why the retirement comes before N-M0
+**N-M0's pins** (`NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. `LightsAsPinned`'s shades stay: the formula they pin does not change.
 
-N-M0's table (NeuronVoxelFormat.md §12.2) converts the explosion (gravity, contacts, lift, envelope and their tests) and the ground (the plane, its normal, the shadow box grown down to it). The ground is deleted, and the explosion loses exactly what depends on an up axis: gravity, the contacts, the lift and the upward bias. What is left launches every voxel away from a point, with jitter and spin about hashed coordinate axes, and nothing in it depends on which way is up. So N-M0 shrinks by both rows, the commit that retires them strikes the rows from §12.2, and the oriented permutation is drawn and tested without a gap. N-M0's own checks, the pinned tracer images and the mirror test, depend on neither.
+### 3.2 After N-M0
+
+N-M0 landed first, on 2026-09-28 (ADR-011), so it converted the explosion and the ground to Direct3D's axes before the retirement reached them: gravity along −Y, contacts and rest heights in y, the upward bias and the lift along +Y, and the ground plane y = 0. The retirement now deletes the converted ground and takes from the converted explosion exactly what depends on an up axis: gravity, the contacts, the lift and the upward bias. What is left launches every voxel away from a point, with jitter and spin about hashed coordinate axes, and nothing in it depends on which way is up. The oriented permutation is drawn and tested throughout, with no gap.
 
 ### 3.3 A baseline first
 
-M5 is done when a measured performance note exists, and none is in `Design/`. The station bench is the only measurement of the renderer as it stands, and S-M1 changes the motion its phases measure. So S-M0 asks for one run of `--bench` on the owner's hardware, committed as M5's note, before anything changes. S-M8's preset of one station and no ships (§14) then has something to be compared with.
+M5 is done when a measured performance note exists, and none is in `Design/`. The station bench is the only measurement of the renderer as it stands, and S-M1 changes the motion its phases measure. So S-M0 asks for one run of `--bench` on the owner's hardware, committed as M5's note, before S-M1 changes the motion. N-M0 changed a flying voxel's orientation already (ADR-011), which is why the note is taken on the code as it stands now. S-M8's preset of one station and no ships (§14) then has something to be compared with.
 
 ## 4. The assets, measured
 
@@ -92,7 +94,7 @@ The three files carry the same sixteen colors, the CGA/EGA palette in its usual 
 
 One palette for all three would light the capital ship's 148 white voxels, or put out the station's 3,785 (S8).
 
-**Facing.** Both ships face MagicaVoxel's +Y. All 120 of the capital ship's yellow emissive voxels are exposed on its −Y face, its engines, and its hull narrows to a point at +Y. The frigate's front is the end with the two pins on its sides (the owner, 2026-09-28). Read here, those are the two one-voxel prongs that flank its centerline at y = 25–26, the +Y end, where its two side pylons also point; the pylons end in light-cyan lights at y = 22. After N-M0, MagicaVoxel's +Y is NVF's forward, +Z, and its +Z is NVF's up, +Y (N9). So the flight model takes every model's forward as +Z in model space and needs no per-model facing. The owner confirms both ships by eye in S-M4.
+**Facing.** Both ships face MagicaVoxel's +Y. All 120 of the capital ship's yellow emissive voxels are exposed on its −Y face, its engines, and its hull narrows to a point at +Y. The frigate's front is the end with the two pins on its sides (the owner, 2026-09-28). Read here, those are the two one-voxel prongs that flank its centerline at y = 25–26, the +Y end, where its two side pylons also point; the pylons end in light-cyan lights at y = 22. Since N-M0, MagicaVoxel's +Y is the engine's forward, +Z, and its +Z the engine's up, +Y (N9, ADR-011). So the flight model takes every model's forward as +Z in model space and needs no per-model facing. The owner confirms both ships by eye in S-M4.
 
 ## 5. The world
 
@@ -436,8 +438,8 @@ What it takes from the look is some softness where history is rejected or clampe
 | | Delivers | Done when |
 |---|---|---|
 | S-M0 | This design accepted (2026-09-28); M5's performance note committed from the owner's run of `--bench` | The owner accepts; the note is in `Design/` |
-| S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion; `SampleRenderer.md` amended; ADR-009 superseded by the detonation's ADR, and ADR-008 amended; NVF §12.2's rows for the explosion and the ground struck | Every suite green; the owner has seen the station lit without a floor, detonated in zero gravity and restored |
-| N-M0 | NeuronVoxelFormat.md §12, as amended by S-M1 | As NeuronVoxelFormat.md §10 says |
+| N-M0 | NeuronVoxelFormat.md §12: the engine on Direct3D's axes | Done on 2026-09-28 (ADR-011) |
+| S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion, and the pins of the retired behaviors retired with them; `SampleRenderer.md` amended; ADR-009 superseded by the detonation's ADR, and ADR-008 and ADR-011 amended | Every suite green; the owner has seen the station lit without a floor, detonated in zero gravity and restored |
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, detonated placements, ids, culling and order, the scene tracer; the placements ADR | §15's placement tests green; the station renders, detonates and is restored as before, through one placement |
 | S-M3 | The messages, the transports, `ServerHost`, and `SpaceWorld` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green |
 | S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots and events, the camera, keys, figures and command line; the space scene replaces the station sample | The owner has flown among the ships, confirmed their facing and detonated a station |
@@ -453,7 +455,7 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 
 **Answered by the owner on 2026-09-28:**
 
-1. **N-M0 comes first (S2).**
+1. **N-M0 comes first (S2).** It landed on 2026-09-28 (ADR-011).
 2. **The space scene replaces the station sample (S1).**
 3. **The full boundary, with the server on a thread of its own (S3).**
 4. **The galaxy is a band across the sky, seen from inside (S4).**
@@ -463,7 +465,7 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 8. **Anti-aliasing is allowed (SampleRenderer D14).**
 9. **Temporal anti-aliasing, as a milestone of its own after S-M5, before the look is judged (S15, §12.3).**
 10. **Splats stay, and the two levers come before any other path (S16, §7.6).**
-11. **Stations and ships can explode or break down during fighting (S17, §5.5).** So the explosion stays, without gravity, and nothing assumes a placement stays whole. That also settles the order of §3.2: nothing is converted and then deleted, and the oriented splat is never left untested.
+11. **Stations and ships can explode or break down during fighting (S17, §5.5).** So the explosion stays, without gravity, and nothing assumes a placement stays whole. It also means the oriented splat is never left untested (§3.2).
 12. **The cascades stay on standard Z (S9, §9).**
 13. **The defaults stand:** 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units; and the detonation's drag, tuned by eye in S-M1.
 14. **Stations stand upright, turned by quarter turns about the vertical (S18, §5.2).**
@@ -485,9 +487,9 @@ No question is open.
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. The next free number is ADR-011, and N-M0's axes ADR takes whatever number its turn gives it.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, so the next free number is ADR-012.
 
-- **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009; ADR-008's ground and NVF §12.2 amended.
+- **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
 - **S-M3, the client/server boundary:** the messages, the events and their validation, `Transport`, the host's tick, threads and stepping, and the client's time. Also the two new suites, amending ADR-003's table.
 - **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
