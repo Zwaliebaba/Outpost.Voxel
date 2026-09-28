@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** draft for the owner's acceptance. The owner answered seven questions on 2026-09-28 (§17, 1–7), and revised D4 of `SampleRenderer.md` with the seventh; the rest of §17 is open · **Date:** 2026-09-28
+**Status:** draft for the owner's acceptance. The owner answered eight questions on 2026-09-28 (§17, 1–8), revising D4 of `SampleRenderer.md` with the seventh and adding D14 with the eighth; the rest of §17 is open · **Date:** 2026-09-28
 **Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this retires from `SampleRenderer.md` and what it amends there.
@@ -41,7 +41,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 - **Loading `.nvf`.** Models load from `.vox` by name (§6.2). The loader changes when NVF's follow-up lands, and nothing else does.
 - **Less work for distant voxels:** the paper's stochastic pruning (Listing 3, which SampleRenderer §4.2 item 9 left out) or a level of detail. This scene is what will show whether either pays (§14), and each is an ADR on measured numbers.
 - **Stations that turn.** A station stays where it is placed, turned through one of the cube's symmetries, which keeps its 225,048 voxels on the aligned splat (§7.2). A spinning station moves to the oriented splat; that is a parameter away once the bench has said what it costs.
-- **Anti-aliasing and HDR output.** Neither is in this plan, and since D4's revision nothing rules either out. §17 asks about anti-aliasing, which bloom makes more visible.
+- **Anti-aliasing and HDR output.** Both are allowed (SampleRenderer D14 and D4), and neither is scheduled here yet. §17 asks which anti-aliasing, and when, since bloom makes its absence more visible.
 
 ## 3. What the owner's answers change
 
@@ -405,15 +405,17 @@ S-M5 and S-M6 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S
 5. **Reversed-Z throughout (S5).** The view has had it since M2; §9 says how the new passes keep it.
 6. **The frigate's front is the end with the two pins on its sides (§4).**
 7. **Bloom is in, and D4 is revised so that nothing in the look is ruled out (S14, §12.2).**
+8. **Anti-aliasing is allowed (SampleRenderer D14).** Which method, and when, is question 11.
 
 **Open, each with this design's default:**
 
-8. The order of §3.2: retire before N-M0 (the default), or keep the explosion through N-M0 until S-M2 takes the oriented splat over.
-9. The cascades' depth: standard Z (the default, §9), or reversed-Z too, for one convention.
-10. Anti-aliasing. Bloom spreads whatever the image holds, so the crawl of an edge without anti-aliasing, and the flicker of an emissive voxel smaller than a pixel, show more through it. Karis's average keeps single texels from flaring (§12.2), but it cannot remove aliasing. SampleRenderer §16 names the options, a ray per MSAA sample or temporal anti-aliasing, and either is an ADR. The default is to leave it out of this plan.
-11. The defaults: 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units.
-12. Stations turned through all 24 symmetries (the default, which stands some of them on their sides), or only through the four about the vertical.
-13. The names: this document, the two suites (`NeuronServerTests`, `GameLogicTests`), and whether S3 becomes a conformance rule (§18).
+9. The order of §3.2: retire before N-M0 (the default), or keep the explosion through N-M0 until S-M2 takes the oriented splat over.
+10. The cascades' depth: standard Z (the default, §9), or reversed-Z too, for one convention.
+11. Anti-aliasing: which method, and when. Bloom spreads whatever the image holds, so the crawl of an edge and the flicker of an emissive voxel smaller than a pixel show more through it; Karis's average (§12.2) only keeps single texels from flaring. This design recommends temporal anti-aliasing. It casts one ray per pixel, jittered by a sub-pixel offset each frame, into a history reprojected by motion the visibility buffer already implies: a pixel's voxel id names its placement, whose transform a frame ago says where that point was, so rigid motion reprojects exactly and no velocity target is needed. It costs a history buffer, 16.6 MB at 1080p, and some softness where history is rejected. The paper's route, a ray per MSAA sample, is exact and never ghosts, but at 4× it runs the splat's pixel shader for every sample, on targets four times the size. Either is an ADR with its twin. The default: not scheduled until the owner picks; temporal anti-aliasing would be a milestone of its own after S-M5, resolving the image before bloom.
+12. The defaults: 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units.
+13. Stations turned through all 24 symmetries (the default, which stands some of them on their sides), or only through the four about the vertical.
+14. The names: this document, the two suites (`NeuronServerTests`, `GameLogicTests`), and whether S3 becomes a conformance rule (§18).
+15. Splats or meshes. SampleRenderer §2 chose the splat over a greedy mesh because of the explosion, which would have invalidated a mesh every frame. With the explosion retired, stations are static and ships rigid, which is what meshes handle well: SampleRenderer §3 measured the station's greedy mesh at 183,766 triangles, against the splat's 450,096 in 225,048 rectangles. The splat still gives every voxel its exact box, a voxel id in every pixel, and destruction without remeshing, which a game that breaks ships apart would want, and the renderer and its twins are built on it. The default: keep the splat, and let S-M7's numbers say whether a mesh path for static placements earns an ADR.
 
 **Risks:**
 

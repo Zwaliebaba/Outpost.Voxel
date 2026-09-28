@@ -1,6 +1,6 @@
 # ADR-010 — The canvas: DirectWrite text drawn straight by Direct3D 12
 
-**Status:** accepted, 2026-09-28 · **Lands with:** the canvas, between M4 and M5 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§13, §15)
+**Status:** accepted, 2026-09-28 · **Lands with:** the canvas, between M4 and M5 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§13, §15) · **Amended:** on 2026-09-28 the owner lifted four of its foreclosures: ClearType text; text scaled, rotated or placed off the pixel grid; evicting single glyphs; and color glyphs (D13). The canvas keeps its grayscale, hinted, pixel-aligned atlas until a HUD needs more, and each of the four lands with an ADR of its own; ClearType, for one, needs dual-source blending, which gives each subpixel its own alpha. Direct2D and Direct3D 11On12 stay out, as D13 has it.
 
 ## Context
 
