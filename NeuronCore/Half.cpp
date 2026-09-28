@@ -9,12 +9,12 @@ namespace NeuronCore
 namespace
 {
 
-// Single-precision bit patterns: infinity; the least magnitude that rounds to a half's infinity, 65520, halfway past
-// 65504; the least normal half, 2^-14; and the greatest magnitude that rounds to zero, 2^-25, half the least subnormal.
+// Single-precision bit patterns: infinity; the largest half, 65504; the least normal half, 2^-14; and the least
+// subnormal half, 2^-24.
 constexpr std::uint32_t FLOAT_INFINITY = 0x7F800000u;
-constexpr std::uint32_t HALF_OVERFLOW = 0x477FF000u;
+constexpr std::uint32_t HALF_LARGEST = 0x477FE000u;
 constexpr std::uint32_t HALF_LEAST_NORMAL = 0x38800000u;
-constexpr std::uint32_t HALF_ZERO_LIMIT = 0x33000000u;
+constexpr std::uint32_t HALF_LEAST_SUBNORMAL = 0x33800000u;
 
 // The exponent bias between the two formats, 127 - 15, in place.
 constexpr std::uint32_t REBIAS = 112u << 23u;
@@ -33,34 +33,27 @@ std::uint16_t FloatToHalf(float _value) noexcept
   {
     return static_cast<std::uint16_t>(sign | 0x7E00u);
   }
-  if (magnitude >= HALF_OVERFLOW)
+  if (magnitude == FLOAT_INFINITY)
   {
     return static_cast<std::uint16_t>(sign | 0x7C00u);
   }
+  if (magnitude >= HALF_LARGEST)
+  {
+    return static_cast<std::uint16_t>(sign | 0x7BFFu);
+  }
   if (magnitude >= HALF_LEAST_NORMAL)
   {
-    // Rebiased, and rounded at the thirteenth bit, ties to even; a carry into the exponent is the next power of two.
-    const std::uint32_t rebiased = magnitude - REBIAS;
-    const std::uint32_t rounded = rebiased + 0xFFFu + ((rebiased >> DROPPED_BITS) & 1u);
-    return static_cast<std::uint16_t>(sign | (rounded >> DROPPED_BITS));
+    // Rebiased, and the bits a half has no room for dropped.
+    return static_cast<std::uint16_t>(sign | ((magnitude - REBIAS) >> DROPPED_BITS));
   }
-  if (magnitude <= HALF_ZERO_LIMIT)
+  if (magnitude < HALF_LEAST_SUBNORMAL)
   {
     return static_cast<std::uint16_t>(sign);
   }
-  // A subnormal: the mantissa, with its leading one, in units of 2^-24, rounded to nearest, ties to even. A carry to
-  // 1024 is the least normal half, which the same bits spell.
+  // A subnormal: the mantissa, with its leading one, in whole units of 2^-24.
   const std::uint32_t exponent = magnitude >> 23u;
   const std::uint32_t mantissa = (magnitude & 0x7FFFFFu) | 0x800000u;
-  const std::uint32_t shift = 126u - exponent;
-  const std::uint32_t halfway = 1u << (shift - 1u);
-  const std::uint32_t remainder = mantissa & ((1u << shift) - 1u);
-  std::uint32_t units = mantissa >> shift;
-  if (remainder > halfway || (remainder == halfway && (units & 1u) != 0u))
-  {
-    ++units;
-  }
-  return static_cast<std::uint16_t>(sign | units);
+  return static_cast<std::uint16_t>(sign | (mantissa >> (126u - exponent)));
 }
 
 float HalfToFloat(std::uint16_t _half) noexcept

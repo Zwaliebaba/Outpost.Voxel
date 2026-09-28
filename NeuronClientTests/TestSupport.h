@@ -124,6 +124,10 @@ void WriteTexture2D(NeuronClient::GraphicsDevice& _device, ID3D12Resource* _text
 // size, galactic plane and seed.
 [[nodiscard]] NeuronCore::WorldSettings TestWorld() noexcept;
 
+// How many halves apart two values a half-precision target holds lie, both at least zero, as light is: its measure of
+// how far the GPU strays from a twin that stores as it does.
+[[nodiscard]] std::uint32_t HalfSteps(float _expected, float _actual) noexcept;
+
 // The vertical field of view and near plane every test camera uses: the application's (§3, §7.5).
 inline constexpr float TEST_FOV_Y_RADIANS = 0.785398163f;
 inline constexpr float TEST_NEAR_PLANE = 0.1f;

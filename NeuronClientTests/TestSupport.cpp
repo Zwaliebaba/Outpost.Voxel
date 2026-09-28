@@ -13,6 +13,7 @@
 #include "ViewTargets.h"
 
 #include "ColorSpace.h"
+#include "Half.h"
 #include "Lighting.h"
 #include "RigidTransform.h"
 #include "VoxelRecord.h"
@@ -20,6 +21,8 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -328,6 +331,14 @@ NeuronCore::WorldSettings TestWorld() noexcept
           {ground, ground, ground},
           1,
           {0.5f, 0.0f, 0.0f, 0.8660254f}};
+}
+
+std::uint32_t HalfSteps(float _expected, float _actual) noexcept
+{
+  // A half at least zero orders as its bits do.
+  const auto expected = static_cast<std::int32_t>(NeuronCore::FloatToHalf(_expected));
+  const auto actual = static_cast<std::int32_t>(NeuronCore::FloatToHalf(_actual));
+  return static_cast<std::uint32_t>(std::abs(actual - expected));
 }
 
 NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, NeuronCore::Float3 _toSun, float _halfExtent,

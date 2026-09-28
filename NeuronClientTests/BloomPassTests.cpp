@@ -43,9 +43,10 @@ constexpr std::uint32_t LEVELS = 3;
 constexpr DXGI_FORMAT COLOR_FORMAT = DXGI_FORMAT_R32G32B32A32_FLOAT;
 constexpr std::uint32_t COLOR_BYTES_PER_PIXEL = 16;
 
-// Each level is stored in half precision, which keeps 11 significant bits, and the GPU sums a texel's taps in its own
-// order: a texel near a rounding boundary may land one half's step the other way, and carry the step up the chain.
-// Four steps, and a floor for texels near zero.
+// Each level is stored in half precision, which keeps 11 significant bits, truncated as the twin truncates it; but the
+// GPU sums a texel's taps in its own order, so a texel that lands within a float's rounding of a half may be stored one
+// step the other way, and carry the step up the chain. Four steps, and a floor for texels near zero; the test logs the
+// most any texel strays.
 constexpr float LEVEL_RELATIVE_TOLERANCE = 2.0e-3f;
 constexpr float LEVEL_ABSOLUTE_TOLERANCE = 1.0e-5f;
 
@@ -122,7 +123,7 @@ constexpr float DISPLAY_TOLERANCE = 1.0e-5f;
   return std::abs(_actual - _expected) <= LEVEL_RELATIVE_TOLERANCE * std::abs(_expected) + LEVEL_ABSOLUTE_TOLERANCE;
 }
 
-// Every texel of every level against the twin's, and how many match to the bit.
+// Every texel of every level against the twin's; how many match to the bit, and the most halves any other strays.
 void ExpectLevels(const std::vector<BloomImage>& _expected, const std::vector<BloomImage>& _actual, const wchar_t* _way)
 {
   Assert::AreEqual(_expected.size(), _actual.size(), _way);
@@ -131,6 +132,7 @@ void ExpectLevels(const std::vector<BloomImage>& _expected, const std::vector<Bl
     Assert::AreEqual(_expected[level].widthPixels, _actual[level].widthPixels, _way);
     Assert::AreEqual(_expected[level].heightPixels, _actual[level].heightPixels, _way);
     std::size_t exact = 0;
+    std::uint32_t worst = 0;
     for (std::size_t i = 0; i < _expected[level].texels.size(); ++i)
     {
       const Float3 expected = _expected[level].texels[i];
@@ -141,10 +143,11 @@ void ExpectLevels(const std::vector<BloomImage>& _expected, const std::vector<Bl
                                  expected.x, expected.y, expected.z)
                        .c_str());
       exact += expected.x == actual.x && expected.y == actual.y && expected.z == actual.z ? 1u : 0u;
+      worst = std::max({worst, HalfSteps(expected.x, actual.x), HalfSteps(expected.y, actual.y), HalfSteps(expected.z, actual.z)});
     }
-    Logger::WriteMessage(
-      std::format(L"{}, level {}: {} of {} texels match the twin to the bit\n", _way, level + 1, exact, _expected[level].texels.size())
-        .c_str());
+    Logger::WriteMessage(std::format(L"{}, level {}: {} of {} texels match the twin to the bit, and none strays more than {} halves\n",
+                                     _way, level + 1, exact, _expected[level].texels.size(), worst)
+                           .c_str());
   }
 }
 
@@ -223,6 +226,7 @@ public:
         std::vector<float> display(displayBytes.size() / sizeof(float));
         std::memcpy(display.data(), displayBytes.data(), displayBytes.size());
         float brightest = 0.0f;
+        float worst = 0.0f;
         for (std::uint32_t y = 0; y < HEIGHT_PIXELS; ++y)
         {
           for (std::uint32_t x = 0; x < WIDTH_PIXELS; ++x)
@@ -231,6 +235,8 @@ public:
             const Float3 bloomed = NeuronCore::BloomTent(up.front(), x, y);
             brightest = std::max(brightest, bloomed.y);
             const Float3 mapped = NeuronCore::ToneMap(NeuronCore::MixBloom(hdr.texels[pixel], bloomed), 1.0f);
+            worst = std::max({worst, std::abs(display[4 * pixel] - mapped.x), std::abs(display[4 * pixel + 1] - mapped.y),
+                              std::abs(display[4 * pixel + 2] - mapped.z)});
             const bool close = std::abs(display[4 * pixel] - mapped.x) <= DISPLAY_TOLERANCE &&
                                std::abs(display[4 * pixel + 1] - mapped.y) <= DISPLAY_TOLERANCE &&
                                std::abs(display[4 * pixel + 2] - mapped.z) <= DISPLAY_TOLERANCE;
@@ -239,6 +245,7 @@ public:
                                     .c_str());
           }
         }
+        Logger::WriteMessage(std::format(L"the tone map strays from the twin's by {} at most\n", worst).c_str());
         Assert::IsTrue(brightest > 1.0f, L"the bright texels bloom");
       });
   }

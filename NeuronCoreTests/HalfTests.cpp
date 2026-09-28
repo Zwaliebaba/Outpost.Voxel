@@ -21,8 +21,9 @@ void AreEqualHalf(std::uint32_t _expected, float _value, const wchar_t* _what)
 
 } // namespace
 
-// Half precision as a DXGI_FORMAT_R16G16B16A16_FLOAT target stores it (Design/SpaceScene.md §12.2): the twins of the HDR
-// color and of bloom's chain round through it, as the GPU does.
+// Half precision as a DXGI_FORMAT_R16G16B16A16_FLOAT target stores it (Design/SpaceScene.md §12.2), by Direct3D's rules
+// for converting a float to a narrower one: the twins of the HDR color and of bloom's chain round through it, as the GPU
+// does.
 TEST_CLASS(HalfTests)
 {
 public:
@@ -51,9 +52,9 @@ public:
     Assert::AreEqual(std::numeric_limits<float>::infinity(), NeuronCore::HalfToFloat(0x7C00u));
   }
 
-  // Between two neighboring halves, a float goes to the nearer, and one halfway goes to the one whose last bit is zero:
-  // checked at every boundary, below it, on it and above it.
-  TEST_METHOD(RoundsToTheNearestAndTiesToEven)
+  // Between two neighboring halves, a float goes to the one nearer zero, whatever its sign: checked at every pair, just
+  // above the lower, halfway, where the nearest would be either, and just below the upper.
+  TEST_METHOD(RoundsTowardZero)
   {
     for (std::uint32_t bits = 0; bits < 0x7BFFu; ++bits)
     {
@@ -61,23 +62,25 @@ public:
       const float upper = NeuronCore::HalfToFloat(static_cast<std::uint16_t>(bits + 1u));
       // Exact in single precision: the two have eleven significant bits, and their midpoint twelve.
       const float middle = 0.5f * (lower + upper);
-      const std::uint32_t even = (bits & 1u) == 0u ? bits : bits + 1u;
-      AreEqualHalf(bits, std::nextafter(middle, 0.0f), std::format(L"below the middle of {:04x}", bits).c_str());
-      AreEqualHalf(even, middle, std::format(L"the middle of {:04x}", bits).c_str());
-      AreEqualHalf(bits + 1u, std::nextafter(middle, 1.0e6f), std::format(L"above the middle of {:04x}", bits).c_str());
-      AreEqualHalf(bits | 0x8000u, -std::nextafter(middle, 0.0f), std::format(L"below the middle of {:04x}, negated", bits).c_str());
+      AreEqualHalf(bits, std::nextafter(lower, 1.0e6f), std::format(L"just above {:04x}", bits).c_str());
+      AreEqualHalf(bits, middle, std::format(L"halfway above {:04x}", bits).c_str());
+      AreEqualHalf(bits, std::nextafter(upper, 0.0f), std::format(L"just below the half above {:04x}", bits).c_str());
+      AreEqualHalf(bits | 0x8000u, -std::nextafter(upper, 0.0f), std::format(L"just below the half above {:04x}, negated", bits).c_str());
     }
   }
 
-  TEST_METHOD(OverflowsToInfinityAndKeepsTheSign)
+  // Past the largest half, 65504, a float stays the largest half rather than becoming infinity, whatever its sign.
+  TEST_METHOD(StopsAtTheLargestHalf)
   {
-    AreEqualHalf(0x7BFFu, 65519.0f, L"below the tie past 65504");
-    AreEqualHalf(0x7C00u, 65520.0f, L"the tie past 65504 goes to the even infinity");
-    AreEqualHalf(0x7C00u, 1.0e30f, L"far beyond");
-    AreEqualHalf(0xFC00u, -1.0e30f, L"far below");
+    AreEqualHalf(0x7BFFu, 65519.0f, L"just past 65504");
+    AreEqualHalf(0x7BFFu, 65520.0f, L"where the nearest would be infinity");
+    AreEqualHalf(0x7BFFu, 1.0e30f, L"far beyond");
+    AreEqualHalf(0xFBFFu, -1.0e30f, L"far below");
+    AreEqualHalf(0x7BFFu, std::numeric_limits<float>::max(), L"the largest float");
     AreEqualHalf(0x7C00u, std::numeric_limits<float>::infinity(), L"infinity");
+    AreEqualHalf(0xFC00u, -std::numeric_limits<float>::infinity(), L"negative infinity");
     AreEqualHalf(0x8000u, -0.0f, L"negative zero");
-    AreEqualHalf(0x0000u, 0x1.0p-26f, L"far below the least subnormal");
+    AreEqualHalf(0x0000u, std::nextafter(0x1.0p-24f, 0.0f), L"just below the least subnormal");
     Assert::IsTrue(std::isnan(NeuronCore::HalfToFloat(NeuronCore::FloatToHalf(std::numeric_limits<float>::quiet_NaN()))));
   }
 };
