@@ -1,9 +1,9 @@
 # Outpost.Voxel — Game Concept
 
-**Status:** draft, 2026-09-28, awaiting the owner's acceptance (G-M0); G1 to G11 are the owner's answers of 2026-09-28 and G20 to G26 the proposals of §14 the owner took the same day, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; G1 to G11 are the owner's answers of that day and G20 to G26 the proposals of §14 the owner took, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14); G-M0 is done (§12.2) · **Date:** 2026-09-28
 **Builds on:** [`SpaceScene.md`](SpaceScene.md), the world, the client/server boundary and the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md), parts and hardpoints; [ADR-003](ADR/ADR-003-engine-and-game-layout.md), [ADR-014](ADR/ADR-014-placements.md), [ADR-015](ADR/ADR-015-client-server-boundary.md), [ADR-017](ADR/ADR-017-sector.md) and [ADR-018](ADR/ADR-018-client.md) · **Reference game:** Warzone 2100
 
-This document says what the game is: the player's role, the match, construction, stations, the economy, combat, command and the opponent, and in what order the next phase builds them (§12). It is the parent of the technical designs that follow, one for each of its milestones; each of those says how its part is built, and `AGENTS.md` says how the code is written. It changes no code. Where it departs from `SpaceScene.md` or `NeuronVoxelFormat.md` it says so (§13), and those documents change only once the owner accepts this one.
+This document says what the game is: the player's role, the match, construction, stations, the economy, combat, command and the opponent, and in what order the next phase builds them (§12). It is the parent of the technical designs that follow, one for each of its milestones; each of those says how its part is built, and `AGENTS.md` says how the code is written. It changes no code. Where it departs from `SpaceScene.md` or `NeuronVoxelFormat.md` it says so (§13), and since the owner accepted it, those documents say so too.
 
 ## 1. Summary
 
@@ -271,7 +271,7 @@ Each milestone gets a technical design before its code, as `AGENTS.md` asks, and
 
 | | Delivers | Done when |
 |---|---|---|
-| G-M0 | This concept accepted; the running plans re-planned as §12.1 says | The owner accepts it, with §14's questions answered or deferred |
+| G-M0 | This concept accepted; the running plans re-planned as §12.1 says | Done on 2026-09-28: the owner accepted it, with §14's questions answered and the setting deferred, and `SpaceScene.md`, `NeuronVoxelFormat.md` and `AGENTS.md` record it (§13) |
 | G-M1 | **Designs as data.** N-M1, N-M2 and loading `.nvf`; designs, mounts, fits, materials and the module catalogue in the shared game library; protocol version 2, with designs on the wire; the growing record buffer; the sector's ships rebuilt as fitted designs authored in MagicaVoxel | The sector flies and draws fitted designs; each design crosses the loopback once; the design and protocol tests green |
 | G-M2 | **Command.** The strategic camera, picking and selection, orders, paths on the plane and its bands, separation and formations; the HUD's first panels | The owner commands fleets around the sector |
 | G-M3 | **Combat.** Weapons, shots and damage as events, masks, module failure, the command module's loss, wrecks and repair; the bench revised to a battle (S-M8), and the levers held on damaged placements (S-M9) | Two fleets fight to the end; in the tests, the client's missing voxels are the server's, bit for bit; the battle's performance note is committed |
@@ -283,12 +283,12 @@ G-M6 comes last so that its rules, the size classes, the materials and what make
 
 ## 13. What changes in the other documents
 
-When the owner accepts this concept:
+The owner accepted this concept on 2026-09-28. G-M0 recorded it where it changes a running plan, and the rest follows with the milestones that implement it:
 
-- **`SpaceScene.md`:** its status line and §16 record §12.1's plan (G22). S13 is superseded in part by designs on the wire. §7.1's static buffer and §7.6's rule for damaged placements are amended by the ADRs of G-M1 and G-M3. Question 25 is answered.
-- **`NeuronVoxelFormat.md`:** its milestones as §12.1 says. Mounts and connectors are hardpoint types, and what they mean stays out of the file (N8), so the format does not change (G13).
+- **`SpaceScene.md`:** its status line and §16 record §12.1's plan (G22), and §17 records question 25 as answered. S13 is superseded in part by designs on the wire, and §7.1's static buffer and §7.6's rule for damaged placements are amended, by the ADRs of G-M1 and G-M3.
+- **`NeuronVoxelFormat.md`:** its status line and §10 record §12.1's plan. Mounts and connectors are hardpoint types, and what they mean stays out of the file (N8), so the format does not change (G13).
 - **ADR-015** is amended by protocol version 2 and by snapshots that differ by side (G21). **ADR-003** is amended by the shared game library and the opponent's project, each with an ADR of its own.
-- **`AGENTS.md`:** §2's table gains the new projects, and the paragraph that names the designs names this one. G16 may become a rule beside R18, that the opponent plays through a session and nowhere else, if the owner wants review to hold it to that.
+- **`AGENTS.md`:** the paragraph that names the designs names this one, and §2's table gains the new projects as their ADRs land. G16 may become a rule beside R18, that the opponent plays through a session and nowhere else, if the owner wants review to hold it to that.
 
 ## 14. Risks and open questions
 
