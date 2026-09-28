@@ -24,7 +24,7 @@ Until N-M0 the engine's world was MagicaVoxel's, right-handed with +Z up. NVF pu
 
 ADR-002, ADR-008 and ADR-009 keep their figures in MagicaVoxel's axes. A point (x, y, z) there is (x, z, y) here.
 
-**The spins relabel, as NVF §12.2 foresaw.** A voxel spins about two coordinate axes that a hash picks by index, and indices 0, 1 and 2 are still X, Y and Z. So a spin that was about MagicaVoxel's Y, which is horizontal, is now about the engine's Y, which is vertical. Converting the spins exactly would mean remapping the hash's indices, and that is not done. The spins are random anyway, and every rest orientation is one of the cube's symmetries. The rest state is unchanged, and so are the centres and contacts in flight; only a flying voxel's orientation differs from before the move.
+**The spins relabel, as NVF §12.2 foresaw.** A voxel spins about two coordinate axes that a hash picks by index, and indices 0, 1 and 2 are still X, Y and Z. So a spin that was about MagicaVoxel's Y, which is horizontal, is now about the engine's Y, which is vertical. Converting the spins exactly would mean remapping the hash's indices, and that is not done. The spins are random anyway, and every rest orientation is one of the cube's symmetries. The rest state is unchanged, and so are the centres and contacts in flight; only a flying voxel's orientation differs from before the move. The WARP suite's exploded 8³ block shows it: at rest, at 3 seconds, its image and shadow have the same hit counts as before the move (823 and 4,305), and in flight they differ (834 hits at 1 second before, 828 after).
 
 **The Normal debug view's colours change meaning.** It shows a normal *N* as ½ + ½*N*. Up is now green rather than blue, and blue is the engine's +Z, which is MagicaVoxel's +Y.
 
@@ -47,12 +47,14 @@ A throwaway program generated it from 3c7dc2b's `NeuronCore`, built by GCC 13.3 
 
 | Image | Pixels pinned to a voxel | Differ on an edge, GCC 13.3 `-O2` | Differ on an edge, MSVC Debug |
 |---|---|---|---|
-| Three-quarter | 810 | 0 | not yet measured |
-| Level from the west | 776 | 0 | not yet measured |
-| From above | 725 | 0 | not yet measured |
-| From the sun | 1,630 | 0 | not yet measured |
+| Three-quarter | 810 | 0 | 0 |
+| Level from the west | 776 | 0 | 0 |
+| From above | 725 | 0 | 0 |
+| From the sun | 1,630 | 0 | 0 |
 
-The GCC run finds no pixel that differs at all. The flights agree within 2 × 10⁻³ voxels and 10⁻⁴ seconds, and the shades within 10⁻⁵. The explosion's envelope is unchanged to the last digit: 904.4196 by 926.4196 voxels across, in x and z, and 315.36603 high, with every voxel at rest by 10.461849 seconds. That is expected: `BoundExplosion` works on each axis alone, so the swap only relabels its numbers. The GCC figures come from the CPU suite, built by GCC 13.3 at `-O2` against a stand-in for the test framework. CI's first run after the move measures the MSVC column, and the commit that sets `PIN_EDGE_LIMIT` from it records it here.
+Neither run finds a pixel that differs at all. The flights agree within 2 × 10⁻³ voxels and 10⁻⁴ seconds, and the shades within 10⁻⁵. The explosion's envelope is unchanged to the last digit: 904.4196 by 926.4196 voxels across, in x and z, and 315.36603 high, with every voxel at rest by 10.461849 seconds. That is expected: `BoundExplosion` works on each axis alone, so the swap only relabels its numbers. The GCC figures come from the CPU suite, built by GCC 13.3 at `-O2` against a stand-in for the test framework. The MSVC figures come from CI's first run after the move, MSVC 14.51.36231's Debug build (run 36380855726), where both suites passed, 122 tests of 122.
+
+**The bound.** `PIN_EDGE_LIMIT` is 4 per image. The first run after the move found no difference under either compiler. The bound is not zero for the reason the splat tests give (SampleRenderer §14). A compiler that contracts or rounds differently can move a ray that lands within rounding of an edge to its other side, and the pins were taken by another compiler than the one CI builds with. Four is headroom, as it is in the splat tests.
 
 **The mirror test.** `ViewTests::ImagesAreNotMirrored` looks from (0, 0, −20) along +Z, with +Y up, at 64 × 64. A voxel at (4, 0, 0) must land in the right half and one at (0, 4, 0) in the top half. With the cross products in the old order the first lands in the left half. Four other view tests fail with it too, on their check that right × up = +forward, and so do the pinned images and one lighting test. No test that compares the GPU with its twin can see a mirror, because both sides take the same basis (NVF §12.3).
 

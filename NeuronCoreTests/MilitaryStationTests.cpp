@@ -204,10 +204,15 @@ void ExpectSameHit(const NeuronCore::TraceHit& _expected, const NeuronCore::Trac
 // if any. Two more checks make that rule mean what it says (Design/ADR/ADR-011): the ray must also meet the grown box of
 // the voxel it was pinned to, and where it was pinned to none, miss the shrunk box of the voxel it shows. The tracer
 // found the voxel a pixel shows along the ray, but not its pin, and without them a pin the ray passes nowhere near would
-// count as grazed: a mirrored image would pass as differences on edges. The pixels that differ on an edge are counted
-// against PIN_EDGE_LIMIT, which is not measured yet: the first run after the axis move sets it.
+// count as grazed: a mirrored image would pass as differences on edges.
 constexpr float PIN_EDGE_EPSILON = 1.0f / 256.0f;
-constexpr std::uint32_t PIN_EDGE_LIMIT = 16;
+
+// Pixels allowed to differ on an edge per image, which §12.4 sets from the first run after the axis move. That run
+// found none in any of the four images, in CI's MSVC Debug build and under GCC 13.3 at -O2 alike, on 2026-09-28
+// (Design/ADR/ADR-011). The bound is not zero for the reason the splat tests give: the pins were taken by another
+// compiler, and one that contracts or rounds differently can move a ray that lands within rounding of an edge to its
+// other side. Four is headroom.
+constexpr std::uint32_t PIN_EDGE_LIMIT = 4;
 
 // The pinned flights and lighting agree with NeuronCore to rounding, and to nothing looser. MSVC fuses multiply-adds
 // that GCC, which took the pins, does not (AGENTS.md §3).
