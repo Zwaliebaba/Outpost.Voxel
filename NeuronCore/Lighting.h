@@ -37,8 +37,8 @@ struct ShadowMapImage
 // How far a shaded point moves along its normal before the shadow map is consulted, in texels of the map (§10).
 inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 
-// The direction towards the sun (§10): _elevationRadians above the horizon, at _azimuthRadians from -Y towards +X, the
-// convention Design/ADR/ADR-008 assumes for MagicaVoxel's _angle.
+// The direction towards the sun (§10): _elevationRadians above the horizon, at _azimuthRadians from -Z towards +X. That
+// is MagicaVoxel's -Y towards +X, the convention Design/ADR/ADR-008 assumes for its _angle, in the engine's axes.
 [[nodiscard]] Float3 SunDirection(float _elevationRadians, float _azimuthRadians) noexcept;
 
 // A palette entry's emissive scale (§7.2). MagicaVoxel does not document how _emit and _flux become radiance, so the
@@ -49,7 +49,7 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 // The lighting a scene's settings describe, with the emissive gain the viewer chose.
 [[nodiscard]] LightingParameters MakeLightingParameters(const RenderSettings& _settings, float _emissiveGain) noexcept;
 
-// §11's hemisphere: _uni _i × lerp(ground color, sky color, ½ + ½ N.z).
+// §11's hemisphere: _uni _i × lerp(ground color, sky color, ½ + ½ N.y).
 [[nodiscard]] Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept;
 
 // §11: C = albedo × (E_sun × max(0, N·S) × shadow + ambient(N)) + albedo × emissive, with the emissive scale times the
@@ -67,7 +67,7 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 [[nodiscard]] float ShadowFactor(const ShadowMapImage& _map, const OrthographicView& _view, Float3 _position) noexcept;
 
 // What the lighting pass writes for pixel (x, y) (§11): a voxel is shaded at the depth the view splat wrote, with its
-// normal and its palette entry's albedo and emissive scale; where no voxel was hit, the ground plane z = 0 is, if the
+// normal and its palette entry's albedo and emissive scale; where no voxel was hit, the ground plane y = 0 is, if the
 // ray meets it from above and the scene shows it; anything else is the background. The twin of the lighting compute
 // shader's pixel (R15).
 [[nodiscard]] Float3 LightPixel(const PerspectiveView& _view, std::uint32_t _pixelX, std::uint32_t _pixelY, std::uint32_t _voxel,

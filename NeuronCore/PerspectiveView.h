@@ -9,11 +9,12 @@ namespace NeuronCore
 {
 
 // A pinhole camera as the view splat pass and the reference tracer both see it (Design/SampleRenderer.md §7.5): world
-// space is right-handed with +Z up, the view looks along forward, and depth is reversed-Z with an infinite far plane.
+// space is Direct3D's, left-handed with +Y up, the view looks along forward, and depth is reversed-Z with an infinite far
+// plane.
 struct PerspectiveView
 {
   Float3 position;
-  Float3 right; // orthonormal and right-handed: right x up = -forward
+  Float3 right; // orthonormal and left-handed: right × up = +forward
   Float3 up;
   Float3 forward;
   float tanHalfFovY;
@@ -51,8 +52,8 @@ inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
 [[nodiscard]] Float2 PixelCenterNdc(std::uint32_t _pixelX, std::uint32_t _pixelY, std::uint32_t _widthPixels,
                                     std::uint32_t _heightPixels) noexcept;
 
-// An orthonormal right-handed basis looking along _forward, with _worldUp as up unless the two are parallel, in which
-// case +Y stands in: a sun straight overhead still gets a basis.
+// An orthonormal left-handed basis looking along _forward, with _worldUp as up unless the two are parallel, in which
+// case +Z stands in: a sun straight overhead still gets a basis.
 void MakeViewBasis(Float3 _forward, Float3 _worldUp, Float3& _right, Float3& _up) noexcept;
 
 } // namespace NeuronCore

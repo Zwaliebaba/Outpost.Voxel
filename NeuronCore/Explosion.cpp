@@ -54,23 +54,23 @@ constexpr std::uint32_t HASH_STREAMS = 8;
 {
   const Float3 offset = _restCenter - _parameters.blastOrigin;
   const float distance = Length(offset);
-  const Float3 away = distance > 0.0f ? offset * (1.0f / distance) : Float3{0.0f, 0.0f, 1.0f};
+  const Float3 away = distance > 0.0f ? offset * (1.0f / distance) : Float3{0.0f, 1.0f, 0.0f};
 
   // A unit vector uniform on the sphere: its height uniform in [-1, 1), its heading uniform.
   const float jitterHeight = 2.0f * HashUnit(_voxel, JitterHeight) - 1.0f;
   const float jitterAngle = TWO_PI * HashUnit(_voxel, JitterAngle);
   const float jitterRing = std::sqrt(std::max(1.0f - jitterHeight * jitterHeight, 0.0f));
-  const Float3 jitter{jitterRing * std::cos(jitterAngle), jitterRing * std::sin(jitterAngle), jitterHeight};
+  const Float3 jitter{jitterRing * std::cos(jitterAngle), jitterHeight, jitterRing * std::sin(jitterAngle)};
 
-  const Float3 sum = away + Float3{0.0f, 0.0f, _parameters.upwardBias} + jitter * _parameters.directionJitter;
+  const Float3 sum = away + Float3{0.0f, _parameters.upwardBias, 0.0f} + jitter * _parameters.directionJitter;
   const float sumLength = Length(sum);
-  const Float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0f / sumLength) : Float3{0.0f, 0.0f, 1.0f};
+  const Float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0f / sumLength) : Float3{0.0f, 1.0f, 0.0f};
   const float variation = 1.0f + _parameters.speedJitter * (2.0f * HashUnit(_voxel, SpeedVariation) - 1.0f);
   const float speed = _parameters.launchSpeed / (1.0f + distance / _parameters.falloffDistance) * variation;
 
   Float3 velocity = direction * speed;
-  const float liftHeight = VOXEL_BOUNDING_RADIUS + EXPLOSION_LIFT_CLEARANCE - _restCenter.z;
-  velocity.z = std::max(velocity.z, std::sqrt(std::max(2.0f * _parameters.gravity * liftHeight, 0.0f)));
+  const float liftHeight = VOXEL_BOUNDING_RADIUS + EXPLOSION_LIFT_CLEARANCE - _restCenter.y;
+  velocity.y = std::max(velocity.y, std::sqrt(std::max(2.0f * _parameters.gravity * liftHeight, 0.0f)));
   return velocity;
 }
 
@@ -92,12 +92,13 @@ struct Trajectory
 
   // A voxel that starts at or above the bounding radius turns from the start; a lifted one once it has risen that far,
   // which is the earlier root of the same quadratic.
-  const float rise = launch.z * launch.z + 2.0f * gravity * (_restCenter.z - VOXEL_BOUNDING_RADIUS);
-  const float spinStart = std::max((launch.z - std::sqrt(std::max(rise, 0.0f))) / gravity, 0.0f);
+  const float rise = launch.y * launch.y + 2.0f * gravity * (_restCenter.y - VOXEL_BOUNDING_RADIUS);
+  const float spinStart = std::max((launch.y - std::sqrt(std::max(rise, 0.0f))) / gravity, 0.0f);
 
+  // Up is +Y, and the ground is the plane y = 0 (§7.5).
   float x = _restCenter.x;
-  float y = _restCenter.y;
-  float height = _restCenter.z;
+  float height = _restCenter.y;
+  float z = _restCenter.z;
   float velocityX = launch.x;
   float velocityY = launch.y;
   float velocityZ = launch.z;
@@ -109,32 +110,32 @@ struct Trajectory
   for (std::uint32_t flight = 0; flight <= EXPLOSION_BOUNCES; ++flight)
   {
     const float contactHeight = flight < EXPLOSION_BOUNCES ? VOXEL_BOUNDING_RADIUS : VOXEL_REST_HEIGHT;
-    const float duration = FlightTime(height, velocityZ, contactHeight, gravity);
+    const float duration = FlightTime(height, velocityY, contactHeight, gravity);
     if (flight == EXPLOSION_BOUNCES)
     {
-      spinEnd = flightStart + FlightTime(height, velocityZ, VOXEL_BOUNDING_RADIUS, gravity);
+      spinEnd = flightStart + FlightTime(height, velocityY, VOXEL_BOUNDING_RADIUS, gravity);
     }
     if (!placed && _timeSeconds < flightStart + duration)
     {
       const float elapsed = std::max(_timeSeconds - flightStart, 0.0f);
-      center = {x + velocityX * elapsed, y + velocityY * elapsed, height + velocityZ * elapsed - 0.5f * gravity * elapsed * elapsed};
+      center = {x + velocityX * elapsed, height + velocityY * elapsed - 0.5f * gravity * elapsed * elapsed, z + velocityZ * elapsed};
       placed = true;
     }
 
     // At the contact, the vertical velocity reflects with restitution and the horizontal one is damped.
     x += velocityX * duration;
-    y += velocityY * duration;
+    z += velocityZ * duration;
     height = contactHeight;
-    const float impactSpeed = gravity * duration - velocityZ;
-    velocityZ = _parameters.restitution * impactSpeed;
+    const float impactSpeed = gravity * duration - velocityY;
+    velocityY = _parameters.restitution * impactSpeed;
     velocityX *= _parameters.horizontalDamping;
-    velocityY *= _parameters.horizontalDamping;
+    velocityZ *= _parameters.horizontalDamping;
     flightStart += duration;
     contacts[flight] = flightStart;
   }
   if (!placed)
   {
-    center = {x, y, VOXEL_REST_HEIGHT};
+    center = {x, VOXEL_REST_HEIGHT, z};
   }
   return {center, contacts, spinStart, spinEnd};
 }
@@ -263,8 +264,8 @@ ExplosionEnvelope BoundExplosion(const ExplosionParameters& _parameters, Float3 
 
   // The intact voxels' centers lie half a voxel inside their box. The fastest launch is at the origin, with the most
   // variation, and the fastest lift is the lowest voxel's.
-  const float lowest = _lower.z + 0.5f;
-  const float highest = _upper.z - 0.5f;
+  const float lowest = _lower.y + 0.5f;
+  const float highest = _upper.y - 0.5f;
   const float speed = _parameters.launchSpeed * (1.0f + _parameters.speedJitter);
   const float lift = std::sqrt(std::max(2.0f * gravity * (VOXEL_BOUNDING_RADIUS + EXPLOSION_LIFT_CLEARANCE - lowest), 0.0f));
   const float rise = std::max(speed, lift);
@@ -295,8 +296,8 @@ ExplosionEnvelope BoundExplosion(const ExplosionParameters& _parameters, Float3 
 
   // A box's corners stay within the bounding radius of its center, and no corner goes below the ground.
   const float margin = reach + VOXEL_BOUNDING_RADIUS - 0.5f;
-  return {{_lower.x - margin, _lower.y - margin, std::min(_lower.z, 0.0f)},
-          {_upper.x + margin, _upper.y + margin, std::max(_upper.z, apex + VOXEL_BOUNDING_RADIUS)},
+  return {{_lower.x - margin, std::min(_lower.y, 0.0f), _lower.z - margin},
+          {_upper.x + margin, std::max(_upper.y, apex + VOXEL_BOUNDING_RADIUS), _upper.z + margin},
           restTime};
 }
 

@@ -9,7 +9,8 @@ namespace GameLib
 {
 
 // The camera of Design/SampleRenderer.md §13. It orbits a target, pans across the view and dollies towards the target,
-// or, in fly mode, moves freely and looks about. Angles are about the world's +Z, which is up.
+// or, in fly mode, moves freely and looks about. Angles are about the world's +Y, which is up; a heading of 0 looks
+// along +X and one of a quarter turn along +Z.
 class OrbitCamera
 {
 public:
@@ -47,7 +48,7 @@ public:
     return m_distance;
   }
 
-  // The view direction's heading about +Z, which --bench turns the camera by (§13).
+  // The view direction's heading about +Y, which --bench turns the camera by (§13).
   [[nodiscard]] float YawRadians() const noexcept
   {
     return m_yawRadians;

@@ -86,7 +86,7 @@ constexpr std::uint32_t BOX_COUNT = 400;
 {
   const Float3 position = _random.InBox({-30.0f, -30.0f, -30.0f}, {30.0f, 30.0f, 30.0f});
   const Float3 target = position + _random.Direction();
-  return NeuronCore::MakePerspectiveView(position, target, {0.0f, 0.0f, 1.0f}, _random.Uniform(0.5f, 1.6f), NEAR_PLANE, WIDTH_PIXELS,
+  return NeuronCore::MakePerspectiveView(position, target, {0.0f, 1.0f, 0.0f}, _random.Uniform(0.5f, 1.6f), NEAR_PLANE, WIDTH_PIXELS,
                                          HEIGHT_PIXELS);
 }
 
@@ -171,7 +171,7 @@ template <bool Oriented> void OrthographicSplatsCoverEveryHit(std::uint32_t _see
     const float halfHeight = halfWidth * static_cast<float>(HEIGHT_PIXELS) / static_cast<float>(WIDTH_PIXELS);
     const OrthographicView view =
       NeuronCore::MakeOrthographicView(random.InBox({-30.0f, -30.0f, -30.0f}, {30.0f, 30.0f, 30.0f}), random.Direction(),
-                                       {0.0f, 0.0f, 1.0f}, halfWidth, halfHeight, 100.0f, WIDTH_PIXELS, HEIGHT_PIXELS);
+                                       {0.0f, 1.0f, 0.0f}, halfWidth, halfHeight, 100.0f, WIDTH_PIXELS, HEIGHT_PIXELS);
     const float depth = random.Uniform(-3.0f, 100.0f);
     const Float3 center = view.origin + view.forward * depth + view.right * random.Uniform(-1.3f * halfWidth, 1.3f * halfWidth) +
                           view.up * random.Uniform(-1.3f * halfHeight, 1.3f * halfHeight);
@@ -333,9 +333,9 @@ public:
   TEST_METHOD(ChoosesTheQuadricOnlyForSmallSpheres)
   {
     // The default view of §3: a voxel 520 units out in a 1,080-line image is a few pixels across.
-    const PerspectiveView view = NeuronCore::MakePerspectiveView({0.5f, -520.0f, 127.5f}, {0.5f, 0.5f, 127.5f}, {0.0f, 0.0f, 1.0f},
+    const PerspectiveView view = NeuronCore::MakePerspectiveView({0.5f, 127.5f, -520.0f}, {0.5f, 127.5f, 0.5f}, {0.0f, 1.0f, 0.0f},
                                                                  0.785398163f, NEAR_PLANE, WIDTH_PIXELS, HEIGHT_PIXELS);
-    const Box distant = NeuronCore::MakeAxisAlignedBox({3.5f, 0.5f, 130.5f}, {0.5f, 0.5f, 0.5f});
+    const Box distant = NeuronCore::MakeAxisAlignedBox({3.5f, 130.5f, 0.5f}, {0.5f, 0.5f, 0.5f});
     Float2 minNdc{};
     Float2 maxNdc{};
     Assert::IsTrue(NeuronCore::QuadricBounds(distant.center, NeuronCore::Length(distant.radius), view, minNdc, maxNdc));
@@ -345,7 +345,7 @@ public:
                      L"distant depth: its sphere's nearest point");
 
     // Three units out, the sphere spans more than 20 pixels.
-    const Box closeBy = NeuronCore::MakeAxisAlignedBox({0.5f, -517.0f, 127.5f}, {0.5f, 0.5f, 0.5f});
+    const Box closeBy = NeuronCore::MakeAxisAlignedBox({0.5f, 127.5f, -517.0f}, {0.5f, 0.5f, 0.5f});
     float nearest = 0.0f;
     Assert::IsTrue(NeuronCore::PreciseBounds(closeBy, view, minNdc, maxNdc, nearest));
     const SplatBounds closeBounds = NeuronCore::PerspectiveSplatBounds(closeBy, view);
@@ -355,12 +355,12 @@ public:
 
   TEST_METHOD(CullsWhatCannotBeSeen)
   {
-    const PerspectiveView view = NeuronCore::MakePerspectiveView({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, 1.0f,
+    const PerspectiveView view = NeuronCore::MakePerspectiveView({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, 1.0f,
                                                                  NEAR_PLANE, WIDTH_PIXELS, HEIGHT_PIXELS);
     const Float3 unit{0.5f, 0.5f, 0.5f};
-    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, -5.0f, 0.0f}, unit), view).visible, L"behind");
-    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({40.0f, 5.0f, 0.0f}, unit), view).visible, L"right");
-    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 5.0f, -40.0f}, unit), view).visible, L"below");
+    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, -5.0f}, unit), view).visible, L"behind");
+    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({40.0f, 0.0f, 5.0f}, unit), view).visible, L"right");
+    Assert::IsFalse(NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, -40.0f, 5.0f}, unit), view).visible, L"below");
 
     // A box around the camera covers the screen at the near plane: reversed-Z depth 1.
     const SplatBounds around = NeuronCore::PerspectiveSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, 0.0f}, unit), view);
@@ -368,16 +368,16 @@ public:
     Assert::AreEqual(1.0f, around.depth, L"around: at the near plane");
     Assert::IsTrue(around.minNdc.x < -1.0f && around.minNdc.y < -1.0f && around.maxNdc.x > 1.0f && around.maxNdc.y > 1.0f, L"full screen");
 
-    const OrthographicView sun = NeuronCore::MakeOrthographicView({0.0f, 0.0f, 50.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 10.0f,
+    const OrthographicView sun = NeuronCore::MakeOrthographicView({0.0f, 50.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 10.0f,
                                                                   10.0f, 60.0f, WIDTH_PIXELS, HEIGHT_PIXELS);
-    Assert::IsFalse(NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, 52.0f}, unit), sun).visible, L"above");
-    Assert::IsFalse(NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, -12.0f}, unit), sun).visible,
+    Assert::IsFalse(NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 52.0f, 0.0f}, unit), sun).visible, L"above");
+    Assert::IsFalse(NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, -12.0f, 0.0f}, unit), sun).visible,
                     L"beyond");
     Assert::IsFalse(NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({12.0f, 0.0f, 0.0f}, unit), sun).visible, L"aside");
-    const SplatBounds straddling = NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, 50.0f}, unit), sun);
+    const SplatBounds straddling = NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 50.0f, 0.0f}, unit), sun);
     Assert::IsTrue(straddling.visible, L"straddling");
     Assert::AreEqual(0.0f, straddling.depth, L"straddling: at the near plane");
-    const SplatBounds inside = NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 0.0f, 20.0f}, unit), sun);
+    const SplatBounds inside = NeuronCore::OrthographicSplatBounds(NeuronCore::MakeAxisAlignedBox({0.0f, 20.0f, 0.0f}, unit), sun);
     Assert::AreEqual(29.5f / 60.0f, inside.depth, 1.0e-7f, L"a box's top face");
   }
 };

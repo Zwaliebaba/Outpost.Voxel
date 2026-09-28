@@ -25,6 +25,14 @@ constexpr std::int32_t MAX_MODEL_EXTENT = 256;
 constexpr std::int32_t MAX_SCENE_DEPTH = 64;
 constexpr std::string_view IDENTITY_ROTATION = "4"; // _r for the identity: row 0 picks x, row 1 picks y, nothing negated
 
+// MagicaVoxel's axes are right-handed with +Z up; the engine's are Direct3D's, left-handed with +Y up and +Z forward
+// (Design/NeuronVoxelFormat.md §4.1). Swapping y and z converts either way. This reader is the one place the engine
+// does it, before anything else sees a coordinate: every size, voxel and translation is swapped as it is read.
+[[nodiscard]] constexpr Int3 FromMagicaVoxelAxes(Int3 _vector) noexcept
+{
+  return {_vector.x, _vector.z, _vector.y};
+}
+
 using ParseResult = std::expected<void, VoxError>;
 
 // Reads little-endian values from a span. The first read past the end sets Failed(), and every later read returns
@@ -208,7 +216,7 @@ struct SceneParts
   return value;
 }
 
-// A translation as _t stores it: "x y z".
+// A translation as _t stores it, "x y z" in MagicaVoxel's axes, in the engine's.
 [[nodiscard]] std::optional<Int3> ParseTranslation(std::string_view _text) noexcept
 {
   std::array<std::int32_t, 3> values{};
@@ -235,7 +243,7 @@ struct SceneParts
   {
     return std::nullopt;
   }
-  return Int3{values[0], values[1], values[2]};
+  return FromMagicaVoxelAxes({values[0], values[1], values[2]});
 }
 
 // _a + _b, when every component stays within MAX_TRANSLATION. Both are within int32, so the sum cannot overflow int64.
@@ -261,7 +269,7 @@ struct SceneParts
   {
     return std::unexpected(VoxError::ModelTooLarge);
   }
-  _parts.pendingSize = size;
+  _parts.pendingSize = FromMagicaVoxelAxes(size);
   return {};
 }
 
@@ -283,9 +291,10 @@ struct SceneParts
   model.voxels.reserve(count);
   for (std::size_t i = 0; i < count; ++i)
   {
+    // XYZI stores x, y and z in MagicaVoxel's axes; the engine's y is the file's z (FromMagicaVoxelAxes).
     const std::uint8_t x = bytes[4 * i];
-    const std::uint8_t y = bytes[4 * i + 1];
-    const std::uint8_t z = bytes[4 * i + 2];
+    const std::uint8_t y = bytes[4 * i + 2];
+    const std::uint8_t z = bytes[4 * i + 1];
     const std::uint32_t color = bytes[4 * i + 3];
     if (x >= model.size.x || y >= model.size.y || z >= model.size.z)
     {

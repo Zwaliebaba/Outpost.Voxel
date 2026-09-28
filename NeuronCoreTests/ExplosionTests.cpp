@@ -29,10 +29,10 @@ constexpr float GROUND_TOLERANCE = 1.0e-5f;
 // Samples along each followed voxel's flights.
 constexpr std::uint32_t FLIGHT_SAMPLES = 160;
 
-// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Z.
+// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Y.
 [[nodiscard]] float LowestPoint(const NeuronCore::VoxelPose& _pose) noexcept
 {
-  return _pose.center.z - 0.5f * (std::abs(_pose.axisX.z) + std::abs(_pose.axisY.z) + std::abs(_pose.axisZ.z));
+  return _pose.center.y - 0.5f * (std::abs(_pose.axisX.y) + std::abs(_pose.axisY.y) + std::abs(_pose.axisZ.y));
 }
 
 [[nodiscard]] bool IsIdentity(const NeuronCore::VoxelPose& _pose) noexcept
@@ -95,7 +95,7 @@ public:
   TEST_METHOD(GroundLayerRisesBeforeItTurns)
   {
     const Float3 restCenter{0.5f, 0.5f, 0.5f};
-    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.5f, 0.5f, 10.5f});
+    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.5f, 10.5f, 0.5f});
     parameters.maxQuarterTurns = 8;
     for (std::uint32_t voxel = 0; voxel < 64; ++voxel)
     {
@@ -109,7 +109,7 @@ public:
         Assert::IsTrue(LowestPoint(pose) >= -GROUND_TOLERANCE, std::format(L"voxel {} at {} s", voxel, time).c_str());
         if (!turned && IsIdentity(pose))
         {
-          highestUnturned = pose.center.z;
+          highestUnturned = pose.center.y;
         }
         turned = turned || !IsIdentity(pose);
       }
@@ -122,18 +122,18 @@ public:
   // §12: the spin is done by the time the voxel falls through the bounding radius for the last time, so it lands square.
   TEST_METHOD(LandsAlreadySquare)
   {
-    const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 20.0f});
+    const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 20.0f, 0.0f});
     for (std::uint32_t voxel = 0; voxel < 256; ++voxel)
     {
       const std::uint32_t column = voxel % 16u;
       const std::uint32_t row = voxel / 16u;
-      const Float3 restCenter{static_cast<float>(column) - 7.5f, static_cast<float>(row) - 7.5f, 0.5f + static_cast<float>(voxel % 5u)};
+      const Float3 restCenter{static_cast<float>(column) - 7.5f, 0.5f + static_cast<float>(voxel % 5u), static_cast<float>(row) - 7.5f};
       const float rest = NeuronCore::ExplosionRestTime(voxel, restCenter, parameters);
       for (std::uint32_t step = 0; step <= 16; ++step)
       {
         const float time = rest * (1.0f - 0.0005f * static_cast<float>(step));
         const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, parameters, time);
-        if (pose.center.z < NeuronCore::VOXEL_BOUNDING_RADIUS)
+        if (pose.center.y < NeuronCore::VOXEL_BOUNDING_RADIUS)
         {
           Assert::IsTrue(IsCubeRotation(pose), std::format(L"voxel {} below the bounding radius at {} s", voxel, time).c_str());
         }
@@ -143,11 +143,11 @@ public:
 
   TEST_METHOD(NoQuarterTurnsMeansNoRotation)
   {
-    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 5.0f});
+    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 5.0f, 0.0f});
     parameters.maxQuarterTurns = 0;
     for (std::uint32_t voxel = 0; voxel < 32; ++voxel)
     {
-      const Float3 restCenter{static_cast<float>(voxel) - 15.5f, 0.5f, 3.5f};
+      const Float3 restCenter{static_cast<float>(voxel) - 15.5f, 3.5f, 0.5f};
       const float rest = NeuronCore::ExplosionRestTime(voxel, restCenter, parameters);
       for (const float fraction : {0.1f, 0.5f, 0.9f, 1.0f, 2.0f})
       {
@@ -170,8 +170,8 @@ public:
       for (std::uint32_t voxel = 0; voxel < 48; ++voxel)
       {
         // Integer cells, a quarter of them on the ground.
-        const float z = voxel % 4u == 0u ? 0.0f : std::floor(random.Uniform(0.0f, 40.0f));
-        const Float3 center{std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f, std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f, z + 0.5f};
+        const float y = voxel % 4u == 0u ? 0.0f : std::floor(random.Uniform(0.0f, 40.0f));
+        const Float3 center{std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f, y + 0.5f, std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f};
         centers.push_back(center);
         lower = {std::min(lower.x, center.x - 0.5f), std::min(lower.y, center.y - 0.5f), std::min(lower.z, center.z - 0.5f)};
         upper = {std::max(upper.x, center.x + 0.5f), std::max(upper.y, center.y + 0.5f), std::max(upper.z, center.z + 0.5f)};
@@ -201,10 +201,10 @@ public:
           const float radius = NeuronCore::VOXEL_BOUNDING_RADIUS;
           Assert::IsTrue(pose.center.x - radius >= envelope.lower.x - slack && pose.center.x + radius <= envelope.upper.x + slack,
                          where.c_str());
-          Assert::IsTrue(pose.center.y - radius >= envelope.lower.y - slack && pose.center.y + radius <= envelope.upper.y + slack,
+          Assert::IsTrue(pose.center.z - radius >= envelope.lower.z - slack && pose.center.z + radius <= envelope.upper.z + slack,
                          where.c_str());
-          Assert::IsTrue(pose.center.z + radius <= envelope.upper.z + slack, where.c_str());
-          Assert::IsTrue(LowestPoint(pose) >= std::min(envelope.lower.z, 0.0f) - GROUND_TOLERANCE, where.c_str());
+          Assert::IsTrue(pose.center.y + radius <= envelope.upper.y + slack, where.c_str());
+          Assert::IsTrue(LowestPoint(pose) >= std::min(envelope.lower.y, 0.0f) - GROUND_TOLERANCE, where.c_str());
         }
         ++followed;
       }

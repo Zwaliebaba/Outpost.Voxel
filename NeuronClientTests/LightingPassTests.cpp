@@ -92,9 +92,9 @@ public:
 
         // The application's default view, lit as the station's file asks, with the emissive gain above one so that
         // the gain shows.
-        const Float3 center{0.5f, 0.5f, 127.5f};
+        const Float3 center{0.5f, 127.5f, 0.5f};
         const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(
-          center + Float3{-318.43f, -318.43f, 260.0f}, center, {0.0f, 0.0f, 1.0f}, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
+          center + Float3{-318.43f, 260.0f, -318.43f}, center, {0.0f, 1.0f, 0.0f}, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
         const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(model.renderObjects);
         const NeuronCore::LightingParameters parameters = NeuronCore::MakeLightingParameters(settings, 1.5f);
         const NeuronCore::OrthographicView shadowView = TestShadowView(model, parameters.toSun, 256.0f, SHADOW_MAP_PIXELS);

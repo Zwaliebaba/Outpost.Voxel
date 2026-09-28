@@ -55,7 +55,7 @@ OrthographicView MakeShadowView(Float3 _toSun, Float3 _center, float _halfExtent
   }
   nearest -= SHADOW_DEPTH_MARGIN;
   farthest += SHADOW_DEPTH_MARGIN;
-  return MakeOrthographicView(_center + forward * nearest, forward, {0.0f, 0.0f, 1.0f}, _halfExtent, _halfExtent, farthest - nearest,
+  return MakeOrthographicView(_center + forward * nearest, forward, {0.0f, 1.0f, 0.0f}, _halfExtent, _halfExtent, farthest - nearest,
                               _sizePixels, _sizePixels);
 }
 

@@ -67,9 +67,9 @@ public:
                                                     NeuronClient::SplatPass::Variant::Overdraw);
         const NeuronClient::SplatPass shadowSplat(_device, NeuronClient::SplatPass::Kind::Shadow);
         const NeuronClient::DebugViewPass debugView(_device, COLOR_FORMAT);
-        const Float3 center{0.5f, 0.5f, 127.5f};
+        const Float3 center{0.5f, 127.5f, 0.5f};
         const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(
-          center + Float3{-318.43f, -318.43f, 260.0f}, center, {0.0f, 0.0f, 1.0f}, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
+          center + Float3{-318.43f, 260.0f, -318.43f}, center, {0.0f, 1.0f, 0.0f}, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
         const NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
         const NeuronCore::OrthographicView shadowView = TestShadowView(
           model, NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians), 256.0f, SHADOW_MAP_PIXELS);

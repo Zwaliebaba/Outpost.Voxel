@@ -9,13 +9,15 @@ namespace NeuronCore
 
 void MakeViewBasis(Float3 _forward, Float3 _worldUp, Float3& _right, Float3& _up) noexcept
 {
-  Float3 side = Cross(_forward, _worldUp);
+  // Left-handed: right × up is +forward. The cross products run in this order for that; the other order would mirror
+  // every image, and no test that compares the GPU with its twin could see it (Design/NeuronVoxelFormat.md §12.3).
+  Float3 side = Cross(_worldUp, _forward);
   if (Dot(side, side) < 1.0e-12f)
   {
-    side = Cross(_forward, {0.0f, 1.0f, 0.0f});
+    side = Cross({0.0f, 0.0f, 1.0f}, _forward);
   }
   _right = Normalize(side);
-  _up = Cross(_right, _forward);
+  _up = Cross(_forward, _right);
 }
 
 PerspectiveView MakePerspectiveView(Float3 _position, Float3 _target, Float3 _worldUp, float _fovYRadians, float _nearPlane,

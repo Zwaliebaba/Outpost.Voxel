@@ -50,7 +50,7 @@ constexpr float SHADOW_TAP_COUNT = 9.0f;
 Float3 SunDirection(float _elevationRadians, float _azimuthRadians) noexcept
 {
   const float horizontal = std::cos(_elevationRadians);
-  return {std::sin(_azimuthRadians) * horizontal, -std::cos(_azimuthRadians) * horizontal, std::sin(_elevationRadians)};
+  return {std::sin(_azimuthRadians) * horizontal, std::sin(_elevationRadians), -std::cos(_azimuthRadians) * horizontal};
 }
 
 float EmissiveScale(const PaletteEntry& _entry) noexcept
@@ -72,7 +72,7 @@ LightingParameters MakeLightingParameters(const RenderSettings& _settings, float
 
 Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept
 {
-  const float up = 0.5f + 0.5f * _normal.z;
+  const float up = 0.5f + 0.5f * _normal.y;
   return (_lighting.groundAlbedo + (_lighting.skyColor - _lighting.groundAlbedo) * up) * _lighting.skyIntensity;
 }
 
@@ -118,10 +118,10 @@ Float3 LightPixel(const PerspectiveView& _view, std::uint32_t _pixelX, std::uint
     const float shadow = ShadowFactor(_shadowMap, _shadowView, position + _normal * normalOffset);
     return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
   }
-  if (_lighting.groundVisible && ray.origin.z > 0.0f && ray.direction.z < 0.0f)
+  if (_lighting.groundVisible && ray.origin.y > 0.0f && ray.direction.y < 0.0f)
   {
-    const Float3 up{0.0f, 0.0f, 1.0f};
-    const Float3 position = ray.origin + ray.direction * (-ray.origin.z / ray.direction.z);
+    const Float3 up{0.0f, 1.0f, 0.0f};
+    const Float3 position = ray.origin + ray.direction * (-ray.origin.y / ray.direction.y);
     const float shadow = ShadowFactor(_shadowMap, _shadowView, position + up * normalOffset);
     return ShadeSurface(_lighting.groundAlbedo, 0.0f, up, shadow, _lighting);
   }

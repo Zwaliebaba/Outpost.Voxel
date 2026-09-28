@@ -46,9 +46,9 @@ Measured on 2026-09-27; the method is at the end of this section.
 | Property | Value |
 |---|---|
 | File | 925,571 bytes, VOX version 200 |
-| Models | One, `SIZE` 207 × 228 × 255 (x, y, z; z is up) |
-| Voxels | 225,048, no two at the same position; occupied range x 1–205, y 1–227, z 0–254 |
-| Scene graph | `nTRN` → `nGRP` → `nTRN` (`_t` = `0 0 127`, no `_r`, layer 0) → `nSHP` (model 0) |
+| Models | One, `SIZE` 207 × 228 × 255 in MagicaVoxel's axes (x, y, z; z is up), which is 207 × 255 × 228 in the engine's (y is up, §7.5) |
+| Voxels | 225,048, no two at the same position; occupied range x 1–205, y 1–227, z 0–254 in the file, which is x 1–205, y 0–254, z 1–227 in the engine |
+| Scene graph | `nTRN` → `nGRP` → `nTRN` (`_t` = `0 0 127`, (0, 127, 0) in the engine, no `_r`, layer 0) → `nSHP` (model 0) |
 | Palette | Entries 1–16 are the standard CGA/EGA 16-colour palette in its usual order; entries 17–256 are black and unused |
 | Entries in use | 7 of 16 — 2: 59,013 · 8: 68,956 · 9: 84,490 · 10: 8,025 · 13: 6 · 15: 773 · 16: 3,785 |
 | Materials | Entries 10, 15 and 16 are `_emit` (`_emit` 0.6, `_flux` 2): 12,583 emissive voxels, 5.6 %. The other 253 carry no `_type`, which is MagicaVoxel's diffuse default. |
@@ -69,9 +69,9 @@ The splat workload is 225,048 rectangles — 450,096 triangles and about 900,000
 
 Sixteen colours fit in four bits (D5), and emissiveness belongs to a palette entry, not to a voxel.
 
-Placement: voxel *v* of a model of size *s* placed at translation *T* is taken to occupy the unit cube whose minimum corner is *T* + *v* − ⌊*s*/2⌋. For this file that puts the lowest layer exactly on z = 0, the height of MagicaVoxel's ground plane (enabled in `_setting`). That is corroboration, not proof, and with no MagicaVoxel comparison planned (D12) it stays a stated default.
+Placement: voxel *v* of a model of size *s* placed at translation *T* is taken to occupy the unit cube whose minimum corner is *T* + *v* − ⌊*s*/2⌋, with all three in the engine's axes (§7.5). For this file that puts the lowest layer exactly on y = 0, the height of MagicaVoxel's ground plane, its z = 0 (enabled in `_setting`). That is corroboration, not proof, and with no MagicaVoxel comparison planned (D12) it stays a stated default.
 
-The file stores no usable camera. The default view frames the occupied box's bounding sphere — radius ≈ 199 units about (0.5, 0.5, 127.5) — in the file's 45° vertical field of view. That puts the camera about 520 units out, where a voxel spans about 2.5 pixels of a 1,080-line image.
+The file stores no usable camera. The default view frames the occupied box's bounding sphere — radius ≈ 199 units about (0.5, 127.5, 0.5) — in the file's 45° vertical field of view. That puts the camera about 520 units out, where a voxel spans about 2.5 pixels of a 1,080-line image.
 
 *Method.* A throwaway Python script walked the chunk tree, built the dense 207 × 228 × 255 occupancy grid and tested six-neighbourhoods. It flood-filled air from outside the model's box with 6-connectivity to separate exterior air from sealed air, and greedy-meshed each slice per axis direction and palette entry. The loader tests of M1 re-derive the counts, size, translation, palette and emissive entries in C++ and pin them (§14). The geometry table is context and is not pinned.
 
@@ -175,11 +175,11 @@ voxel records, 225,048 × u32 · palette, 16 entries · frame constants (cameras
 
 ### 7.1 Voxel records and the loader
 
-A voxel is one 32-bit record. Bits 0–23 hold x, y and z (8 bits each, model coordinates 0–255), bits 24–27 hold the palette entry minus one, and bits 28–31 are zero. The buffer is a `StructuredBuffer<uint>` of 900,192 bytes. `NeuronCore` owns the pack and unpack functions, and a `.hlsli` mirrors them. Widening a field is a format change (R14).
+A voxel is one 32-bit record. Bits 0–23 hold x, y and z (8 bits each, model coordinates 0–255, in the engine's axes), bits 24–27 hold the palette entry minus one, and bits 28–31 are zero. The buffer is a `StructuredBuffer<uint>` of 900,192 bytes. `NeuronCore` owns the pack and unpack functions, and a `.hlsli` mirrors them. Widening a field is a format change (R14).
 
 A model's placement travels in constants, not per voxel: with `modelOrigin` = *T* − ⌊*s*/2⌋, a voxel's centre is `modelOrigin` + (x, y, z) + 0.5.
 
-The loader accepts VOX versions 150 and 200, skips chunks it does not know (this file's `META`), follows `nTRN`/`nGRP`/`nSHP`, skips hidden nodes and applies translations. Anything this design has no tested answer for is rejected with a named error, returned as `std::expected<VoxModel, VoxError>`:
+The loader accepts VOX versions 150 and 200, skips chunks it does not know (this file's `META`), follows `nTRN`/`nGRP`/`nSHP`, skips hidden nodes and applies translations. It swaps MagicaVoxel's y and z in every size, voxel and translation as it reads them, before any origin is computed, and keeps the records in the file's order (§7.5). Anything this design has no tested answer for is rejected with a named error, returned as `std::expected<VoxModel, VoxError>`:
 
 - a rotation (`_r`) — this file has none, and MagicaVoxel's rotation and pivot rules for even sizes cannot be checked against it;
 - a colour index above 16 (D5);
@@ -203,14 +203,14 @@ The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s
 
 | Space | Convention |
 |---|---|
-| World | MagicaVoxel's: right-handed, +Z up, one unit per voxel edge, ground plane z = 0 |
-| Model → world | Minimum corner *T* + *v* − ⌊*s*/2⌋ (§3); no rotations (§7.1) |
-| View | Right-handed, looking down −Z, +Y up |
+| World | Direct3D's: left-handed, +X right, +Y up, +Z forward, one unit per voxel edge, ground plane y = 0 (ADR-011) |
+| Model → world | MagicaVoxel's axes are right-handed with +Z up, so the reader swaps y and z (§7.1); then the minimum corner is *T* + *v* − ⌊*s*/2⌋ (§3); no rotations (§7.1) |
+| View | Left-handed, looking down +Z, +Y up: right × up = forward |
 | View projection | Reversed-Z with an infinite far plane: depth = *n* / view depth, cleared to 0, test `GREATER`, *n* = 0.1 |
 | Shadow projection | Orthographic, standard Z: cleared to 1, test `LESS` |
 | Screen | Direct3D: origin top left, +y down; one ray per pixel centre |
 
-Depth conventions are the classic place for a sign error, so the code names each one once — a helper per view that says which way "nearer" points — and nothing compares raw depths outside those helpers.
+Depth conventions are the classic place for a sign error, so the code names each one once — a helper per view that says which way "nearer" points — and nothing compares raw depths outside those helpers. Handedness is the classic place for a mirror. It enters the code in one place, the view basis, and a test pins it (§14).
 
 ## 8. The frame
 
@@ -340,7 +340,7 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
 
 ## 10. Shadow pass
 
-The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter (ADR-008). The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
+The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter (ADR-008). The azimuth runs from MagicaVoxel's −Y towards +X, which is the engine's −Z towards +X (ADR-011). The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
 
 The splat shaders run in their orthographic permutation. The rays share one direction and start on the light's near plane; depth is *t* / range, written as `SV_DepthGreaterEqual` = max(*t* / range, `SV_Position.z`); the depth test is `LESS`; and the pipeline has no render target.
 
@@ -348,11 +348,11 @@ When the lighting pass samples the map, it offsets the shaded position by 1.5 te
 
 ## 11. Lighting and tone mapping
 
-For each pixel, the lighting pass first checks the visibility buffer. Where no voxel was hit, it intersects the camera ray with z = 0. A hit is ground — albedo from `_ground` (80, 80, 80), normal +Z, shadowed like everything else — and a miss is background, black as `_bg` says. Where a voxel was hit, the pass fetches the voxel's record for albedo and emissive scale, takes the normal from the visibility buffer and the position from depth, and computes the colour
+For each pixel, the lighting pass first checks the visibility buffer. Where no voxel was hit, it intersects the camera ray with y = 0. A hit is ground — albedo from `_ground` (80, 80, 80), normal +Y, shadowed like everything else — and a miss is background, black as `_bg` says. Where a voxel was hit, the pass fetches the voxel's record for albedo and emissive scale, takes the normal from the visibility buffer and the position from depth, and computes the colour
 
 *C* = albedo × (*E*sun × max(0, *N*·*S*) × shadow + ambient(*N*)) + albedo × emissive
 
-where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*z) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: no other surface receives their light, and until bloom lands (`SpaceScene.md` §12.2) nothing glows beyond its own voxels. Without ambient occlusion the result looks flatter than MagicaVoxel's path tracer. Neither is a limit: D4, as the owner revised it on 2026-09-28, leaves the look open.
+where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*y) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: no other surface receives their light, and until bloom lands (`SpaceScene.md` §12.2) nothing glows beyond its own voxels. Without ambient occlusion the result looks flatter than MagicaVoxel's path tracer. Neither is a limit: D4, as the owner revised it on 2026-09-28, leaves the look open.
 
 Tone mapping applies the exposure (`_film` `_expo` 1), then Stephen Hill's fit of the ACES reference and output transforms, and writes through an sRGB render-target view. The sRGB curve stands in for the file's gamma 2.2.
 
@@ -366,9 +366,9 @@ The overdraw view draws the view splat's `COUNT_OVERDRAW` variant, whose pixel s
 
 **Randomness** comes from an integer hash (a PCG-style permutation) of (*i*, *k*), never from buffer order — unlike Listing 3, which assumes the voxels are shuffled.
 
-**Translation.** The launch velocity points away from a blast origin (by default the model's centroid), with a speed that falls off with distance, an upward bias and hashed jitter. Flight is ballistic under gravity. Each ground contact is a quadratic solved in closed form; it reflects the vertical velocity with restitution *e* and damps the horizontal one. After a small fixed number of bounces the voxel rests. The whole piecewise trajectory, rest time *T*rest(*i*) included, follows from the launch values at every evaluation. A voxel whose centre starts below the bounding radius, one of the 22 that start on the ground, is launched up fast enough to clear it, and turns only once it has, so that its first flight is valid and no corner of it enters the ground (ADR-009).
+**Translation.** The launch velocity points away from a blast origin (by default the model's centroid), with a speed that falls off with distance, an upward bias and hashed jitter. Flight is ballistic under gravity, which pulls along −Y. Each ground contact is a quadratic solved in closed form; it reflects the vertical velocity, along y, with restitution *e* and damps the horizontal one, in x and z. After a small fixed number of bounces the voxel rests. The whole piecewise trajectory, rest time *T*rest(*i*) included, follows from the launch values at every evaluation. A voxel whose centre starts below the bounding radius, one of the 22 that start on the ground, is launched up fast enough to clear it, and turns only once it has, so that its first flight is valid and no corner of it enters the ground (ADR-009).
 
-**Rotation.** Each voxel spins about two coordinate axes chosen by hash, through total angles that are hashed multiples of 90°, eased to zero angular velocity. At rest a voxel is therefore in one of the cube's 24 symmetric orientations. A voxel is one colour on every face, so that orientation is indistinguishable from its unrotated self, and the rest state is seamless: flat, bottom face on the ground (centre at z = 0.5), with no snap. In flight, contacts use the bounding-sphere radius, so no rotation can push a corner into the ground. The spin runs only while the centre is at least that radius above the ground: it ends as the voxel falls through it for the last time, and the voxel falls its last 0.37 voxels square and lands at 0.5 (ADR-009).
+**Rotation.** Each voxel spins about two coordinate axes chosen by hash, through total angles that are hashed multiples of 90°, eased to zero angular velocity. At rest a voxel is therefore in one of the cube's 24 symmetric orientations. A voxel is one colour on every face, so that orientation is indistinguishable from its unrotated self, and the rest state is seamless: flat, bottom face on the ground (centre at y = 0.5), with no snap. In flight, contacts use the bounding-sphere radius, so no rotation can push a corner into the ground. The spin runs only while the centre is at least that radius above the ground: it ends as the voxel falls through it for the last time, and the voxel falls its last 0.37 voxels square and lands at 0.5 (ADR-009).
 
 **Envelope.** The parameter block bounds the highest apex and the farthest landing in closed form. The shadow frustum (§10) and the camera's framing use those bounds.
 
@@ -423,7 +423,9 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 - the reader, against synthetic in-memory files for every rule in §7.1, and against the real file, reproducing the counts, size, translation, palette and emissive entries of §3;
 - the ray-box twin, against a brute-force slab test with explicit face tracking, over seeded random boxes and rays, aligned and oriented, plus the edge cases: exactly-zero direction components, rays through edges and corners, and an origin inside the box (the documented wrong answer with `canStartInBox` false, the exit point with true);
 - bounds: for seeded boxes and cameras, both the quadric and the precise rectangles contain every projected (clipped) corner, and no hit inside a rectangle is nearer than the rectangle's depth;
-- pose: the rest pose at *t* = 0, continuity across contacts, no corner below the ground, a cube-symmetric rotation with the centre at z = 0.5 once *t* ≥ *T*rest, and identical results for identical inputs;
+- pose: the rest pose at *t* = 0, continuity across contacts, no corner below the ground, a cube-symmetric rotation with the centre at y = 0.5 once *t* ≥ *T*rest, and identical results for identical inputs;
+- handedness: a voxel on +X lands in the right half of the image and one on +Y in the top half, which is what a mirrored basis gets wrong and no comparison of the GPU with its twin can see (ADR-011);
+- the station as the tracer drew it, and as the explosion and the lighting moved and lit it, before the engine moved to Direct3D's axes: pinned once, and never re-pinned (ADR-011);
 - packing round trips for records and octahedral normals.
 
 `NeuronClientTests` run on WARP at FL 12_1. If the device cannot be created, the suite fails; it does not skip. They cover:
@@ -501,7 +503,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-007, Shader Model 6.7 and shader file names (M2), which amends ADR-005;
 - ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
 - ADR-009, explosion motion model and its defaults (M4);
-- ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28).
+- ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28);
+- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28).
 
 ## 18. References
 

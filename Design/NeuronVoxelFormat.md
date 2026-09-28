@@ -268,7 +268,7 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 |
 
-ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR takes the next free number when N-M0 lands, and SampleRenderer §17's list is updated in the same commit.
+ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it.
 
 ## 11. Risks and open questions
 
@@ -294,7 +294,7 @@ The engine's world is right-handed and +Z up, MagicaVoxel's (SampleRenderer §7.
 
 ### 12.2 What depends on the axes
 
-This was counted by reading the code on 2026-09-27. There are no view or projection matrices anywhere. Every view is a basis (right, up, forward) plus scalars, and view depth is always `dot(offset, forward)`, which is positive in front of the camera. So the shaders, the ray-box code, `SplatBounds`, reversed-Z, conservative depth, and the reference tracer are all free of any axis convention. What is left:
+This was counted by reading the code on 2026-09-27. N-M0 converted all of it on 2026-09-28, and [ADR-011](ADR/ADR-011-engine-axes.md) records what it found. There are no view or projection matrices anywhere. Every view is a basis (right, up, forward) plus scalars, and view depth is always `dot(offset, forward)`, which is positive in front of the camera. So the shaders, the ray-box code, `SplatBounds`, reversed-Z, conservative depth, and the reference tracer are all free of any axis convention. What is left:
 
 | Where | Today | After |
 |---|---|---|

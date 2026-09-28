@@ -107,6 +107,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="PinnedStation.h" />
     <ClInclude Include="SeededRandom.h" />
     <ClInclude Include="VoxFile.h" />
   </ItemGroup>

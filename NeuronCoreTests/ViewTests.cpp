@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "Box.h"
 #include "Float3.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
@@ -21,7 +22,7 @@ namespace
 using NeuronCore::Float2;
 using NeuronCore::Float3;
 
-void ExpectOrthonormalRightHanded(Float3 _right, Float3 _up, Float3 _forward, const wchar_t* _what)
+void ExpectOrthonormalLeftHanded(Float3 _right, Float3 _up, Float3 _forward, const wchar_t* _what)
 {
   Assert::AreEqual(1.0f, NeuronCore::Length(_right), 1.0e-6f, _what);
   Assert::AreEqual(1.0f, NeuronCore::Length(_up), 1.0e-6f, _what);
@@ -29,11 +30,11 @@ void ExpectOrthonormalRightHanded(Float3 _right, Float3 _up, Float3 _forward, co
   Assert::AreEqual(0.0f, NeuronCore::Dot(_right, _up), 1.0e-6f, _what);
   Assert::AreEqual(0.0f, NeuronCore::Dot(_right, _forward), 1.0e-6f, _what);
   Assert::AreEqual(0.0f, NeuronCore::Dot(_up, _forward), 1.0e-6f, _what);
-  // The view looks down -Z: right x up = -forward.
-  const Float3 back = NeuronCore::Cross(_right, _up);
-  Assert::AreEqual(-_forward.x, back.x, 1.0e-6f, _what);
-  Assert::AreEqual(-_forward.y, back.y, 1.0e-6f, _what);
-  Assert::AreEqual(-_forward.z, back.z, 1.0e-6f, _what);
+  // Direct3D's convention, left-handed: right × up = +forward (Design/NeuronVoxelFormat.md §12).
+  const Float3 ahead = NeuronCore::Cross(_right, _up);
+  Assert::AreEqual(_forward.x, ahead.x, 1.0e-6f, _what);
+  Assert::AreEqual(_forward.y, ahead.y, 1.0e-6f, _what);
+  Assert::AreEqual(_forward.z, ahead.z, 1.0e-6f, _what);
 }
 
 } // namespace
@@ -62,17 +63,17 @@ public:
     // A level camera at the odd test resolution: the centre column and row of rays are exactly parallel to a world
     // plane, the case Listing 5 must survive (§4.2, item 6).
     const NeuronCore::PerspectiveView view =
-      NeuronCore::MakePerspectiveView({0.5f, -520.0f, 127.5f}, {0.5f, 0.5f, 127.5f}, {0.0f, 0.0f, 1.0f}, 0.785398163f, 0.1f, 161, 91);
-    Assert::AreEqual(1.0f, view.forward.y);
+      NeuronCore::MakePerspectiveView({0.5f, 127.5f, -520.0f}, {0.5f, 127.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, 0.785398163f, 0.1f, 161, 91);
+    Assert::AreEqual(1.0f, view.forward.z);
     for (std::uint32_t y = 0; y < 91; ++y)
     {
       Assert::AreEqual(0.0f, NeuronCore::PerspectiveRay(view, 80, y).direction.x, std::format(L"column 80, row {}", y).c_str());
     }
     for (std::uint32_t x = 0; x < 161; ++x)
     {
-      Assert::AreEqual(0.0f, NeuronCore::PerspectiveRay(view, x, 45).direction.z, std::format(L"row 45, column {}", x).c_str());
+      Assert::AreEqual(0.0f, NeuronCore::PerspectiveRay(view, x, 45).direction.y, std::format(L"row 45, column {}", x).c_str());
     }
-    Assert::AreEqual(1.0f, NeuronCore::PerspectiveRay(view, 80, 45).direction.y, L"the centre ray is the view direction");
+    Assert::AreEqual(1.0f, NeuronCore::PerspectiveRay(view, 80, 45).direction.z, L"the centre ray is the view direction");
   }
 
   TEST_METHOD(PerspectiveRaysHaveUnitViewDepth)
@@ -82,10 +83,10 @@ public:
     for (std::uint32_t i = 0; i < 200; ++i)
     {
       const Float3 position = random.InBox({-100.0f, -100.0f, -100.0f}, {100.0f, 100.0f, 100.0f});
-      const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(position, position + random.Direction(), {0.0f, 0.0f, 1.0f},
+      const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(position, position + random.Direction(), {0.0f, 1.0f, 0.0f},
                                                                                random.Uniform(0.3f, 2.0f), 0.1f, 64, 48);
       const std::wstring what = std::format(L"view {}", i);
-      ExpectOrthonormalRightHanded(view.right, view.up, view.forward, what.c_str());
+      ExpectOrthonormalLeftHanded(view.right, view.up, view.forward, what.c_str());
       for (const std::uint32_t pixel : {0u, 17u, 31u, 47u})
       {
         const NeuronCore::Ray ray = NeuronCore::PerspectiveRay(view, pixel, pixel);
@@ -100,10 +101,48 @@ public:
     }
   }
 
+  // Design/NeuronVoxelFormat.md §12.4: a camera looking along +Z with +Y up sees a voxel at +X in the right half of its
+  // image and one at +Y in the top half. Cross products in the wrong order mirror every image, and no test that compares
+  // the GPU with its twin can see that, since the two share one basis (§12.3).
+  TEST_METHOD(ImagesAreNotMirrored)
+  {
+    constexpr std::uint32_t SIDE_PIXELS = 64;
+    const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView({0.0f, 0.0f, -20.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+                                                                             0.785398163f, 0.1f, SIDE_PIXELS, SIDE_PIXELS);
+    struct Placed
+    {
+      const wchar_t* name;
+      Float3 center;
+      bool rightHalf; // where the voxel must be: the right half of the image, or else the top half
+    };
+    for (const Placed& placed : {Placed{L"a voxel at +X", {4.0f, 0.0f, 0.0f}, true}, Placed{L"a voxel at +Y", {0.0f, 4.0f, 0.0f}, false}})
+    {
+      const NeuronCore::Box box = NeuronCore::MakeAxisAlignedBox(placed.center, {0.5f, 0.5f, 0.5f});
+      std::uint32_t hits = 0;
+      for (std::uint32_t y = 0; y < SIDE_PIXELS; ++y)
+      {
+        for (std::uint32_t x = 0; x < SIDE_PIXELS; ++x)
+        {
+          const NeuronCore::Ray ray = NeuronCore::PerspectiveRay(view, x, y);
+          float distance = 0.0f;
+          Float3 normal{};
+          if (!NeuronCore::IntersectBox<false, false>(box, ray.origin, ray.direction, NeuronCore::InverseDirection(ray), distance, normal))
+          {
+            continue;
+          }
+          ++hits;
+          const bool inside = placed.rightHalf ? x >= SIDE_PIXELS / 2 : y < SIDE_PIXELS / 2;
+          Assert::IsTrue(inside, std::format(L"{} shows at pixel ({}, {})", placed.name, x, y).c_str());
+        }
+      }
+      Assert::IsTrue(hits > 0, std::format(L"{} is in view", placed.name).c_str());
+    }
+  }
+
   TEST_METHOD(PerspectiveDepthIsReversed)
   {
     const NeuronCore::PerspectiveView view =
-      NeuronCore::MakePerspectiveView({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, 1.0f, 0.1f, 64, 48);
+      NeuronCore::MakePerspectiveView({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, 1.0f, 0.1f, 64, 48);
     Assert::AreEqual(1.0f, NeuronCore::PerspectiveDepth(view, 0.1f), L"the near plane is 1");
     Assert::AreEqual(0.5f, NeuronCore::PerspectiveDepth(view, 0.2f), 1.0e-7f, L"twice as far is half");
     Assert::IsTrue(NeuronCore::PerspectiveDepth(view, 1000.0f) < NeuronCore::PerspectiveDepth(view, 999.0f), L"nearer is greater");
@@ -112,25 +151,25 @@ public:
 
   TEST_METHOD(BasisFallsBackWhenLookingAlongUp)
   {
-    // The sun straight overhead looks along -Z with +Z as up: +Y stands in, and every ray is axis-parallel.
+    // The sun straight overhead looks along -Y with +Y as up: +Z stands in, and every ray is axis-parallel.
     Float3 right{};
     Float3 up{};
-    NeuronCore::MakeViewBasis({0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, right, up);
-    ExpectOrthonormalRightHanded(right, up, {0.0f, 0.0f, -1.0f}, L"looking down");
+    NeuronCore::MakeViewBasis({0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, right, up);
+    ExpectOrthonormalLeftHanded(right, up, {0.0f, -1.0f, 0.0f}, L"looking down");
     Assert::AreEqual(1.0f, right.x);
-    Assert::AreEqual(1.0f, up.y);
+    Assert::AreEqual(1.0f, up.z);
 
-    NeuronCore::MakeViewBasis({0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, right, up);
-    ExpectOrthonormalRightHanded(right, up, {0.0f, 0.0f, 1.0f}, L"looking up");
+    NeuronCore::MakeViewBasis({0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, right, up);
+    ExpectOrthonormalLeftHanded(right, up, {0.0f, 1.0f, 0.0f}, L"looking up");
 
     const NeuronCore::OrthographicView sun =
-      NeuronCore::MakeOrthographicView({0.0f, 0.0f, 300.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 100.0f, 100.0f, 310.0f, 64, 64);
+      NeuronCore::MakeOrthographicView({0.0f, 300.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 100.0f, 100.0f, 310.0f, 64, 64);
     for (const std::uint32_t pixel : {0u, 31u, 63u})
     {
       const NeuronCore::Ray ray = NeuronCore::OrthographicRay(sun, pixel, 63u - pixel);
       Assert::AreEqual(0.0f, ray.direction.x);
-      Assert::AreEqual(0.0f, ray.direction.y);
-      Assert::AreEqual(-1.0f, ray.direction.z);
+      Assert::AreEqual(-1.0f, ray.direction.y);
+      Assert::AreEqual(0.0f, ray.direction.z);
     }
   }
 
@@ -141,9 +180,9 @@ public:
     {
       const Float3 origin = random.InBox({-100.0f, -100.0f, -100.0f}, {100.0f, 100.0f, 100.0f});
       const NeuronCore::OrthographicView view =
-        NeuronCore::MakeOrthographicView(origin, random.Direction(), {0.0f, 0.0f, 1.0f}, 30.0f, 20.0f, 250.0f, 64, 48);
+        NeuronCore::MakeOrthographicView(origin, random.Direction(), {0.0f, 1.0f, 0.0f}, 30.0f, 20.0f, 250.0f, 64, 48);
       const std::wstring what = std::format(L"view {}", i);
-      ExpectOrthonormalRightHanded(view.right, view.up, view.forward, what.c_str());
+      ExpectOrthonormalLeftHanded(view.right, view.up, view.forward, what.c_str());
       for (const std::uint32_t pixel : {0u, 17u, 47u})
       {
         const NeuronCore::Ray ray = NeuronCore::OrthographicRay(view, pixel, pixel);
@@ -158,7 +197,7 @@ public:
       }
     }
     const NeuronCore::OrthographicView view =
-      NeuronCore::MakeOrthographicView({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, 1.0f, 1.0f, 250.0f, 64, 48);
+      NeuronCore::MakeOrthographicView({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, 1.0f, 1.0f, 250.0f, 64, 48);
     Assert::AreEqual(0.0f, NeuronCore::OrthographicDepth(view, 0.0f), L"the near plane is 0");
     Assert::AreEqual(1.0f, NeuronCore::OrthographicDepth(view, 250.0f), L"the far plane is 1");
   }
@@ -177,20 +216,20 @@ public:
   TEST_METHOD(ShadowViewHoldsItsBoxInDepth)
   {
     SeededRandom random(33u);
-    const Float3 lower{-103.0f, -114.0f, 0.0f};
-    const Float3 upper{104.0f, 114.0f, 255.0f};
-    const Float3 center{0.5f, 0.0f, 127.5f};
+    const Float3 lower{-103.0f, 0.0f, -114.0f};
+    const Float3 upper{104.0f, 255.0f, 114.0f};
+    const Float3 center{0.5f, 127.5f, 0.0f};
     for (std::uint32_t i = 0; i < 200; ++i)
     {
       Float3 toSun = random.Direction();
-      toSun.z = std::abs(toSun.z) + 0.01f;
+      toSun.y = std::abs(toSun.y) + 0.01f;
       if (i == 0)
       {
-        toSun = {0.0f, 0.0f, 1.0f};
+        toSun = {0.0f, 1.0f, 0.0f};
       }
       const NeuronCore::OrthographicView view = NeuronCore::MakeShadowView(toSun, center, 512.0f, lower, upper, 4096);
       const std::wstring what = std::format(L"sun {}", i);
-      ExpectOrthonormalRightHanded(view.right, view.up, view.forward, what.c_str());
+      ExpectOrthonormalLeftHanded(view.right, view.up, view.forward, what.c_str());
       Assert::AreEqual(-1.0f, NeuronCore::Dot(view.forward, NeuronCore::Normalize(toSun)), 1.0e-6f, what.c_str());
       Assert::AreEqual(0.0f, NeuronCore::Dot(center - view.origin, view.right), 1.0e-3f, L"the square is centred across");
       Assert::AreEqual(0.0f, NeuronCore::Dot(center - view.origin, view.up), 1.0e-3f, L"the square is centred up and down");
