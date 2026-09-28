@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; M0 to M5 are done (§15) · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 
@@ -448,14 +448,14 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 
 ## 15. Milestones
 
-| | Delivers | Done when |
-|---|---|---|
-| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
-| M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
-| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
-| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station |
-| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)), and an ADR for any decision it drives |
+| | Delivers | Done when | Status |
+|---|---|---|---|
+| M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running | Done: PR #1, 2026-09-27 |
+| M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced | Done: PR #1, 2026-09-27 |
+| M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware | Done: PR #2, 2026-09-27; the owner ran the station on hardware the same day |
+| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look | Done: PR #4, 2026-09-28; the owner accepted the look, with the emissive gain at its default of 1 (ADR-008) |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station | Done: PR #4, 2026-09-28; the owner detonated and reassembled the station and accepted the defaults (ADR-009) |
+| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)), and an ADR for any decision it drives | Done: PR #4 measures, PR #7 records the note, 2026-09-28; the note drives no ADR |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
 

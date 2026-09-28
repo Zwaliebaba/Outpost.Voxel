@@ -1,6 +1,6 @@
 # Neuron Voxel Format (NVF) — Design and Implementation
 
-**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 is done (§10) · **Date:** 2026-09-27
 **Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what NVF is, how models get into it, and how its tools are built. `AGENTS.md` says how the code is written; the engineering decisions below land as ADRs in the commits that implement them (§10).
@@ -259,14 +259,14 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 
 ## 10. Milestones
 
-| # | Delivers | Done when |
-|---|---|---|
-| N-M0 | §12: the engine on Direct3D's axes; SampleRenderer updated; axes ADR | Every suite green with its constants converted; the pinned tracer images reproduced under §12.4's rule; the mirror test green; the owner has run `Outpost.exe` and seen the same station from the same side |
-| N-M1 | §4 in `NeuronCore`: reader, writer, validation; golden file; format ADR | Golden and refusal tests green |
-| N-M2 | §6.1 reader changes; `ImportVoxModel`; `NvfImport.exe`; the three assets converted; `--check` in CI; project/layout ADR | Import, rotation and merge tests green; CI checks the assets |
-| N-M3 | `NvfFormat.py` and its tests in CI | Python golden and refusal tests green on Linux |
-| N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship |
-| later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 |
+| # | Delivers | Done when | Status |
+|---|---|---|---|
+| N-M0 | §12: the engine on Direct3D's axes; SampleRenderer updated; axes ADR | Every suite green with its constants converted; the pinned tracer images reproduced under §12.4's rule; the mirror test green; the owner has run `Outpost.exe` and seen the same station from the same side | Done: PR #6, 2026-09-28; the owner's check by hand passed the same day |
+| N-M1 | §4 in `NeuronCore`: reader, writer, validation; golden file; format ADR | Golden and refusal tests green | Not started |
+| N-M2 | §6.1 reader changes; `ImportVoxModel`; `NvfImport.exe`; the three assets converted; `--check` in CI; project/layout ADR | Import, rotation and merge tests green; CI checks the assets | Not started |
+| N-M3 | `NvfFormat.py` and its tests in CI | Python golden and refusal tests green on Linux | Not started |
+| N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Not started |
+| later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
 ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it.
 

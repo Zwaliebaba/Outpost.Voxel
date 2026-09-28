@@ -39,7 +39,7 @@ The second is that everything comes to rest in about ten seconds at time scale 1
 - Voxel centres reach from −221 to 217 in x and from −225 to 230 in y, and 268 at the highest; the station's own top is 254.5.
 - The fastest voxel moves at 126 voxels a second.
 
-The core near the blast origin flies fastest, and the tower's top mostly falls. The look is the owner's to judge by eye when M4 runs on hardware. The values the owner accepts become the defaults, recorded here in the commit that sets them.
+The core near the blast origin flies fastest, and the tower's top mostly falls. The look is the owner's to judge by eye when M4 runs on hardware. The values the owner accepts become the defaults, recorded here in the commit that sets them. On 2026-09-28 the owner confirmed having detonated and reassembled the station on hardware, and accepted the defaults above as they stand.
 
 **Randomness.** Voxel *i*'s *k*th random number is `PcgHash`(8*i* + *k*), from `NeuronCore/Hash.h`. Its top 24 bits make a float in [0, 1) exactly. Six streams are used: the jitter's height and heading, the speed's variation, the spin axes, and each spin's turns. No buffer order enters.
 
