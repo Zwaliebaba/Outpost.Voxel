@@ -115,14 +115,18 @@ void ExpectAttribute(const NeuronCore::VoxAttributes& _attributes, std::string_v
   Assert::AreEqual(std::string(_value), found->second, what.c_str());
 }
 
-// How far below the ground a corner may seem to be, to rounding.
-constexpr float GROUND_TOLERANCE = 1.0e-5f;
-
-// The explosion tests follow every EXPLOSION_STRIDE-th voxel, and every voxel of the layer on the ground, which is
-// launched differently (Design/ADR/ADR-009), through this many samples of its flights and this many in its last fall.
+// The explosion tests follow every EXPLOSION_STRIDE-th voxel through this many samples of its flight, from the
+// detonation to twice the envelope's stop time (Design/SpaceScene.md §5.5).
 constexpr std::uint32_t EXPLOSION_STRIDE = 101;
 constexpr std::uint32_t FLIGHT_SAMPLES = 128;
-constexpr std::uint32_t LANDING_SAMPLES = 16;
+
+// How long after the detonation, in units of 1 / drag, a voxel has made all of its motion that a float can hold:
+// e^-32 is far below the half of 2^-24 at which 1 - e^-32 rounds to 1.
+constexpr float MOTION_DONE = 32.0f;
+
+// Rounding allowed on a position, relative to its distance from the origin: a float holds a coordinate 1,000 voxels
+// out to 6 × 10^-5, and the pose adds a few such roundings.
+constexpr float POSITION_ROUNDING = 1.0e-6f;
 
 // Every voxel's center while the station is intact, in record order, which is the voxel index the explosion hashes.
 [[nodiscard]] std::vector<Float3> RestCenters(const NeuronCore::VoxModel& _model)
@@ -139,38 +143,71 @@ constexpr std::uint32_t LANDING_SAMPLES = 16;
   return centers;
 }
 
+// The box around every voxel while the station is intact, which the envelope is bounded from.
+[[nodiscard]] std::pair<Float3, Float3> CenterBox(const std::vector<Float3>& _centers) noexcept
+{
+  Float3 lower{1.0e9f, 1.0e9f, 1.0e9f};
+  Float3 upper{-1.0e9f, -1.0e9f, -1.0e9f};
+  for (const Float3 center : _centers)
+  {
+    lower = {std::min(lower.x, center.x - 0.5f), std::min(lower.y, center.y - 0.5f), std::min(lower.z, center.z - 0.5f)};
+    upper = {std::max(upper.x, center.x + 0.5f), std::max(upper.y, center.y + 0.5f), std::max(upper.z, center.z + 0.5f)};
+  }
+  return {lower, upper};
+}
+
 [[nodiscard]] std::vector<std::uint32_t> FollowedVoxels(const std::vector<Float3>& _centers)
 {
   std::vector<std::uint32_t> voxels;
-  for (std::uint32_t voxel = 0; voxel < _centers.size(); ++voxel)
+  for (std::uint32_t voxel = 0; voxel < _centers.size(); voxel += EXPLOSION_STRIDE)
   {
-    if (voxel % EXPLOSION_STRIDE == 0u || _centers[voxel].y < 1.0f)
-    {
-      voxels.push_back(voxel);
-    }
+    voxels.push_back(voxel);
   }
   return voxels;
 }
 
-// The times a followed voxel is sampled at: through its flights, then closely in the last thousandths before it rests.
-[[nodiscard]] std::vector<float> SampleTimes(float _restSeconds)
+// The times a followed voxel is sampled at: from the detonation to twice the stop time.
+[[nodiscard]] std::vector<float> SampleTimes(float _stopSeconds)
 {
   std::vector<float> times;
   for (std::uint32_t sample = 0; sample <= FLIGHT_SAMPLES; ++sample)
   {
-    times.push_back(_restSeconds * static_cast<float>(sample) / static_cast<float>(FLIGHT_SAMPLES));
-  }
-  for (std::uint32_t sample = 1; sample <= LANDING_SAMPLES; ++sample)
-  {
-    times.push_back(_restSeconds * (1.0f - 0.0005f * static_cast<float>(sample)));
+    times.push_back(2.0f * _stopSeconds * static_cast<float>(sample) / static_cast<float>(FLIGHT_SAMPLES));
   }
   return times;
 }
 
-// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Y.
-[[nodiscard]] float LowestPoint(const NeuronCore::VoxelPose& _pose) noexcept
+// A rotation of the cube onto itself: every entry exactly 0 or ±1, and a rotation rather than a reflection.
+[[nodiscard]] bool IsCubeRotation(const NeuronCore::VoxelPose& _pose) noexcept
 {
-  return _pose.center.y - 0.5f * (std::abs(_pose.axisX.y) + std::abs(_pose.axisY.y) + std::abs(_pose.axisZ.y));
+  for (const Float3 axis : {_pose.axisX, _pose.axisY, _pose.axisZ})
+  {
+    for (const float entry : {axis.x, axis.y, axis.z})
+    {
+      if (entry != 0.0f && entry != 1.0f && entry != -1.0f)
+      {
+        return false;
+      }
+    }
+  }
+  const Float3 handed = NeuronCore::Cross(_pose.axisX, _pose.axisY);
+  return handed.x == _pose.axisZ.x && handed.y == _pose.axisZ.y && handed.z == _pose.axisZ.z;
+}
+
+// How far the farthest corner of the unit cube posed as _a is from the same corner posed as _b.
+[[nodiscard]] float CornerDistance(const NeuronCore::VoxelPose& _a, const NeuronCore::VoxelPose& _b) noexcept
+{
+  float farthest = 0.0f;
+  for (std::uint32_t corner = 0; corner < 8; ++corner)
+  {
+    const float x = (corner & 1u) != 0u ? 0.5f : -0.5f;
+    const float y = (corner & 2u) != 0u ? 0.5f : -0.5f;
+    const float z = (corner & 4u) != 0u ? 0.5f : -0.5f;
+    const Float3 a = _a.center + _a.axisX * x + _a.axisY * y + _a.axisZ * z;
+    const Float3 b = _b.center + _b.axisX * x + _b.axisY * y + _b.axisZ * z;
+    farthest = std::max(farthest, NeuronCore::Length(a - b));
+  }
+  return farthest;
 }
 
 [[nodiscard]] bool SamePose(const NeuronCore::VoxelPose& _a, const NeuronCore::VoxelPose& _b) noexcept
@@ -214,10 +251,8 @@ constexpr float PIN_EDGE_EPSILON = 1.0f / 256.0f;
 // other side. Four is headroom.
 constexpr std::uint32_t PIN_EDGE_LIMIT = 4;
 
-// The pinned flights and lighting agree with NeuronCore to rounding, and to nothing looser. MSVC fuses multiply-adds
-// that GCC, which took the pins, does not (AGENTS.md §3).
-constexpr float PIN_CENTER_TOLERANCE = 2.0e-3f; // voxels
-constexpr float PIN_TIME_TOLERANCE = 1.0e-4f;   // seconds
+// The pinned lighting agrees with NeuronCore to rounding, and to nothing looser. MSVC fuses multiply-adds that GCC,
+// which took the pins, does not (AGENTS.md §3).
 constexpr float PIN_COLOR_TOLERANCE = 1.0e-5f;
 
 // Whether _ray meets the unit box around _center, grown or shrunk by _change, at or beyond _minDistance.
@@ -393,7 +428,6 @@ public:
     Assert::AreEqual(0.0802198203f, settings.groundColor.y, 1.0e-7f, L"_ground 80 80 80, decoded");
     Assert::AreEqual(0.0f, settings.backgroundColor.x, L"_bg 0 0 0");
     Assert::AreEqual(1.0f, settings.exposure, L"_film _expo");
-    Assert::IsTrue(settings.groundVisible, L"_setting _ground 1");
   }
 
   TEST_METHOD(KeepsTheRenderSettings)
@@ -510,7 +544,7 @@ public:
     Assert::IsTrue(2 * hits > rays, L"most rays hit, or the comparison says little");
   }
 
-  // Design/Archive/SampleRenderer.md §12: time 0 is the intact station, every voxel where it was and unrotated, exactly.
+  // Design/SpaceScene.md §5.5: time 0 is the intact station, every voxel where it was and unrotated, exactly.
   TEST_METHOD(ExplosionStartsIntact)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
@@ -528,129 +562,99 @@ public:
     }
   }
 
-  // §14: no corner below the ground at any time, through every flight and in the last fall to rest.
-  TEST_METHOD(ExplosionKeepsEveryCornerAboveTheGround)
+  // §5.5: from the envelope's stop time on, no corner of any voxel is farther than EXPLOSION_STOP_DISTANCE from where it
+  // ends; and where it ends, once its motion is done to the float's last bit, it is still and square to the axes.
+  TEST_METHOD(ExplosionDriftsToAStop)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    const std::vector<std::uint32_t> followed = FollowedVoxels(centers);
-    float lowest = 1.0e9f;
-    for (const std::uint32_t voxel : followed)
+    const auto [lower, upper] = CenterBox(centers);
+    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper).stopSeconds;
+    const float done = MOTION_DONE / parameters.drag;
+    float mostLeft = 0.0f;
+    for (std::uint32_t voxel = 0; voxel < centers.size(); ++voxel)
     {
-      for (const float time : SampleTimes(NeuronCore::ExplosionRestTime(voxel, centers[voxel], parameters)))
+      const NeuronCore::VoxelPose end = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, done);
+      if (!IsCubeRotation(end) || !SamePose(end, NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, 2.0f * done)))
       {
-        const float point = LowestPoint(NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time));
-        lowest = std::min(lowest, point);
-        if (point < -GROUND_TOLERANCE)
+        Assert::Fail(std::format(L"voxel {} does not end still and square", voxel).c_str());
+      }
+      for (const float time : {stop, 1.5f * stop})
+      {
+        const float left = CornerDistance(NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time), end);
+        mostLeft = std::max(mostLeft, left);
+        if (left > NeuronCore::EXPLOSION_STOP_DISTANCE + POSITION_ROUNDING * NeuronCore::Length(end.center))
         {
-          Assert::Fail(std::format(L"voxel {} reaches {} at {} s", voxel, point, time).c_str());
+          Assert::Fail(std::format(L"voxel {} has {} to go at {} s, after the stop at {} s", voxel, left, time, stop).c_str());
         }
       }
     }
-    Logger::WriteMessage(std::format(L"{} voxels followed; the lowest point any reached is {}\n", followed.size(), lowest).c_str());
+    Logger::WriteMessage(std::format(L"stop at {} s; the most any corner had left to go from then on was {}\n", stop, mostLeft).c_str());
   }
 
-  // §14: from its rest time on, a voxel lies flat on the ground, its center at y = 0.5 and its rotation one of the cube's
-  // 24, and it stays there.
-  TEST_METHOD(ExplosionComesToRestFlat)
-  {
-    const NeuronCore::VoxModel model = LoadMilitaryStation();
-    const std::vector<Float3> centers = RestCenters(model);
-    const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    for (const std::uint32_t voxel : FollowedVoxels(centers))
-    {
-      const float rest = NeuronCore::ExplosionRestTime(voxel, centers[voxel], parameters);
-      const NeuronCore::VoxelPose landed = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, rest);
-      const std::wstring what = std::format(L"voxel {} at rest", voxel);
-      Assert::AreEqual(NeuronCore::VOXEL_REST_HEIGHT, landed.center.y, what.c_str());
-      for (const Float3 axis : {landed.axisX, landed.axisY, landed.axisZ})
-      {
-        for (const float entry : {axis.x, axis.y, axis.z})
-        {
-          Assert::IsTrue(entry == 0.0f || entry == 1.0f || entry == -1.0f, what.c_str());
-        }
-      }
-      const Float3 handed = NeuronCore::Cross(landed.axisX, landed.axisY);
-      Assert::IsTrue(handed.x == landed.axisZ.x && handed.y == landed.axisZ.y && handed.z == landed.axisZ.z, what.c_str());
-      for (const float later : {rest + 1.0f, 2.0f * rest + 60.0f})
-      {
-        Assert::IsTrue(SamePose(landed, NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, later)), what.c_str());
-      }
-    }
-  }
-
-  // §14: the center is continuous across every contact. Just before one, it is no farther from where the contact
-  // leaves it than its speed carries it in the time left, and no voxel is faster than a launch at full speed that then
-  // falls from the top of the station.
-  TEST_METHOD(ExplosionIsContinuousAcrossContacts)
+  // §5.5: the drag only slows a voxel, so none moves faster than the fastest launch: the launch speed at the blast
+  // origin with all of its variation.
+  TEST_METHOD(ExplosionIsNoFasterThanItsLaunch)
   {
     constexpr float STEP_SECONDS = 1.0e-3f;
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    const float launch = parameters.launchSpeed * (1.0f + parameters.speedJitter);
-    const float liftSquared = 2.0f * parameters.gravity * (NeuronCore::VOXEL_BOUNDING_RADIUS + NeuronCore::EXPLOSION_LIFT_CLEARANCE);
-    const float top = static_cast<float>(MODEL_ORIGIN.y + MODEL_SIZE.y);
-    const float fastest = std::sqrt(launch * launch + liftSquared + 2.0f * parameters.gravity * top);
+    const float fastest = parameters.launchSpeed * (1.0f + parameters.speedJitter);
+    const auto [lower, upper] = CenterBox(centers);
+    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper).stopSeconds;
+    float fastestSeen = 0.0f;
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
-      for (const float contact : NeuronCore::ExplosionContactTimes(voxel, centers[voxel], parameters))
+      for (const float time : SampleTimes(stop))
       {
-        const NeuronCore::VoxelPose at = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, contact);
-        const NeuronCore::VoxelPose before = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, contact - STEP_SECONDS);
-        const float moved = NeuronCore::Length(at.center - before.center);
-        Assert::IsTrue(moved <= fastest * STEP_SECONDS + 1.0e-3f,
-                       std::format(L"voxel {} jumps {} at its contact at {} s", voxel, moved, contact).c_str());
+        const NeuronCore::VoxelPose before = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
+        const NeuronCore::VoxelPose after = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time + STEP_SECONDS);
+        const float moved = NeuronCore::Length(after.center - before.center);
+        fastestSeen = std::max(fastestSeen, moved / STEP_SECONDS);
+        Assert::IsTrue(moved <= fastest * STEP_SECONDS + 4.0f * POSITION_ROUNDING * NeuronCore::Length(after.center),
+                       std::format(L"voxel {} moves {} in {} s at {} s", voxel, moved, STEP_SECONDS, time).c_str());
       }
     }
+    Logger::WriteMessage(
+      std::format(L"the fastest followed voxel moves at {} voxels a second, of {} at most\n", fastestSeen, fastest).c_str());
   }
 
-  // §12: the closed-form envelope holds every box and every rest time, and the defaults keep it inside the shadow map's
-  // square (§10), which is centered on the station's box.
+  // §5.5: the closed-form envelope holds every box at every time, and the defaults keep it inside the shadow map's
+  // square (Design/Archive/SampleRenderer.md §10), which is centered on the station's box.
   TEST_METHOD(ExplosionStaysInsideItsEnvelope)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    Float3 lower{1.0e9f, 1.0e9f, 1.0e9f};
-    Float3 upper{-1.0e9f, -1.0e9f, -1.0e9f};
-    for (const Float3 center : centers)
-    {
-      lower = {std::min(lower.x, center.x - 0.5f), std::min(lower.y, center.y - 0.5f), std::min(lower.z, center.z - 0.5f)};
-      upper = {std::max(upper.x, center.x + 0.5f), std::max(upper.y, center.y + 0.5f), std::max(upper.z, center.z + 0.5f)};
-    }
+    const auto [lower, upper] = CenterBox(centers);
     const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, lower, upper);
-    float latestRest = 0.0f;
+    float farthest = 0.0f;
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
-      const float rest = NeuronCore::ExplosionRestTime(voxel, centers[voxel], parameters);
-      latestRest = std::max(latestRest, rest);
-      Assert::IsTrue(rest <= envelope.restTimeSeconds, std::format(L"voxel {} rests at {} s", voxel, rest).c_str());
-      for (const float time : SampleTimes(rest))
+      for (const float time : SampleTimes(envelope.stopSeconds))
       {
         const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
-        const float radius = NeuronCore::VOXEL_BOUNDING_RADIUS;
-        const std::wstring where = std::format(L"voxel {} at {} s", voxel, time);
-        Assert::IsTrue(pose.center.x - radius >= envelope.lower.x && pose.center.x + radius <= envelope.upper.x, where.c_str());
-        Assert::IsTrue(pose.center.z - radius >= envelope.lower.z && pose.center.z + radius <= envelope.upper.z, where.c_str());
-        Assert::IsTrue(pose.center.y + radius <= envelope.upper.y, where.c_str());
+        const float reached = NeuronCore::Length(pose.center - envelope.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
+        farthest = std::max(farthest, reached);
+        Assert::IsTrue(reached <= envelope.radius * (1.0f + POSITION_ROUNDING),
+                       std::format(L"voxel {} at {} s reaches {} of {}", voxel, time, reached, envelope.radius).c_str());
       }
     }
 
     const Float3 middle = (lower + upper) * 0.5f;
-    const float reachX = std::max(middle.x - envelope.lower.x, envelope.upper.x - middle.x);
-    const float reachZ = std::max(middle.z - envelope.lower.z, envelope.upper.z - middle.z);
-    Logger::WriteMessage(std::format(L"envelope {} x {} voxels across and {} high, {} and {} from the station's middle; rest by {} s, "
-                                     L"the latest followed voxel at {} s\n",
-                                     envelope.upper.x - envelope.lower.x, envelope.upper.z - envelope.lower.z,
-                                     envelope.upper.y - envelope.lower.y, reachX, reachZ, envelope.restTimeSeconds, latestRest)
-                           .c_str());
-    Assert::IsTrue(reachX <= NeuronCore::SHADOW_HALF_EXTENT && reachZ <= NeuronCore::SHADOW_HALF_EXTENT,
-                   L"the defaults keep the envelope inside the shadow map's square");
+    const float fit = NeuronCore::Length(envelope.center - middle) + envelope.radius;
+    Logger::WriteMessage(
+      std::format(L"envelope {} voxels about the blast origin, {} from the station's middle; the followed voxels reach {}; "
+                  L"stop by {} s; {} of the shadow map's {} from its middle\n",
+                  envelope.radius, NeuronCore::Length(envelope.center - middle), farthest, envelope.stopSeconds, fit,
+                  NeuronCore::SHADOW_HALF_EXTENT)
+        .c_str());
+    Assert::IsTrue(fit <= NeuronCore::SHADOW_HALF_EXTENT, L"the defaults keep the envelope inside the shadow map's square");
   }
 
-  // §14: identical inputs give identical results.
+  // Identical inputs give identical results (D3).
   TEST_METHOD(ExplosionRepeatsItself)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
@@ -687,34 +691,9 @@ public:
       { return NeuronCore::OrthographicRay(sun, _x, _y); }, 0.0f, PINNED_SUN_PIXELS, PINNED_SUN_PIXELS);
   }
 
-  // §12.4's pin for the explosion: when the pinned voxels meet the ground, and where their centers are. Their spins are
-  // not pinned.
-  TEST_METHOD(ExplodesAsPinned)
-  {
-    const NeuronCore::VoxModel model = LoadMilitaryStation();
-    const std::vector<Float3> centers = RestCenters(model);
-    const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    for (const PinnedFlight& flight : PINNED_FLIGHTS)
-    {
-      const std::array<float, NeuronCore::EXPLOSION_BOUNCES + 1> contacts =
-        NeuronCore::ExplosionContactTimes(flight.voxel, centers[flight.voxel], parameters);
-      for (std::size_t i = 0; i < contacts.size(); ++i)
-      {
-        Assert::AreEqual(flight.contactSeconds[i], contacts[i], PIN_TIME_TOLERANCE,
-                         std::format(L"voxel {}'s contact {}", flight.voxel, i).c_str());
-      }
-      for (std::size_t i = 0; i < PINNED_FLIGHT_SECONDS.size(); ++i)
-      {
-        const Float3 center = NeuronCore::ExplosionPose(flight.voxel, centers[flight.voxel], parameters, PINNED_FLIGHT_SECONDS[i]).center;
-        const float distance = NeuronCore::Length(center - FromPinnedAxes(flight.centers[i]));
-        Assert::IsTrue(distance <= PIN_CENTER_TOLERANCE,
-                       std::format(L"voxel {} at {} s is {} from its pin", flight.voxel, PINNED_FLIGHT_SECONDS[i], distance).c_str());
-      }
-    }
-  }
-
   // §12.4's pin for the lighting: a white surface under the station's sun and sky for fixed normals, and the level
-  // camera's centre column where no voxel is, the background above the horizon and the ground below it.
+  // camera's centre column above the horizon, where no voxel is: the background. The column below the horizon was the
+  // ground's, and its pins retired with the ground (Design/ADR/ADR-013).
   TEST_METHOD(LightsAsPinned)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
@@ -733,10 +712,10 @@ public:
     const std::array<float, 1> unshadowed{NeuronCore::ORTHOGRAPHIC_FAR_DEPTH};
     const NeuronCore::ShadowMapImage map{1, 1, unshadowed};
     const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);
-    for (std::uint32_t y = 0; y < PINNED_HEIGHT_PIXELS; ++y)
+    for (std::uint32_t y = 0; y < PINNED_SKY.size(); ++y)
     {
       // No voxel, so no normal, depth, albedo or emission.
-      ExpectColor(PINNED_GROUND_AND_SKY[y],
+      ExpectColor(PINNED_SKY[y],
                   NeuronCore::LightPixel(level, PINNED_WIDTH_PIXELS / 2, y, NeuronCore::NO_VOXEL, {0.0f, 0.0f, 0.0f}, 0.0f,
                                          {0.0f, 0.0f, 0.0f}, 0.0f, map, sun, lighting),
                   std::format(L"row {}", y));

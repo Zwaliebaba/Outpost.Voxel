@@ -54,8 +54,8 @@ constexpr float POSED_NORMAL_TOLERANCE = 2.0e-3f;
 // ray within rounding of an edge can land on its other side after a toolchain update. Four is headroom.
 constexpr std::uint32_t EDGE_MISMATCH_LIMIT = 4;
 
-// The block's times: early in its first flight, around its bounces, and once every voxel has come to rest.
-constexpr std::array<float, 4> BLOCK_TIMES_SECONDS{0.1f, 0.4f, 1.0f, 3.0f};
+// The block's times: early in its flight, while it slows, and as it nears its end; and its envelope's stop time.
+constexpr std::array<float, 3> BLOCK_TIMES_SECONDS{0.1f, 0.4f, 1.0f};
 
 constexpr std::uint32_t VIEW_WIDTH_PIXELS = 241;
 constexpr std::uint32_t VIEW_HEIGHT_PIXELS = 137;
@@ -101,15 +101,23 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
   return result;
 }
 
-// The block's explosion: the defaults' shape, scaled to an 8-voxel block, so that its debris stays within a camera's
+// The block's detonation: the defaults' shape, scaled to an 8-voxel block, so that its debris stays within a camera's
 // reach and every voxel still covers a few pixels.
 [[nodiscard]] NeuronCore::ExplosionParameters BlockExplosion(const NeuronCore::VoxModel& _model)
 {
   NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(_model));
-  parameters.gravity = 10.0f;
   parameters.launchSpeed = 6.0f;
   parameters.falloffDistance = 8.0f;
+  parameters.drag = 1.5f;
   return parameters;
+}
+
+// The block's times, BLOCK_TIMES_SECONDS and then its envelope's stop time.
+[[nodiscard]] std::vector<float> BlockTimes(const NeuronCore::ExplosionEnvelope& _envelope)
+{
+  std::vector<float> times(BLOCK_TIMES_SECONDS.begin(), BLOCK_TIMES_SECONDS.end());
+  times.push_back(_envelope.stopSeconds);
+  return times;
 }
 
 // Every record's box where the twin poses it at _timeSeconds, its half-extents changed by _change: grown boxes are hit
@@ -128,24 +136,23 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
   return boxes;
 }
 
-// The sphere around the envelope, and a view of it from an elevated three-quarter direction that frames it.
+// A view of the envelope's sphere from an elevated three-quarter direction that frames it.
 [[nodiscard]] NeuronCore::PerspectiveView EnvelopeView(const NeuronCore::ExplosionEnvelope& _envelope)
 {
-  const Float3 center = (_envelope.lower + _envelope.upper) * 0.5f;
-  const float radius = NeuronCore::Length(_envelope.upper - center);
   const Float3 direction = NeuronCore::Normalize({0.6f, 0.55f, -0.8f});
-  const float distance = radius / std::sin(0.5f * TEST_FOV_Y_RADIANS);
-  return NeuronCore::MakePerspectiveView(center + direction * distance, center, WORLD_UP, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE,
-                                         VIEW_WIDTH_PIXELS, VIEW_HEIGHT_PIXELS);
+  const float distance = _envelope.radius / std::sin(0.5f * TEST_FOV_Y_RADIANS);
+  return NeuronCore::MakePerspectiveView(_envelope.center + direction * distance, _envelope.center, WORLD_UP, TEST_FOV_Y_RADIANS,
+                                         TEST_NEAR_PLANE, VIEW_WIDTH_PIXELS, VIEW_HEIGHT_PIXELS);
 }
 
-// The sun's view of the envelope: the station's sun, over a square that holds the envelope, deep enough for all of it.
+// The sun's view of the envelope: the station's sun, over a square that holds the envelope's sphere, deep enough for all
+// of it.
 [[nodiscard]] NeuronCore::OrthographicView EnvelopeShadowView(const NeuronCore::ExplosionEnvelope& _envelope)
 {
-  const Float3 center = (_envelope.lower + _envelope.upper) * 0.5f;
-  const float halfExtent = NeuronCore::Length(_envelope.upper - center);
   const Float3 toSun = NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE);
-  return NeuronCore::MakeShadowView(toSun, center, halfExtent, _envelope.lower, _envelope.upper, MAP_PIXELS);
+  const Float3 reach{_envelope.radius, _envelope.radius, _envelope.radius};
+  return NeuronCore::MakeShadowView(toSun, _envelope.center, _envelope.radius, _envelope.center - reach, _envelope.center + reach,
+                                    MAP_PIXELS);
 }
 
 // Whether _ray meets _box beyond _minDistance.
@@ -272,11 +279,13 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
 
 } // namespace
 
-// The oriented splat permutations, which draw the explosion (Design/Archive/SampleRenderer.md §9.2, §12, §14).
+// The oriented splat permutations, which draw the detonation (Design/Archive/SampleRenderer.md §9.2, §14;
+// Design/SpaceScene.md §5.5).
 TEST_CLASS(ExplosionSplatTests)
 {
 public:
-  // §12, §14: at time 0 every rotation is the identity, and the oriented permutations draw what the aligned ones do.
+  // §14, Design/SpaceScene.md §5.5: at time 0 every voxel is intact, and the oriented permutations draw what the aligned
+  // ones do.
   TEST_METHOD(OrientedMatchesAlignedAtTimeZero)
   {
     RunGpuTest(
@@ -330,7 +339,7 @@ public:
                                                  NeuronClient::SplatPass::Variant::PlainDepth);
         const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Permutation::Oriented,
                                                NeuronClient::SplatPass::Variant::Overdraw);
-        for (const float time : BLOCK_TIMES_SECONDS)
+        for (const float time : BlockTimes(envelope))
         {
           const NeuronClient::ExplosionConstants constants = NeuronClient::MakeExplosionConstants(parameters, time);
           const SplatImage image = RenderSplat(_device, scene, pass, view, constants);
@@ -358,7 +367,7 @@ public:
         const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
         const NeuronCore::OrthographicView view = EnvelopeShadowView(envelope);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow, NeuronClient::SplatPass::Permutation::Oriented);
-        for (const float time : BLOCK_TIMES_SECONDS)
+        for (const float time : BlockTimes(envelope))
         {
           const std::vector<float> depth =
             RenderShadowSplat(_device, scene, pass, view, NeuronClient::MakeExplosionConstants(parameters, time));

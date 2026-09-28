@@ -40,7 +40,7 @@ void AreClose(Float3 _expected, Float3 _actual, float _tolerance, const wchar_t*
 // Simple, distinct values, so that each term of §11's formula shows where it lands.
 [[nodiscard]] LightingParameters TestLighting() noexcept
 {
-  return {{0.0f, 1.0f, 0.0f}, {2.0f, 2.0f, 2.0f}, {1.0f, 1.0f, 1.0f}, 0.5f, {0.2f, 0.2f, 0.2f}, true, {0.0f, 0.0f, 0.125f}, 1.0f};
+  return {{0.0f, 1.0f, 0.0f}, {2.0f, 2.0f, 2.0f}, {1.0f, 1.0f, 1.0f}, 0.5f, {0.2f, 0.2f, 0.2f}, {0.0f, 0.0f, 0.125f}, 1.0f};
 }
 
 // A sun straight overhead on a square of 16 × 16 texels, each a unit across, whose near plane is y = 100 and whose
@@ -89,9 +89,8 @@ public:
     AreClose({0.7f, 0.35f, 0.175f}, lighting.sunRadiance, TOLERANCE, L"_i times _k");
     AreClose({1.0f, 1.0f, 1.0f}, lighting.skyColor, TOLERANCE, L"the sky, white");
     Assert::AreEqual(0.7f, lighting.skyIntensity, L"_uni _i");
-    AreClose({0.2f, 0.4f, 0.6f}, lighting.groundAlbedo, TOLERANCE, L"the ground plane's color");
+    AreClose({0.2f, 0.4f, 0.6f}, lighting.groundColor, TOLERANCE, L"the ambient's lower color");
     Assert::AreEqual(3.0f, lighting.emissiveGain);
-    Assert::IsTrue(lighting.groundVisible);
   }
 
   // §11: ground below, sky above, and half of each on a vertical face.
@@ -174,9 +173,9 @@ public:
     }
   }
 
-  // §11's three cases for a pixel: a voxel at the depth the splat wrote, the ground where no voxel was hit, and the
-  // background where the ray misses the ground too.
-  TEST_METHOD(LightsVoxelGroundAndBackground)
+  // §11's two cases for a pixel: a voxel at the depth the splat wrote, and the background where no voxel was hit, in
+  // every direction, since there is no ground (Design/ADR/ADR-013).
+  TEST_METHOD(LightsVoxelAndBackground)
   {
     const LightingParameters lighting = TestLighting();
     const NeuronCore::OrthographicView shadowView = OverheadView();
@@ -191,14 +190,8 @@ public:
     const float voxelDepth = NeuronCore::PerspectiveDepth(view, 4.0f);
     AreClose(albedo * 2.5f, NeuronCore::LightPixel(view, 2, 2, 7, up, voxelDepth, albedo, 0.0f, map, shadowView, lighting), TOLERANCE,
              L"a lit voxel");
-    AreClose(lighting.groundAlbedo * 2.5f,
-             NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, lighting), TOLERANCE,
-             L"the ground below");
-
-    LightingParameters hidden = lighting;
-    hidden.groundVisible = false;
-    AreClose(lighting.background, NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, hidden),
-             TOLERANCE, L"no ground, the background");
+    AreClose(lighting.background, NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, lighting),
+             TOLERANCE, L"looking down, the background");
 
     const NeuronCore::PerspectiveView skyward =
       NeuronCore::MakePerspectiveView({0.0f, 10.0f, 0.0f}, {0.0f, 20.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, 1.0f, 0.1f, 5, 5);
@@ -206,12 +199,11 @@ public:
              NeuronCore::LightPixel(skyward, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, map, shadowView, lighting), TOLERANCE,
              L"looking up, the background");
 
-    // A roof between the camera's target and the sun shadows the ground: only the sky's light is left.
+    // A roof between the voxel and the sun shadows it: only the sky's light is left.
     std::vector<float> roof(MAP_TEXELS, 0.5f);
     const NeuronCore::ShadowMapImage covered{16, 16, roof};
-    AreClose(lighting.groundAlbedo * 0.5f,
-             NeuronCore::LightPixel(view, 2, 2, NeuronCore::NO_VOXEL, {}, 0.0f, {}, 0.0f, covered, shadowView, lighting), TOLERANCE,
-             L"the ground in shadow");
+    AreClose(albedo * 0.5f, NeuronCore::LightPixel(view, 2, 2, 7, up, voxelDepth, albedo, 0.0f, covered, shadowView, lighting), TOLERANCE,
+             L"a voxel in shadow");
   }
 };
 

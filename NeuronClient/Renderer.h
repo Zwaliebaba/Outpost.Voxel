@@ -45,7 +45,7 @@ struct RendererDesc
   NeuronCore::ExplosionParameters explosion;
 };
 
-// What a frame shows (§11, §12, §13), and what it measures besides (§9.3, §14).
+// What a frame shows (§11, §13, Design/SpaceScene.md §5.5), and what it measures besides (§9.3, §14).
 struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
@@ -60,9 +60,9 @@ struct FrameSettings
 // The frame of Design/Archive/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
 // visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
 // their place, and last the canvas over it all (§13). Both splats draw the aligned permutation while the model is intact
-// and the oriented one once the explosion has started (§12). Two frames are in flight, each with its own allocator,
-// constants, fence value and slot of queries: every pass is timed and the view splat's pipeline statistics taken, and a
-// frame's measurements come back with the Render two frames after it, through TakeStatistics.
+// and the oriented one once the detonation has started (Design/SpaceScene.md §5.5). Two frames are in flight, each with
+// its own allocator, constants, fence value and slot of queries: every pass is timed and the view splat's pipeline
+// statistics taken, and a frame's measurements come back with the Render two frames after it, through TakeStatistics.
 class Renderer
 {
 public:

@@ -159,7 +159,7 @@ public:
 
         const NeuronCore::ShadowMapImage shadowImage{SHADOW_MAP_PIXELS, SHADOW_MAP_PIXELS, shadowDepth};
         std::uint32_t voxelPixels = 0;
-        std::uint32_t groundPixels = 0;
+        std::uint32_t backgroundPixels = 0;
         std::uint32_t flips = 0;
         std::vector<std::wstring> flipped;
         for (std::uint32_t y = 0; y < view.heightPixels; ++y)
@@ -181,9 +181,9 @@ public:
             const Float3 expected = NeuronCore::LightPixel(view, x, y, voxel, NeuronCore::UnpackOctahedralNormal(visibility[2 * pixel + 1]),
                                                            depth[pixel], albedo, emissiveScale, shadowImage, shadowView, parameters);
             const Float3 actual{HalfToFloat(hdr[4 * pixel]), HalfToFloat(hdr[4 * pixel + 1]), HalfToFloat(hdr[4 * pixel + 2])};
-            if (voxel == NeuronCore::NO_VOXEL && actual.x != parameters.background.x)
+            if (voxel == NeuronCore::NO_VOXEL)
             {
-              ++groundPixels;
+              ++backgroundPixels;
             }
             if (!Close(expected.x, actual.x) || !Close(expected.y, actual.y) || !Close(expected.z, actual.z))
             {
@@ -204,12 +204,12 @@ public:
           }
         }
         Logger::WriteMessage(
-          std::format(L"{} voxel pixels, {} ground pixels, {} beyond the tolerance\n", voxelPixels, groundPixels, flips).c_str());
+          std::format(L"{} voxel pixels, {} background pixels, {} beyond the tolerance\n", voxelPixels, backgroundPixels, flips).c_str());
         for (std::size_t i = 0; i < std::min<std::size_t>(flipped.size(), 10); ++i)
         {
           Logger::WriteMessage((flipped[i] + L"\n").c_str());
         }
-        Assert::IsTrue(voxelPixels > 0 && groundPixels > 0, L"the view shows both the station and the ground");
+        Assert::IsTrue(voxelPixels > 0 && backgroundPixels > 0, L"the view shows both the station and the background");
         Assert::IsTrue(flips <= SHADOW_FLIP_LIMIT,
                        std::format(L"{} pixels disagree with the lighting twin, more than {}", flips, SHADOW_FLIP_LIMIT).c_str());
       });

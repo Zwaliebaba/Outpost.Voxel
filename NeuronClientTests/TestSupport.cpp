@@ -210,9 +210,7 @@ NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, 
     lower = {std::min(lower.x, minimum.x), std::min(lower.y, minimum.y), std::min(lower.z, minimum.z)};
     upper = {std::max(upper.x, maximum.x), std::max(upper.y, maximum.y), std::max(upper.z, maximum.z)};
   }
-  const NeuronCore::Float3 center = (lower + upper) * 0.5f;
-  lower.y = std::min(lower.y, 0.0f);
-  return NeuronCore::MakeShadowView(_toSun, center, _halfExtent, lower, upper, _sizePixels);
+  return NeuronCore::MakeShadowView(_toSun, (lower + upper) * 0.5f, _halfExtent, lower, upper, _sizePixels);
 }
 
 NeuronCore::VoxModel RandomBlock()

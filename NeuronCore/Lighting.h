@@ -16,13 +16,12 @@ namespace NeuronCore
 // values in NeuronClient's LightingConstants (R15).
 struct LightingParameters
 {
-  Float3 toSun;        // unit, from a surface towards the sun
-  Float3 sunRadiance;  // E_sun: _inf _i times the sun's color
-  Float3 skyColor;     // the ambient's upper end
-  float skyIntensity;  // _uni _i
-  Float3 groundAlbedo; // the ground plane's color, and the ambient's lower end
-  bool groundVisible;
-  Float3 background;  // what a ray that meets neither a voxel nor the ground sees
+  Float3 toSun;       // unit, from a surface towards the sun
+  Float3 sunRadiance; // E_sun: _inf _i times the sun's color
+  Float3 skyColor;    // the ambient's upper end
+  float skyIntensity; // _uni _i
+  Float3 groundColor; // the ambient's lower end
+  Float3 background;  // what a ray that meets no voxel sees
   float emissiveGain; // multiplies every palette entry's emissive scale; tuned by eye (§7.2)
 };
 
@@ -67,9 +66,8 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 [[nodiscard]] float ShadowFactor(const ShadowMapImage& _map, const OrthographicView& _view, Float3 _position) noexcept;
 
 // What the lighting pass writes for pixel (x, y) (§11): a voxel is shaded at the depth the view splat wrote, with its
-// normal and its palette entry's albedo and emissive scale; where no voxel was hit, the ground plane y = 0 is, if the
-// ray meets it from above and the scene shows it; anything else is the background. The twin of the lighting compute
-// shader's pixel (R15).
+// normal and its palette entry's albedo and emissive scale; where no voxel was hit, the background is. The twin of the
+// lighting compute shader's pixel (R15).
 [[nodiscard]] Float3 LightPixel(const PerspectiveView& _view, std::uint32_t _pixelX, std::uint32_t _pixelY, std::uint32_t _voxel,
                                 Float3 _normal, float _depth, Float3 _albedo, float _emissiveScale, const ShadowMapImage& _shadowMap,
                                 const OrthographicView& _shadowView, const LightingParameters& _lighting) noexcept;

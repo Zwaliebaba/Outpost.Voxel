@@ -57,15 +57,15 @@ struct SplatImage
 // The number a half-precision word holds, as an R16G16B16A16_FLOAT texture stores it.
 [[nodiscard]] float HalfToFloat(std::uint16_t _half) noexcept;
 
-// A seeded, random 8 × 8 × 8 block of voxels, a little over a third of the cells full, standing on the ground: small
+// A seeded, random 8 × 8 × 8 block of voxels, a little over a third of the cells full, its corner at the origin: small
 // enough to check by brute force.
 [[nodiscard]] NeuronCore::VoxModel RandomBlock();
 
 // The box a record index is drawn as while the model is intact.
 [[nodiscard]] NeuronCore::Box RecordBox(const NeuronCore::VoxModel& _model, std::uint32_t _record);
 
-// The sun's view of _model, fitted as the application fits it (§10): a square 2 × _halfExtent across, centred on the box
-// every placed model's SIZE spans, and deep enough for that box grown down to the ground.
+// The sun's view of _model, fitted as the application fits the intact model (§10): a square 2 × _halfExtent across,
+// centred on the box every placed model's SIZE spans, and deep enough for that box.
 [[nodiscard]] NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, NeuronCore::Float3 _toSun, float _halfExtent,
                                                           std::uint32_t _sizePixels);
 

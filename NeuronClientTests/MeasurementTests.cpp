@@ -47,8 +47,8 @@ constexpr std::uint32_t HEIGHT_PIXELS = 91;
 // the GPU's rectangle agrees with the twin's to rounding, and the rasterizer snaps its corners to 1/256 of a pixel.
 constexpr float COVERAGE_EPSILON_PIXELS = 1.0f / 128.0f;
 
-// The explosion's time for the oriented case: early in the first flight, while the station is still in view.
-constexpr float EXPLOSION_SECONDS = 1.5f;
+// The detonation's time for the oriented case: early in its flight, while most of the station is still in view.
+constexpr float EXPLOSION_SECONDS = 0.25f;
 
 // The view splat tests' three-quarter camera: the application's default view of the station (§3).
 [[nodiscard]] NeuronCore::PerspectiveView ThreeQuarterView() noexcept

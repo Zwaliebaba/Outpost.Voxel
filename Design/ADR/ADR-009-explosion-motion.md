@@ -1,6 +1,6 @@
 # ADR-009 — The explosion's motion model and its defaults
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M4 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes
+**Status:** accepted, 2026-09-27 · **Lands with:** M4 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes · **Superseded by:** [ADR-013](ADR-013-zero-gravity-detonation.md) on 2026-09-28, when the floor went and the explosion lost its gravity
 
 ## Context
 

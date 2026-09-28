@@ -110,7 +110,6 @@ RenderSettings DefaultRenderSettings() noexcept
           DEFAULT_INTENSITY,
           {1.0f, 1.0f, 1.0f},
           DEFAULT_INTENSITY,
-          true,
           {ground, ground, ground},
           {0.0f, 0.0f, 0.0f},
           1.0f};
@@ -134,11 +133,6 @@ RenderSettings ReadRenderSettings(std::span<const VoxAttributes> _renderObjects)
   settings.skyColor = ReadColor(sky, "_k", settings.skyColor);
   settings.skyIntensity = ReadAmount(sky, "_i", settings.skyIntensity);
 
-  std::array<float, 1> groundSwitch{};
-  if (ReadNumbers(FindObject(_renderObjects, "_setting"), "_ground", groundSwitch))
-  {
-    settings.groundVisible = groundSwitch[0] != 0.0f;
-  }
   settings.groundColor = ReadColor(FindObject(_renderObjects, "_ground"), "_color", settings.groundColor);
   settings.backgroundColor = ReadColor(FindObject(_renderObjects, "_bg"), "_color", settings.backgroundColor);
   settings.exposure = ReadAmount(FindObject(_renderObjects, "_film"), "_expo", settings.exposure);
