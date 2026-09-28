@@ -17,11 +17,14 @@
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
     <ClCompile Include="CanvasTests.cpp" />
+    <ClCompile Include="ClientSessionTests.cpp" />
     <ClCompile Include="ExplosionSplatTests.cpp" />
     <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="MeasurementTests.cpp" />
     <ClCompile Include="ShadowSplatTests.cpp" />
     <ClCompile Include="PlacementSplatTests.cpp" />
+    <ClCompile Include="SceneModelsTests.cpp" />
+    <ClCompile Include="SnapshotBufferTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli">

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -101,6 +102,28 @@ void AreEqualInt3(Int3 _expected, Int3 _actual, const wchar_t* _what)
 {
   std::vector<Bytes> chunks = LChunks();
   chunks[PLACEMENT_CHUNK] = TransformChunk(2, _nodeAttributes, 3, _layer, _frames);
+  return VoxFile(chunks);
+}
+
+// Three instances under one group: the dot at the origin, the L at (5, 0, 0) and the dot again at (0, 9, 0), in MagicaVoxel's
+// axes.
+[[nodiscard]] Bytes ThreeInstanceFile()
+{
+  const std::vector<Bytes> chunks{
+    SizeChunk(L_SIZE),
+    VoxelsChunk(L_VOXELS),
+    SizeChunk(DOT_SIZE),
+    VoxelsChunk(DOT_VOXELS),
+    TransformChunk(0, {}, 1, -1, {{}}),
+    GroupChunk(1, {}, {2, 4, 6}),
+    TransformChunk(2, {}, 3, 0, {{{"_t", "0 0 0"}}}),
+    ShapeChunk(3, {1}),
+    TransformChunk(4, {}, 5, 0, {{{"_t", "5 0 0"}}}),
+    ShapeChunk(5, {0}),
+    TransformChunk(6, {}, 7, 0, {{{"_t", "0 9 0"}}}),
+    ShapeChunk(7, {1}),
+    PaletteChunk(),
+  };
   return VoxFile(chunks);
 }
 
@@ -432,22 +455,7 @@ public:
 
   TEST_METHOD(PlacesInstancesInSceneOrder)
   {
-    const std::vector<Bytes> chunks{
-      SizeChunk(L_SIZE),
-      VoxelsChunk(L_VOXELS),
-      SizeChunk(DOT_SIZE),
-      VoxelsChunk(DOT_VOXELS),
-      TransformChunk(0, {}, 1, -1, {{}}),
-      GroupChunk(1, {}, {2, 4, 6}),
-      TransformChunk(2, {}, 3, 0, {{{"_t", "0 0 0"}}}),
-      ShapeChunk(3, {1}),
-      TransformChunk(4, {}, 5, 0, {{{"_t", "5 0 0"}}}),
-      ShapeChunk(5, {0}),
-      TransformChunk(6, {}, 7, 0, {{{"_t", "0 9 0"}}}),
-      ShapeChunk(7, {1}),
-      PaletteChunk(),
-    };
-    const NeuronCore::VoxModel model = ExpectAccepted(VoxFile(chunks), L"three instances");
+    const NeuronCore::VoxModel model = ExpectAccepted(ThreeInstanceFile(), L"three instances");
     Assert::AreEqual(std::size_t{3}, model.instances.size());
     const std::array<std::uint32_t, 3> firsts{0, 1, 4};
     const std::array<std::uint32_t, 3> counts{1, 3, 1};
@@ -462,6 +470,25 @@ public:
     Assert::AreEqual(NeuronCore::PackVoxelRecord({0, 0, 0, 4}), model.records[0]);
     Assert::AreEqual(NeuronCore::PackVoxelRecord({1, 3, 2, 15}), model.records[3]);
     Assert::AreEqual(model.records[0], model.records[4]);
+  }
+
+  TEST_METHOD(BoundsEveryVoxelOfEveryPart)
+  {
+    // The dot's cell at the origin, the L's three from (3, -2, -1) to (4, 1, 1), and the second dot's at (0, 0, 9).
+    const NeuronCore::VoxModel model = ExpectAccepted(ThreeInstanceFile(), L"three instances");
+    const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(model);
+    Assert::IsTrue(bounds.has_value(), L"a model with voxels has bounds");
+    AreEqualInt3({0, -2, -1}, bounds.value_or(NeuronCore::VoxelBounds{}).lower, L"lower");
+    AreEqualInt3({5, 2, 10}, bounds.value_or(NeuronCore::VoxelBounds{}).upper, L"upper");
+
+    NeuronCore::VoxModel empty = model;
+    empty.records.clear();
+    for (NeuronCore::ModelInstance& instance : empty.instances)
+    {
+      instance.firstRecord = 0;
+      instance.recordCount = 0;
+    }
+    Assert::IsFalse(NeuronCore::OccupiedBounds(empty).has_value(), L"a model without voxels has none");
   }
 
   TEST_METHOD(ReadsEmissiveMaterials)

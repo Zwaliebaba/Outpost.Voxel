@@ -53,9 +53,8 @@ namespace
   return std::nullopt;
 }
 
-} // namespace
-
-NeuronCore::VoxModel LoadGameData(const wchar_t* _fileName)
+// GameData/_fileName, from above the working directory or above the test sources; a missing file fails the test.
+[[nodiscard]] std::filesystem::path FindGameData(const wchar_t* _fileName)
 {
   const std::filesystem::path relative = std::filesystem::path("GameData") / _fileName;
   std::optional<std::filesystem::path> found = FindAbove(std::filesystem::current_path(), relative);
@@ -64,9 +63,21 @@ NeuronCore::VoxModel LoadGameData(const wchar_t* _fileName)
     found = FindAbove(std::filesystem::path(std::source_location::current().file_name()).parent_path(), relative);
   }
   Assert::IsTrue(found.has_value(), std::format(L"GameData/{} is not above the working directory or the test sources", _fileName).c_str());
-  auto model = NeuronCore::LoadVoxModel(found.value_or(std::filesystem::path()));
+  return found.value_or(std::filesystem::path());
+}
+
+} // namespace
+
+NeuronCore::VoxModel LoadGameData(const wchar_t* _fileName)
+{
+  auto model = NeuronCore::LoadVoxModel(FindGameData(_fileName));
   Assert::IsTrue(model.has_value(), std::format(L"{} was refused", _fileName).c_str());
   return std::move(*model);
+}
+
+std::filesystem::path GameDataDirectory()
+{
+  return FindGameData(L"MilitaryStation.vox").parent_path();
 }
 
 NeuronCore::VoxModel LoadMilitaryStation()

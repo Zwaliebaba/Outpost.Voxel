@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -88,6 +89,9 @@ struct VoxModel
 // with its chunk.
 [[nodiscard]] std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _bytes);
 
+// A .vox file's bytes, whole: what ParseVoxModel reads, and what a welcome's manifest hashes (Design/SpaceScene.md §6.2).
+[[nodiscard]] std::expected<std::vector<std::uint8_t>, VoxError> ReadVoxFile(const std::filesystem::path& _path);
+
 [[nodiscard]] std::expected<VoxModel, VoxError> LoadVoxModel(const std::filesystem::path& _path);
 
 // The axis-aligned unit box whose minimum corner is _minCorner: how every voxel of an intact model is drawn.
@@ -95,5 +99,17 @@ struct VoxModel
 
 // The box that _record, a packed record of _instance, is drawn as while the model is intact.
 [[nodiscard]] Box VoxelBox(const ModelInstance& _instance, std::uint32_t _record) noexcept;
+
+// The box around every voxel of a model, in the model's own space: each voxel is the unit cell at its minimum corner, its
+// part's origin included. An entity stands where the middle of its model's box is (Design/SpaceScene.md §5.1), so the
+// server that places it and the client that draws it measure the box through this one function.
+struct VoxelBounds
+{
+  Int3 lower;
+  Int3 upper; // one past the last cell on each axis
+};
+
+// _model's VoxelBounds, or nothing when it holds no voxel.
+[[nodiscard]] std::optional<VoxelBounds> OccupiedBounds(const VoxModel& _model) noexcept;
 
 } // namespace NeuronCore

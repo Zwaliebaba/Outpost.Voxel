@@ -175,6 +175,7 @@
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="CanvasQuad.h" />
     <ClInclude Include="CanvasShading.h" />
+    <ClInclude Include="ClientSession.h" />
     <ClInclude Include="Clock.h" />
     <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="DebugViewPass.h" />
@@ -192,9 +193,11 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="PlacementConstants.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="SceneModels.h" />
     <ClInclude Include="Shaders.h" />
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="ShadowViewConstants.h" />
+    <ClInclude Include="SnapshotBuffer.h" />
     <ClInclude Include="SplatPass.h" />
     <ClInclude Include="SwapChain.h" />
     <ClInclude Include="ToneMapPass.h" />
@@ -208,6 +211,7 @@
   <ItemGroup>
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="ClientSession.cpp" />
     <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
@@ -226,9 +230,11 @@
     </ClCompile>
     <ClCompile Include="PlacementConstants.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="SceneModels.cpp" />
     <ClCompile Include="Shaders.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="ShadowViewConstants.cpp" />
+    <ClCompile Include="SnapshotBuffer.cpp" />
     <ClCompile Include="SplatPass.cpp" />
     <ClCompile Include="SwapChain.cpp" />
     <ClCompile Include="ToneMapPass.cpp" />

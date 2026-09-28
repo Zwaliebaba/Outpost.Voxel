@@ -1,6 +1,6 @@
 # ADR-003 — Engine and game layout
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Supersedes:** the project layout of [ADR-001](ADR-001-repository-layout.md) · **Amended by:** [ADR-016](ADR-016-server-suites.md), which gives `NeuronServer` and `GameLogic` their suites
+**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Supersedes:** the project layout of [ADR-001](ADR-001-repository-layout.md) · **Amended by:** [ADR-016](ADR-016-server-suites.md), which gives `NeuronServer` and `GameLogic` their suites, and [ADR-018](ADR-018-client.md), which retires `--vox`: the client and the server read every model from the `GameData` beside the executable
 
 ## Context
 

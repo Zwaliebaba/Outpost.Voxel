@@ -124,7 +124,7 @@ These are §5.3's defaults, with a wingman's range of half its cruise to a quart
 - **A restored ship** rejoins as a wingman, and catches up with its slot along the route. It leads only a flight with no other ship whole.
 - **No whole ship.** A flight with none has no leader, and nothing of it flies until a ship is restored.
 
-The owner's answer covers a leader that detonates. That a restored leader rejoins as a wingman is this ADR's own extension: a restore never makes a whole flight turn back for a leader that reappears behind it.
+The owner's answer covered a leader that detonates, and this ADR extended it to a leader restored: it rejoins as a wingman, so that a restore never makes a whole flight turn back for a leader that reappears behind it. The owner confirmed the extension on 2026-09-28, while S-M4 was built ([ADR-018](ADR-018-client.md)).
 
 **Detonation and restore** (§5.5, the owner's answer).
 - **Detonation.** A detonation freezes the entity where it is, and records the event:

@@ -37,6 +37,8 @@ struct DrawCounts
   std::uint32_t viewCulled;
   std::uint32_t shadowDrawn;
   std::uint32_t shadowCulled;
+  std::uint32_t viewVoxels; // the voxels of the placements drawn (Design/SpaceScene.md §13)
+  std::uint32_t shadowVoxels;
 };
 
 // What the GPU measured of one frame (§8, §14), and what its culling counted.

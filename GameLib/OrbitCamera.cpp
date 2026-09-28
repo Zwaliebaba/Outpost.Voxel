@@ -44,6 +44,11 @@ void OrbitCamera::Frame(Float3 _center, float _radius) noexcept
   m_flying = false;
 }
 
+void OrbitCamera::MoveTarget(Float3 _offset) noexcept
+{
+  m_target = m_target + _offset;
+}
+
 void OrbitCamera::Orbit(float _deltaXPixels, float _deltaYPixels) noexcept
 {
   m_yawRadians -= _deltaXPixels * ORBIT_RADIANS_PER_PIXEL;

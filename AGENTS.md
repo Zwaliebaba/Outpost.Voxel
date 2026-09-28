@@ -140,13 +140,13 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 | Project | Kind | References | Holds |
 |---|---|---|---|
 | `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
-| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
+| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock, and the client's session with a server and its snapshots ([ADR-018](Design/ADR/ADR-018-client.md)). Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
 | `NeuronServer` | static library | `NeuronCore` | The server engine: `ServerHost`, which runs the tick and the sessions, and the `World` it simulates through ([ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). No Windows header. |
 | `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side: the sector, its layout, routes, flight and detonations ([ADR-017](Design/ADR/ADR-017-sector.md)). |
-| `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
+| `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: the space scene, its camera and keys, and the bench. |
 | `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
 | `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
-| `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP. |
+| `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP, and the client's session and snapshots on the CPU. |
 | `NeuronServerTests` | test DLL | `NeuronServer`, `NeuronCore` | The server host, over a world of its own. |
 | `GameLogicTests` | test DLL | `GameLogic`, `NeuronServer`, `NeuronCore` | The sector, alone and through a server host. |
 

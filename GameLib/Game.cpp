@@ -2,33 +2,40 @@
 
 #include "Game.h"
 
-#include "Bench.h"
-
 #include "Canvas.h"
+#include "ClientSession.h"
 #include "Clock.h"
 #include "FailureReport.h"
 #include "FrameQueries.h"
 #include "InputState.h"
 #include "Renderer.h"
+#include "SnapshotBuffer.h"
 
+#include "ChaseCamera.h"
 #include "OrbitCamera.h"
 #include "Scene.h"
 
 #include "DebugView.h"
 #include "Lighting.h"
-#include "OrthographicView.h"
+#include "Message.h"
+#include "Quaternion.h"
 #include "RenderSettings.h"
+#include "RigidTransform.h"
 #include "Sphere.h"
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace GameLib
@@ -38,12 +45,22 @@ namespace
 
 using NeuronClient::InputState;
 using NeuronClient::MouseButton;
+using NeuronClient::SampledEntity;
+using NeuronClient::WorldSample;
 
 // Fly speed in fractions of the framing distance per second; Shift quadruples it.
 constexpr float FLY_SPEED_PER_SECOND = 0.25f;
 constexpr float FLY_BOOST = 4.0f;
 // How often the frame time is brought up to date, in the title and on screen; it is the mean over that interval.
 constexpr double TITLE_INTERVAL_SECONDS = 0.5;
+
+// How long the client waits for its server's welcome and first snapshot, which a server on its own thread sends within a
+// tick, and how often it looks.
+constexpr double CONNECT_SECONDS = 10.0;
+constexpr std::chrono::milliseconds CONNECT_POLL{1};
+
+// While the window is minimized, how long the client sleeps between taking the snapshots that keep arriving.
+constexpr DWORD MINIMIZED_WAIT_MILLISECONDS = 100;
 
 // The figures on screen (§13, ADR-010): one per line on a translucent panel in the top-left corner, at these sizes on a
 // 96 DPI monitor and larger in proportion on a denser one.
@@ -68,11 +85,13 @@ constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAME
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
                                    L"Wheel\tdolly\n"
-                                   L"F\tframe the model, or the detonation's reach once it has started\n"
+                                   L"N, B\tthe next or the previous target\n"
+                                   L"F\tframe the target\n"
+                                   L"C\tchase the target\n"
                                    L"Tab\tfly mode: W A S D move, Page Down and Page Up sink and rise, Shift faster\n"
-                                   L"E\tdetonate\n"
-                                   L"R\treassemble\n"
-                                   L"Space\tpause\n"
+                                   L"E\tdetonate the target\n"
+                                   L"R\trestore the target\n"
+                                   L"Space\tpause or resume the server\n"
                                    L"1\tthe lit image\n"
                                    L"2 - 6\talbedo, normal, voxel index, shadow map, overdraw\n"
                                    L"[ ]\temissive glow down, up\n"
@@ -89,41 +108,22 @@ struct Controls
   float emissiveGain = 1.0f;
 };
 
-// The detonation's time (§13, Design/SpaceScene.md §5.5): E runs it forward from wherever it is, R runs it back to the
-// intact model, and Space pauses it. It stops at the envelope's stop time, by which every voxel has drifted to a stop, so
-// that reassembly never takes longer than the detonation did.
-struct ExplosionClock
+// The camera of §13: an orbit about the target entity, which follows it as it moves; a chase camera behind it; or free
+// flight. N and B choose the target. The design has them cycle the stations and the flights' leaders, but no flight
+// crosses the wire (§5.1), so until the owner says otherwise they cycle every entity in the order of their ids.
+struct Camera
 {
-  float seconds = 0.0f;   // since the detonation; 0 is the intact model
-  float direction = 0.0f; // 1 forward, -1 back, 0 still
-  bool paused = false;
-};
+  OrbitCamera orbit;
+  ChaseCamera chase;
+  bool chasing = false;
+  std::uint32_t target = 0;                   // the entity's id; 0 when there is none
+  std::optional<NeuronCore::Float3> followed; // where the target was in the frame before
 
-void RunClock(ExplosionClock& _clock, const InputState& _input, float _stopSeconds, float _elapsedSeconds)
-{
-  if (_input.WasKeyPressed('E'))
+  [[nodiscard]] NeuronCore::PerspectiveView View(std::uint32_t _widthPixels, std::uint32_t _heightPixels) const noexcept
   {
-    _clock.direction = 1.0f;
-    _clock.paused = false;
+    return chasing ? chase.View(_widthPixels, _heightPixels) : orbit.View(_widthPixels, _heightPixels);
   }
-  if (_input.WasKeyPressed('R'))
-  {
-    _clock.direction = -1.0f;
-    _clock.paused = false;
-  }
-  if (_input.WasKeyPressed(VK_SPACE))
-  {
-    _clock.paused = !_clock.paused;
-  }
-  if (!_clock.paused)
-  {
-    _clock.seconds = std::clamp(_clock.seconds + _clock.direction * _elapsedSeconds, 0.0f, _stopSeconds);
-  }
-  if (_clock.seconds == 0.0f && _clock.direction < 0.0f)
-  {
-    _clock.direction = 0.0f;
-  }
-}
+};
 
 // The GPU's figures over one title interval (§8, §13): the mean of each pass over the frames that ran it, of the whole
 // frame, and of the view splat's pixel-shader invocations; and the latest frame's draw counts (Design/SpaceScene.md §7.4).
@@ -153,31 +153,166 @@ struct GpuFigures
   }
 };
 
-void Steer(OrbitCamera& _camera, const NeuronCore::Sphere& _framed, const InputState& _input, std::uint32_t _heightPixels, float _seconds)
+// What the frame shows of the world (§13): the server's clock and how far behind it the frame is drawn, the entities
+// and the detonations in progress, and the camera's target.
+struct WorldFigures
 {
-  if (_input.WasKeyPressed('F'))
+  std::uint64_t tick;
+  std::uint32_t tickRate;
+  double behindMilliseconds;
+  std::size_t entities;
+  std::size_t detonations;
+  bool paused;
+  std::uint32_t target;
+  bool chasing;
+};
+
+void ThrowOnRefusal(const std::expected<void, NeuronClient::SessionError>& _polled)
+{
+  if (!_polled)
   {
-    _camera.Frame(_framed.center, _framed.radius);
+    throw std::runtime_error("The session with the server ended: " + NeuronClient::DescribeSessionError(_polled.error()));
+  }
+}
+
+// Takes messages until the welcome and the first snapshot have come, which a server on its own thread sends within a
+// tick; throws, saying why, when the session is refused or nothing comes for CONNECT_SECONDS.
+template <typename Now> void AwaitWorld(NeuronClient::ClientSession& _session, const Now& _now)
+{
+  const double deadline = _now() + CONNECT_SECONDS;
+  for (;;)
+  {
+    ThrowOnRefusal(_session.Poll(_now()));
+    if (_session.IsWelcomed() && !_session.Buffer().IsEmpty())
+    {
+      return;
+    }
+    if (_now() > deadline)
+    {
+      throw std::runtime_error(std::format("The server sent no world within {} seconds.", CONNECT_SECONDS));
+    }
+    std::this_thread::sleep_for(CONNECT_POLL);
+  }
+}
+
+[[nodiscard]] const SampledEntity* FindEntity(const WorldSample& _sample, std::uint32_t _id) noexcept
+{
+  const auto found = std::ranges::lower_bound(_sample.entities, _id, {}, &SampledEntity::id);
+  return found != _sample.entities.end() && found->id == _id ? &*found : nullptr;
+}
+
+// The entity after _id in the order of their ids, or before it when _backward, round from the last to the first: what N
+// and B choose. Nothing when there is no entity.
+[[nodiscard]] const SampledEntity* NextEntity(const WorldSample& _sample, std::uint32_t _id, bool _backward) noexcept
+{
+  if (_sample.entities.empty())
+  {
+    return nullptr;
+  }
+  if (!_backward)
+  {
+    const auto after = std::ranges::upper_bound(_sample.entities, _id, {}, &SampledEntity::id);
+    return after == _sample.entities.end() ? &_sample.entities.front() : &*after;
+  }
+  const auto from = std::ranges::lower_bound(_sample.entities, _id, {}, &SampledEntity::id);
+  return from == _sample.entities.begin() ? &_sample.entities.back() : &*std::prev(from);
+}
+
+void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, const InputState& _input, std::uint32_t _heightPixels,
+           float _seconds)
+{
+  const SampledEntity* target = FindEntity(_sample, _camera.target);
+  const bool next = _input.WasKeyPressed('N');
+  if (next || _input.WasKeyPressed('B'))
+  {
+    if (const SampledEntity* chosen = NextEntity(_sample, _camera.target, !next); chosen != nullptr)
+    {
+      target = chosen;
+      _camera.target = chosen->id;
+      _camera.followed.reset();
+      const NeuronCore::Sphere extent = _scene.Models().Extent(*chosen);
+      _camera.orbit.Frame(extent.center, extent.radius);
+      if (_camera.chasing)
+      {
+        _camera.chase.Reset(chosen->position, NeuronCore::RotationOf(chosen->rotation), _scene.Models().Radius(chosen->modelIndex));
+      }
+    }
+  }
+  if (_input.WasKeyPressed('F') && target != nullptr)
+  {
+    const NeuronCore::Sphere extent = _scene.Models().Extent(*target);
+    _camera.orbit.Frame(extent.center, extent.radius);
+    _camera.chasing = false;
+  }
+  if (_input.WasKeyPressed('C') && target != nullptr)
+  {
+    _camera.chasing = !_camera.chasing;
+    _camera.chase.Reset(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex));
   }
   if (_input.WasKeyPressed(VK_TAB))
   {
-    _camera.ToggleFlying();
+    _camera.chasing = false;
+    _camera.orbit.ToggleFlying();
   }
+
+  // The orbit keeps its place relative to the target as the target moves; the chase camera rides behind it. A target
+  // that has gone leaves the camera where it is.
+  if (target != nullptr)
+  {
+    if (_camera.followed.has_value() && !_camera.orbit.IsFlying())
+    {
+      _camera.orbit.MoveTarget(target->position - _camera.followed.value());
+    }
+    _camera.followed = target->position;
+    if (_camera.chasing)
+    {
+      _camera.chase.Follow(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex),
+                           _seconds);
+    }
+  }
+  else
+  {
+    _camera.chasing = false;
+    _camera.followed.reset();
+  }
+  if (_camera.chasing)
+  {
+    return;
+  }
+
+  OrbitCamera& orbit = _camera.orbit;
   if (_input.IsButtonDown(MouseButton::Left))
   {
-    _camera.Orbit(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels());
+    orbit.Orbit(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels());
   }
   if (_input.IsButtonDown(MouseButton::Right))
   {
-    _camera.Pan(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels(), _heightPixels);
+    orbit.Pan(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels(), _heightPixels);
   }
-  _camera.Dolly(_input.WheelNotches());
-  if (_camera.IsFlying())
+  orbit.Dolly(_input.WheelNotches());
+  if (orbit.IsFlying())
   {
-    const float step = FLY_SPEED_PER_SECOND * _camera.Distance() * _seconds * (_input.IsKeyDown(VK_SHIFT) ? FLY_BOOST : 1.0f);
+    const float step = FLY_SPEED_PER_SECOND * orbit.Distance() * _seconds * (_input.IsKeyDown(VK_SHIFT) ? FLY_BOOST : 1.0f);
     const auto axis = [&_input](std::uint32_t _positive, std::uint32_t _negative)
     { return (_input.IsKeyDown(_positive) ? 1.0f : 0.0f) - (_input.IsKeyDown(_negative) ? 1.0f : 0.0f); };
-    _camera.Fly(axis('W', 'S') * step, axis('D', 'A') * step, axis(VK_PRIOR, VK_NEXT) * step);
+    orbit.Fly(axis('W', 'S') * step, axis('D', 'A') * step, axis(VK_PRIOR, VK_NEXT) * step);
+  }
+}
+
+// E, R and Space, as commands to the server (§5.5, §13): detonate the target, restore it, and pause or resume the world.
+void Command(NeuronClient::ClientSession& _session, std::uint32_t _target, bool _paused, const InputState& _input)
+{
+  if (_target != 0 && _input.WasKeyPressed('E'))
+  {
+    _session.Send({NeuronCore::CommandKind::Detonate, _target});
+  }
+  if (_target != 0 && _input.WasKeyPressed('R'))
+  {
+    _session.Send({NeuronCore::CommandKind::Restore, _target});
+  }
+  if (_input.WasKeyPressed(VK_SPACE))
+  {
+    _session.Send({_paused ? NeuronCore::CommandKind::Resume : NeuronCore::CommandKind::Pause, 0});
   }
 }
 
@@ -217,21 +352,24 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   }
 }
 
-// The largest emissive scale in the palette: what the title reports, times the gain, as the glow the viewer tunes.
-[[nodiscard]] float BrightestEmissiveScale(const NeuronCore::VoxModel& _model) noexcept
+// The largest emissive scale in any model's palette: what the title reports, times the gain, as the glow the viewer tunes.
+[[nodiscard]] float BrightestEmissiveScale(std::span<const NeuronCore::VoxModel> _models) noexcept
 {
   float brightest = 0.0f;
-  for (const NeuronCore::PaletteEntry& entry : _model.palette)
+  for (const NeuronCore::VoxModel& model : _models)
   {
-    brightest = std::max(brightest, NeuronCore::EmissiveScale(entry));
+    for (const NeuronCore::PaletteEntry& entry : model.palette)
+    {
+      brightest = std::max(brightest, NeuronCore::EmissiveScale(entry));
+    }
   }
   return brightest;
 }
 
 // What the title and the panel on screen carry (§13): the adapter, the view, the mean frame time and the GPU's figures
-// once there are some, and whatever else is not at its default.
+// once there are some, the world's, and whatever else is not at its default.
 [[nodiscard]] std::vector<std::wstring> Figures(const NeuronClient::GraphicsDevice& _device, const Controls& _controls,
-                                                const ExplosionClock& _clock, std::optional<double> _frameSeconds, const GpuFigures& _gpu,
+                                                const WorldFigures& _world, std::optional<double> _frameSeconds, const GpuFigures& _gpu,
                                                 float _brightestEmissive)
 {
   std::vector<std::wstring> figures{_device.AdapterName(),
@@ -253,18 +391,23 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
     figures.push_back(std::format(L"PSInvocations {:.2f} M", _gpu.pixelShaderInvocations / _gpu.frames / 1.0e6));
     figures.push_back(std::format(L"placements: view {} drawn, {} culled; sun {} drawn, {} culled", _gpu.draws.viewDrawn,
                                   _gpu.draws.viewCulled, _gpu.draws.shadowDrawn, _gpu.draws.shadowCulled));
+    figures.push_back(
+      std::format(L"voxels drawn: view {:.3f} M, sun {:.3f} M", _gpu.draws.viewVoxels / 1.0e6, _gpu.draws.shadowVoxels / 1.0e6));
+  }
+  figures.push_back(
+    std::format(L"server tick {} at {} a second, drawn {:.0f} ms behind", _world.tick, _world.tickRate, _world.behindMilliseconds));
+  figures.push_back(std::format(L"{} entities, {} detonated", _world.entities, _world.detonations));
+  if (_world.target != 0)
+  {
+    figures.push_back(std::format(L"target {}{}", _world.target, _world.chasing ? L", chased" : L""));
+  }
+  if (_world.paused)
+  {
+    figures.emplace_back(L"paused");
   }
   if (_brightestEmissive > 0.0f)
   {
     figures.push_back(std::format(L"emissive {:.2f}", _brightestEmissive * _controls.emissiveGain));
-  }
-  if (_clock.seconds > 0.0f)
-  {
-    figures.push_back(std::format(L"t {:.2f} s", _clock.seconds));
-  }
-  if (_clock.paused)
-  {
-    figures.emplace_back(L"paused");
   }
   if (!_controls.vsync)
   {
@@ -307,31 +450,31 @@ void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>&
   _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
-// The sun's view (§10): fitted once around the detonation's reach, which holds the model and all of its debris
-// (Design/SpaceScene.md §5.5), so that it never moves and shadows do not swim.
-[[nodiscard]] NeuronCore::OrthographicView FitShadowView(const Scene& _scene, const NeuronCore::RenderSettings& _settings,
-                                                         const ExplosionReach& _reach) noexcept
-{
-  const NeuronCore::Float3 toSun = NeuronCore::SunDirection(_settings.sunElevationRadians, _settings.sunAzimuthRadians);
-  const NeuronCore::Float3 extent{_reach.sphere.radius, _reach.sphere.radius, _reach.sphere.radius};
-  return NeuronCore::MakeShadowView(toSun, _scene.center, NeuronCore::SHADOW_HALF_EXTENT, _reach.sphere.center - extent,
-                                    _reach.sphere.center + extent, NeuronCore::SHADOW_MAP_PIXELS);
-}
-
 } // namespace
 
-void RunGame(const GameOptions& _options)
+void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport> _transport)
 {
-  const Scene scene = LoadScene(_options.voxPath);
-  const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(scene.model.renderObjects);
-  const float brightestEmissive = BrightestEmissiveScale(scene.model);
-  const ExplosionReach reach = BoundSceneExplosion(scene);
+  const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  const auto now = [start] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); };
+  NeuronClient::ClientSession session(std::move(_transport), _options.modelDirectory);
+  AwaitWorld(session, now);
+
+  // The station sample's lighting, until S-M5 takes the welcome's (Design/SpaceScene.md §12.1).
+  const NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
+  Scene scene(session.Models(), NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians));
+  const float brightestEmissive = BrightestEmissiveScale(session.Models());
+  WorldSample sample = session.Buffer().Sample(session.Buffer().RenderTick(now()));
+  scene.FitShadowView(sample);
+
+  // The first entity, a station of the sector's, is the first target.
+  const SampledEntity* first = sample.entities.empty() ? nullptr : &sample.entities.front();
+  const NeuronCore::Sphere framed = first != nullptr ? scene.Models().Extent(*first) : NeuronCore::Sphere{{0.0f, 0.0f, 0.0f}, 100.0f};
+  Camera camera{OrbitCamera(framed.center, framed.radius), ChaseCamera{}, false, first != nullptr ? first->id : 0u, std::nullopt};
+
   NeuronClient::Window window({L"Outpost", _options.windowSize});
-  // --bench renders at its own size whatever the window's, and the swap chain stretches it over the window (§13).
-  const NeuronClient::ClientSize size =
-    _options.benchSeconds ? NeuronClient::ClientSize{BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS} : window.Size();
-  NeuronClient::Renderer renderer(
-    {_options.device, window.Handle(), size.widthPixels, size.heightPixels, FitShadowView(scene, settings, reach)}, {&scene.model, 1});
+  const NeuronClient::ClientSize size = window.Size();
+  NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView()},
+                                  scene.Models().Models());
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -339,20 +482,7 @@ void RunGame(const GameOptions& _options)
     {
       OutputDebugStringW(L"The Direct3D 12 debug layer is not installed; running without it.\n");
     }
-    if (_options.benchSeconds)
-    {
-      if (const std::optional<std::wstring> summary =
-            RunBench(window, renderer, scene, settings, reach.stopSeconds, *_options.benchSeconds))
-      {
-        OutputDebugStringW(summary->c_str());
-        MessageBoxW(window.Handle(), summary->c_str(), L"Outpost --bench", MB_OK | MB_ICONINFORMATION);
-      }
-      return;
-    }
-    OrbitCamera camera(scene.center, scene.radius);
     Controls controls;
-    ExplosionClock explosionClock;
-    const NeuronCore::Sphere intact{scene.center, scene.radius};
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
@@ -362,16 +492,20 @@ void RunGame(const GameOptions& _options)
     while (window.PumpMessages())
     {
       const double seconds = clock.Tick();
+      ThrowOnRefusal(session.Poll(now()));
+      NeuronClient::SnapshotBuffer& buffer = session.Buffer();
+      const double renderTick = buffer.RenderTick(now());
+      sample = buffer.Sample(renderTick);
       const NeuronClient::ClientSize current = window.Size();
       NeuronClient::InputState& input = window.Input();
-      Steer(camera, explosionClock.seconds > 0.0f ? reach.sphere : intact, input, current.heightPixels, static_cast<float>(seconds));
+      Steer(camera, scene, sample, input, current.heightPixels, static_cast<float>(seconds));
+      Command(session, camera.target, buffer.Newest().paused, input);
       Choose(controls, input, window.Handle());
-      RunClock(explosionClock, input, reach.stopSeconds, static_cast<float>(seconds));
       input.EndFrame();
       if (current.widthPixels == 0 || current.heightPixels == 0)
       {
-        // Minimized: nothing to draw until a message says something changed.
-        WaitMessage();
+        // Minimized: nothing to draw until a message says something changed, but the snapshots keep coming.
+        MsgWaitForMultipleObjects(0, nullptr, FALSE, MINIMIZED_WAIT_MILLISECONDS, QS_ALLINPUT);
         continue;
       }
       sinceTitleSeconds += seconds;
@@ -390,7 +524,16 @@ void RunGame(const GameOptions& _options)
         gpuSince = GpuFigures{};
       }
       renderer.Resize(current.widthPixels, current.heightPixels);
-      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, explosionClock, frameSeconds, gpu, brightestEmissive);
+      const WorldFigures world{buffer.Newest().tick,
+                               buffer.TickRate(),
+                               (static_cast<double>(buffer.Newest().tick) - renderTick) * 1000.0 / buffer.TickRate(),
+                               sample.entities.size(),
+                               static_cast<std::size_t>(std::ranges::count_if(sample.entities, [](const SampledEntity& _entity)
+                                                                              { return _entity.detonation.has_value(); })),
+                               buffer.Newest().paused,
+                               camera.target,
+                               camera.chasing};
+      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, world, frameSeconds, gpu, brightestEmissive);
       if (titleDue)
       {
         window.SetTitle(L"Outpost - " + Joined(figures, L" - "));
@@ -399,8 +542,12 @@ void RunGame(const GameOptions& _options)
       {
         DrawFigures(renderer.Overlay(), figures, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
       }
+      if (scene.FitShadowView(sample))
+      {
+        renderer.SetShadowView(scene.ShadowView());
+      }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels), PlacementsAt(scene, explosionClock.seconds),
+      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
                       {controls.debugView, lighting, settings.exposure, controls.vsync, false, false});
     }
   }

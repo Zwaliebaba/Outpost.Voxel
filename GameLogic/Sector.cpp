@@ -6,14 +6,12 @@
 #include "Lighting.h"
 #include "Quaternion.h"
 #include "VoxModel.h"
-#include "VoxelRecord.h"
 
 #include <algorithm>
 #include <cmath>
-#include <fstream>
-#include <limits>
 #include <numbers>
 #include <numeric>
+#include <optional>
 #include <utility>
 
 namespace GameLogic
@@ -138,43 +136,25 @@ struct ModelMeasure
 
 [[nodiscard]] std::expected<ModelMeasure, SectorError> MeasureModel(const std::filesystem::path& _path, const std::string& _file)
 {
-  std::ifstream stream(_path, std::ios::binary | std::ios::ate);
-  if (!stream)
+  const auto bytes = NeuronCore::ReadVoxFile(_path);
+  if (!bytes)
   {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": FileNotFound");
+    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(bytes.error()));
   }
-  const std::streamoff size = stream.tellg();
-  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(std::max<std::streamoff>(size, 0)));
-  stream.seekg(0);
-  if (!stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size())))
-  {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": ReadFailed");
-  }
-  const auto model = NeuronCore::ParseVoxModel(bytes);
+  const auto model = NeuronCore::ParseVoxModel(*bytes);
   if (!model)
   {
     return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(model.error()));
   }
 
-  constexpr std::int32_t NONE = std::numeric_limits<std::int32_t>::max();
-  NeuronCore::Int3 lower{NONE, NONE, NONE};
-  NeuronCore::Int3 upper{-NONE, -NONE, -NONE};
-  for (const NeuronCore::ModelInstance& instance : model->instances)
-  {
-    for (std::uint32_t i = 0; i < instance.recordCount; ++i)
-    {
-      const NeuronCore::VoxelRecord voxel = NeuronCore::UnpackVoxelRecord(model->records[instance.firstRecord + i]);
-      const NeuronCore::Int3 corner = instance.origin + NeuronCore::Int3{voxel.x, voxel.y, voxel.z};
-      lower = {std::min(lower.x, corner.x), std::min(lower.y, corner.y), std::min(lower.z, corner.z)};
-      upper = {std::max(upper.x, corner.x + 1), std::max(upper.y, corner.y + 1), std::max(upper.z, corner.z + 1)};
-    }
-  }
-  if (lower.x > upper.x)
+  const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(*model);
+  if (!bounds)
   {
     return Refuse(SectorRefusal::ModelNotLoaded, _file + ": holds no visible voxel");
   }
-  const Float3 extent{static_cast<float>(upper.x - lower.x), static_cast<float>(upper.y - lower.y), static_cast<float>(upper.z - lower.z)};
-  return ModelMeasure{0.5f * NeuronCore::Length(extent), NeuronCore::Fnv1aHash64(bytes)};
+  const NeuronCore::Int3 size = bounds->upper - bounds->lower;
+  const Float3 extent{static_cast<float>(size.x), static_cast<float>(size.y), static_cast<float>(size.z)};
+  return ModelMeasure{0.5f * NeuronCore::Length(extent), NeuronCore::Fnv1aHash64(*bytes)};
 }
 
 // The normal of an orbit about _station, which its route reaches from _previous and leaves toward _next (§5.2). Its plane
