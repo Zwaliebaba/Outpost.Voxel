@@ -4,13 +4,27 @@
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
 // and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
 // perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes while the model is intact
-// and oriented ones, posed by the explosion, once it is not (§12).
+// and oriented ones, posed by the explosion, once it is not (§12). PLAIN_DEPTH and COUNT_OVERDRAW make the view splat's
+// measurement variants (§14): one writes plain SV_Depth instead of conservative depth, so that PSInvocations shows what
+// conservative depth saves, and the other counts its invocations per pixel for the overdraw view.
 
 #ifndef ORIENTED
 #   error "the entry-point file sets ORIENTED"
 #endif
 #ifndef ORTHOGRAPHIC
 #   error "the entry-point file sets ORTHOGRAPHIC"
+#endif
+#ifndef PLAIN_DEPTH
+#   error "the entry-point file sets PLAIN_DEPTH"
+#endif
+#ifndef COUNT_OVERDRAW
+#   error "the entry-point file sets COUNT_OVERDRAW"
+#endif
+#if ORTHOGRAPHIC && (PLAIN_DEPTH || COUNT_OVERDRAW)
+#   error "the measurement variants are the view splat's"
+#endif
+#if PLAIN_DEPTH && COUNT_OVERDRAW
+#   error "a view splat is one measurement variant at a time"
 #endif
 // Every ray the pass casts starts outside the box it tests (§9.3).
 #define CAN_START_IN_BOX 0
@@ -38,9 +52,12 @@ ConstantBuffer<InstanceConstants> g_instance : register(b1);
 ConstantBuffer<ExplosionConstants> g_explosion : register(b2);
 #endif
 StructuredBuffer<uint> g_records : register(t0);
+#if COUNT_OVERDRAW
+RWTexture2D<uint> g_overdraw : register(u0);
+#endif
 
 // An instance of the draw covers this many voxels: the static index buffer holds this many rectangles (§9.1). The C++
-// side is NeuronClient/ViewSplatPass.h.
+// side is NeuronClient/SplatPass.h.
 static const uint RECTANGLES_PER_INSTANCE = 256;
 
 // A pixel shader that writes conservative depth reads SV_Position at the centroid; without MSAA that is the pixel's centre.
@@ -67,7 +84,11 @@ struct SplatTargets
 struct SplatTargets
 {
   uint2 visibility : SV_Target0;
+#   if PLAIN_DEPTH
+  float depth : SV_Depth;
+#   else
   float depth : SV_DepthLessEqual;
+#   endif
 };
 #endif
 
@@ -158,9 +179,15 @@ SplatTargets SplatPixel(SplatVaryings _varyings)
 }
 #else
 // §9.3: the ray through the pixel's centre against the voxel's box. The written depth can only move away from the
-// camera, so it stays within the promise SV_DepthLessEqual makes; min() keeps a rounding error from breaking it.
+// camera, so it stays within the promise SV_DepthLessEqual makes; min() keeps a rounding error from breaking it. The
+// plain-depth variant writes the hit's depth as it is, and makes no promise.
 SplatTargets SplatPixel(SplatVaryings _varyings)
 {
+#   if COUNT_OVERDRAW
+  // Every invocation counts, a miss as well as a hit. A shader with a UAV side effect runs before the depth test, so this
+  // counts every fragment of every rectangle over the pixel: the bounds' looseness and the depth complexity together.
+  InterlockedAdd(g_overdraw[uint2(_varyings.position.xy)], 1u);
+#   endif
   Ray ray = PerspectiveRay(g_view, _varyings.position.xy);
   float distance = 0.0;
   float3 normal = float3(0.0, 0.0, 0.0);
@@ -171,7 +198,11 @@ SplatTargets SplatPixel(SplatVaryings _varyings)
   }
   SplatTargets targets;
   targets.visibility = uint2(_varyings.voxel, PackOctahedralNormal(normal));
+#   if PLAIN_DEPTH
+  targets.depth = PerspectiveDepth(g_view, distance);
+#   else
   targets.depth = min(PerspectiveDepth(g_view, distance), _varyings.position.z);
+#   endif
   return targets;
 }
 #endif

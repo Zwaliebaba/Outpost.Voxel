@@ -10,6 +10,7 @@ namespace
 // Each header defines one array of bytecode, named by its FxCompile item's VariableName.
 #include "Shaders/CanvasPS.h"
 #include "Shaders/CanvasVS.h"
+#include "Shaders/CoverageVS.h"
 #include "Shaders/DebugViewPS.h"
 #include "Shaders/DebugViewVS.h"
 #include "Shaders/LightingCS.h"
@@ -19,9 +20,13 @@ namespace
 #include "Shaders/ShadowSplatOrientedVS.h"
 #include "Shaders/ToneMapPS.h"
 #include "Shaders/ToneMapVS.h"
+#include "Shaders/ViewSplatAlignedOverdrawPS.h"
 #include "Shaders/ViewSplatAlignedPS.h"
+#include "Shaders/ViewSplatAlignedPlainDepthPS.h"
 #include "Shaders/ViewSplatAlignedVS.h"
+#include "Shaders/ViewSplatOrientedOverdrawPS.h"
 #include "Shaders/ViewSplatOrientedPS.h"
+#include "Shaders/ViewSplatOrientedPlainDepthPS.h"
 #include "Shaders/ViewSplatOrientedVS.h"
 
 } // namespace
@@ -66,6 +71,26 @@ D3D12_SHADER_BYTECODE ShadowSplatOrientedPixelShader() noexcept
   return {SHADOW_SPLAT_ORIENTED_PS, sizeof(SHADOW_SPLAT_ORIENTED_PS)};
 }
 
+D3D12_SHADER_BYTECODE ViewSplatAlignedPlainDepthPixelShader() noexcept
+{
+  return {VIEW_SPLAT_ALIGNED_PLAIN_DEPTH_PS, sizeof(VIEW_SPLAT_ALIGNED_PLAIN_DEPTH_PS)};
+}
+
+D3D12_SHADER_BYTECODE ViewSplatOrientedPlainDepthPixelShader() noexcept
+{
+  return {VIEW_SPLAT_ORIENTED_PLAIN_DEPTH_PS, sizeof(VIEW_SPLAT_ORIENTED_PLAIN_DEPTH_PS)};
+}
+
+D3D12_SHADER_BYTECODE ViewSplatAlignedOverdrawPixelShader() noexcept
+{
+  return {VIEW_SPLAT_ALIGNED_OVERDRAW_PS, sizeof(VIEW_SPLAT_ALIGNED_OVERDRAW_PS)};
+}
+
+D3D12_SHADER_BYTECODE ViewSplatOrientedOverdrawPixelShader() noexcept
+{
+  return {VIEW_SPLAT_ORIENTED_OVERDRAW_PS, sizeof(VIEW_SPLAT_ORIENTED_OVERDRAW_PS)};
+}
+
 D3D12_SHADER_BYTECODE LightingComputeShader() noexcept
 {
   return {LIGHTING_CS, sizeof(LIGHTING_CS)};
@@ -89,6 +114,11 @@ D3D12_SHADER_BYTECODE DebugViewVertexShader() noexcept
 D3D12_SHADER_BYTECODE DebugViewPixelShader() noexcept
 {
   return {DEBUG_VIEW_PS, sizeof(DEBUG_VIEW_PS)};
+}
+
+D3D12_SHADER_BYTECODE CoverageVertexShader() noexcept
+{
+  return {COVERAGE_VS, sizeof(COVERAGE_VS)};
 }
 
 D3D12_SHADER_BYTECODE CanvasVertexShader() noexcept

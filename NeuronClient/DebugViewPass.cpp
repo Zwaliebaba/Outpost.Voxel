@@ -25,6 +25,7 @@ enum RootParameter : std::uint8_t
   RecordsParameter,
   VisibilityParameter,
   ShadowMapParameter,
+  OverdrawParameter,
   RootParameterCount
 };
 
@@ -34,6 +35,7 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
 {
   const D3D12_DESCRIPTOR_RANGE visibilityRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, 0};
   const D3D12_DESCRIPTOR_RANGE shadowMapRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0, 0};
+  const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0, 0};
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[ViewConstantsParameter].Descriptor = {0, 0};
@@ -47,6 +49,8 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   parameters[VisibilityParameter].DescriptorTable = {1, &visibilityRange};
   parameters[ShadowMapParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[ShadowMapParameter].DescriptorTable = {1, &shadowMapRange};
+  parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
   {
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -82,6 +86,7 @@ void DebugViewPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& 
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
   _list->SetGraphicsRootDescriptorTable(VisibilityParameter, _targets.VisibilityTable());
   _list->SetGraphicsRootDescriptorTable(ShadowMapParameter, _shadowMap.Table());
+  _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _targets.OverdrawTable());
   _list->DrawInstanced(3, 1, 0, 0);
 }
 

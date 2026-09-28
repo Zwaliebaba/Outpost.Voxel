@@ -15,10 +15,14 @@ enum class DebugView : std::uint32_t
   Albedo,
   Normal,
   VoxelIndex,
-  ShadowMap
+  ShadowMap,
+  Overdraw
 };
 
-inline constexpr std::uint32_t DEBUG_VIEW_COUNT = 4;
+inline constexpr std::uint32_t DEBUG_VIEW_COUNT = 5;
+
+// The overdraw view is white above this many invocations per pixel, and a ramp from blue at one to red here below it.
+inline constexpr std::uint32_t OVERDRAW_VIEW_SATURATION = 64;
 
 // The linear color the debug view pass writes for a pixel of the visibility buffer in the views that show it: albedo,
 // normal and voxel index. A pixel no voxel covers is black. The twin of DebugViewColor in DebugView.hlsli (R15).
@@ -37,5 +41,12 @@ inline constexpr std::uint32_t DEBUG_VIEW_COUNT = 4;
 {
   return {_depth, _depth, _depth};
 }
+
+// The heat map the overdraw view shows for the splat pixel-shader invocations a pixel counted (§11): black for none,
+// then a ramp through blue, cyan, green, yellow and red, evenly spaced in log2 of the count from 1 to
+// OVERDRAW_VIEW_SATURATION, and white above it. Between two powers of two the position is linear in the count, which
+// puts the colors at 1, 3, 8, 24 and 64 and lets the shader compute the ramp exactly as the twin does, with no logarithm. The twin of OverdrawViewColor in DebugView.hlsli
+// (R15).
+[[nodiscard]] Float3 OverdrawViewColor(std::uint32_t _invocations) noexcept;
 
 } // namespace NeuronCore

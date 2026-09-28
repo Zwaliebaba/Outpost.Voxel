@@ -61,6 +61,10 @@ public:
         const NeuronCore::VoxModel model = LoadMilitaryStation();
         const NeuronClient::VoxelScene scene(_device, model);
         const NeuronClient::SplatPass viewSplat(_device, NeuronClient::SplatPass::Kind::View);
+        // The overdraw view shows what the overdraw variant counts (§11).
+        const NeuronClient::SplatPass overdrawSplat(_device, NeuronClient::SplatPass::Kind::View,
+                                                    NeuronClient::SplatPass::Permutation::Aligned,
+                                                    NeuronClient::SplatPass::Variant::Overdraw);
         const NeuronClient::SplatPass shadowSplat(_device, NeuronClient::SplatPass::Kind::Shadow);
         const NeuronClient::DebugViewPass debugView(_device, COLOR_FORMAT);
         const Float3 center{0.5f, 0.5f, 127.5f};
@@ -72,8 +76,8 @@ public:
 
         NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false, L"Test render target views");
         NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 2, false, L"Test depth stencil views");
-        NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 8, true, L"Test shader views");
-        NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, false, L"Test CPU-only views");
+        NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 12, true, L"Test shader views");
+        NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, false, L"Test CPU-only views");
         NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);
         targets.Resize(_device, view.widthPixels, view.heightPixels);
         const NeuronClient::ShadowMap shadowMap(_device, dsvHeap, shaderHeap, SHADOW_MAP_PIXELS);
@@ -89,9 +93,11 @@ public:
         const std::size_t pixels = static_cast<std::size_t>(view.widthPixels) * view.heightPixels;
         std::vector<std::uint32_t> visibility(pixels * 2);
         std::vector<float> shadowDepth(static_cast<std::size_t>(SHADOW_MAP_PIXELS) * SHADOW_MAP_PIXELS);
+        std::vector<std::uint32_t> overdraw(pixels);
         for (std::uint32_t mode = 0; mode < NeuronCore::DEBUG_VIEW_COUNT; ++mode)
         {
           const auto debug = static_cast<NeuronCore::DebugView>(mode);
+          const NeuronClient::SplatPass& splat = debug == NeuronCore::DebugView::Overdraw ? overdrawSplat : viewSplat;
           _device.Execute(
             [&](ID3D12GraphicsCommandList* _list)
             {
@@ -101,7 +107,15 @@ public:
               shadowSplat.Record(_list, scene, shadowViewConstants);
               shadowMap.EndSplat(_list);
               targets.BeginSplat(_list);
-              viewSplat.Record(_list, scene, viewConstants);
+              if (splat.CountsOverdraw())
+              {
+                targets.BeginOverdraw(_list);
+              }
+              splat.Record(_list, scene, viewConstants, 0, targets.OverdrawWriteTable());
+              if (splat.CountsOverdraw())
+              {
+                targets.EndOverdraw(_list);
+              }
               targets.EndSplat(_list);
               const D3D12_CPU_DESCRIPTOR_HANDLE target = rtvHeap.Cpu(colorView);
               _list->OMSetRenderTargets(1, &target, FALSE, nullptr);
@@ -113,6 +127,12 @@ public:
           const std::vector<std::byte> shadowBytes = NeuronClient::ReadTexture2D(
             _device, shadowMap.Depth(), NeuronClient::ShadowMap::READABLE, NeuronClient::ShadowMap::BYTES_PER_TEXEL);
           std::memcpy(shadowDepth.data(), shadowBytes.data(), shadowBytes.size());
+          if (splat.CountsOverdraw())
+          {
+            const std::vector<std::byte> overdrawBytes = NeuronClient::ReadTexture2D(
+              _device, targets.Overdraw(), NeuronClient::ViewTargets::READABLE, NeuronClient::ViewTargets::OVERDRAW_BYTES_PER_PIXEL);
+            std::memcpy(overdraw.data(), overdrawBytes.data(), overdrawBytes.size());
+          }
           const std::vector<std::byte> colorBytes =
             NeuronClient::ReadTexture2D(_device, color.get(), D3D12_RESOURCE_STATE_RENDER_TARGET, COLOR_BYTES_PER_PIXEL);
           std::vector<float> colors(pixels * 4);
@@ -134,6 +154,10 @@ public:
                 {
                   expected = NeuronCore::ShadowMapViewColor(shadowDepth[static_cast<std::size_t>(texelY) * SHADOW_MAP_PIXELS + texelX]);
                 }
+              }
+              else if (debug == NeuronCore::DebugView::Overdraw)
+              {
+                expected = NeuronCore::OverdrawViewColor(overdraw[pixel]);
               }
               else
               {

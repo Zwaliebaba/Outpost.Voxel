@@ -105,7 +105,7 @@ The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and 
 
 In-box WARP implements FL 12_1 on Windows 10 1709 and later, so CI can run the real renderer (§14).
 
-The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp and pipeline-statistics queries; a flip-model swap chain; and DirectWrite, which lays the canvas's text out and rasterizes its glyphs on the CPU (§13, ADR-010).
+The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp, pipeline-statistics and occlusion queries; a flip-model swap chain; and DirectWrite, which lays the canvas's text out and rasterizes its glyphs on the CPU (§13, ADR-010).
 
 It deliberately does not use:
 
@@ -144,7 +144,7 @@ There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it.
 
 ### 6.2 Shader sources
 
-HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, the canvas's arithmetic, and the mirrors of the layouts shared with C++ (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
+HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, the canvas's arithmetic, and the mirrors of the layouts shared with C++ (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages, and the view splat's pixel stage has two measurement variants of each orientation besides: `PLAIN_DEPTH` (§9.3) and `COUNT_OVERDRAW` (§11). `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
 
 ### 6.3 Data flow
 
@@ -220,6 +220,7 @@ Depth conventions are the classic place for a sign error, so the code names each
 | Lighting | Compute, 8 × 8 groups | Depth, visibility, shadow map, voxel records, palette | HDR colour |
 | Tone map | Graphics, one full-screen triangle | HDR colour | Back buffer |
 | Canvas | Graphics, one instanced draw of quads | Quads, glyph atlas | Back buffer |
+| Coverage count, `--bench` only | Graphics, one depth-only triangle | Depth | An occlusion query's count |
 
 | Resource | Format | Size at 1920 × 1080 |
 |---|---|---|
@@ -232,10 +233,13 @@ Depth conventions are the classic place for a sign error, so the code names each
 | Shadow map | `R32_TYPELESS`, 4096² | 67.1 MB |
 | Back buffers | 2 × `R8G8B8A8_UNORM` | 16.6 MB |
 | Glyph atlas | `R8_UNORM`, 1024² | 1.0 MB |
+| Overdraw count | `R32_UINT` | 8.3 MB |
 
-That is about 127 MB in all, just over half of it the shadow map.
+That is about 136 MB in all, half of it the shadow map.
 
-Two frames are in flight on one direct queue, with one command list and one fence value per frame. Per-frame constants live in a ring in an upload heap and are bound as root CBVs; static data is uploaded once. Barriers are ordinary resource-state transitions. A resize waits for the GPU to go idle and recreates the size-dependent targets. Each pass is bracketed by timestamp queries, and the view splat also by a pipeline-statistics query (`VSInvocations`, `PSInvocations`, `CPrimitives`); both are read back two frames late.
+Two frames are in flight on one direct queue, with one command list and one fence value per frame. Per-frame constants live in a ring in an upload heap and are bound as root CBVs; static data is uploaded once. Barriers are ordinary resource-state transitions. A resize waits for the GPU to go idle and recreates the size-dependent targets.
+
+Each pass is timed by timestamp queries: one before the first pass, and one after each pass's last draw or dispatch, so that a pass's time runs from its predecessor's end to its own and the transitions between two passes count to the second. The view splat is also bracketed by a pipeline-statistics query (`VSInvocations`, `PSInvocations`, `CPrimitives`), and `--bench`'s coverage count by an occlusion query. Each frame in flight has its own slot of query heaps and readback memory, which the frame's last command resolves into and the renderer reads when it next waits on that frame's fence: two frames late. The title and the panel on screen show the means over half a second (§13).
 
 ## 9. The splat pass
 
@@ -259,7 +263,7 @@ In the orthographic shadow permutation, step 3 collapses to an exact expression:
 
 The ray starts at the camera. Its direction combines the camera's axes with the pixel's normalised device coordinates, scaled by the field of view and aspect ratio, and has a view-space depth component of exactly one. The ray parameter *t* is therefore the view depth, and depth is *n* / *t* with no further division. The intersection is Listing 5, with `canStartInBox` false and `oriented` set per permutation. On a miss, or when *t* < *n*, the pixel is discarded. Otherwise the shader writes `SV_DepthLessEqual` = min(*n* / *t*, `SV_Position.z`) and `SV_Target0` = (voxel index, octahedral normal). The normal is *R* × sign vector in the oriented permutation, and the sign vector itself otherwise.
 
-Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`; it is not assumed.
+Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed.
 
 ### 9.4 Listing 5 in HLSL
 
@@ -353,6 +357,8 @@ Tone mapping applies the exposure (`_film` `_expo` 1), then Stephen Hill's fit o
 
 Debug views replace the final image with one of: albedo; normal; voxel index, hashed to a colour; the shadow map; or an overdraw heat map that counts splat pixel-shader invocations per pixel through a UAV in a debug permutation.
 
+The overdraw view draws the view splat's `COUNT_OVERDRAW` variant, whose pixel shader adds one to its pixel's count in an `R32_UINT` UAV before anything else. A UAV write is a side effect that must happen whatever the depth test would decide, so the hardware may not test depth before such a shader unless the shader asks for it (the HLSL reference, `earlydepthstencil`), which one that writes depth cannot. The variant therefore runs for, and counts, every fragment of every rectangle over the pixel: the bounds' looseness and the depth complexity together, which is everything the standard pass could run. The heat map is black where nothing ran, then blue, cyan, green, yellow and red at 1, 3, 8, 24 and 64 invocations, evenly spaced in log₂, and white above 64. Its twin is `OverdrawViewColor` in `NeuronCore/DebugView.h` (R15).
+
 ## 12. The explosion
 
 **Contract.** pose(*i*, *t*) → (centre, rotation) is a pure function of the voxel index *i*, the voxel's rest centre, a small parameter block, and the time *t* ≥ 0 since detonation. *t* = 0 is the intact station. The oriented splat vertex shader evaluates the function for both views, and its C++ twin evaluates it for tests. No state is carried between frames, so reassembly is simply *t* running back to zero, and the piece count costs no memory. Pieces pass through one another and come to rest in interpenetrating piles (D3).
@@ -397,6 +403,16 @@ Command line:
 - `--gbv` — GPU-based validation;
 - `--bench <seconds>` — a fixed camera path and explosion timeline, with per-pass timings written to CSV.
 
+`--bench` runs a timeline of `<seconds>` at 60 frames a second, one frame of it per rendered frame however long that frame takes, so that every run draws the same frames; a fast GPU finishes sooner. It renders at 1920 × 1080 with vsync off. The camera circles the model once at the default framing. The model stands intact for the first quarter of the timeline; over the middle half the explosion runs from its detonation to the envelope's rest time; for the last quarter it lies at rest.
+
+Every frame is drawn twice, back to back: with the view splat's conservative depth and with plain `SV_Depth` (§9.3). Both count the pixels a voxel covers (§14). After 120 warm-up frames, every drawn frame goes to `Outpost-bench-<date>-<time>.csv` in the working directory: its GPU time per pass, its view-splat pipeline statistics and its covered pixels. A summary goes to a `.txt` beside the CSV and to a message box:
+- the median, mean and 95th percentile of each pass in each variant;
+- `PSInvocations` per covered pixel;
+- plain depth over conservative for each frame's pair, in `PSInvocations` and in view-splat time;
+- the view splat by phase: intact, in flight and at rest.
+
+The canvas shows the run's progress, as a pass of its own. The summary counts only the frame's four passes of §8.
+
 Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message giving its `HRESULT` and the file and line that checked it (`winrt::check_hresult`, `AGENTS.md` R12). DRED is enabled, so a device removal also reports breadcrumbs and the faulting address.
 
 ## 14. Verification
@@ -413,6 +429,9 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 
 - the layout echo of §7.4;
 - the canvas: text in two faces and translucent fills, drawn and compared pixel for pixel with its twin's composite of the same quads over the atlas's CPU copy (§13), and a glyph rasterized once per face and size;
+- the view splat's measurement variants, which draw what the standard pass draws, and the overdraw count, which lies in every pixel between the numbers of the twin's rectangles that cover its centre for certain and that might;
+- the frame queries: the coverage count equals the pixels a voxel wrote, `PSInvocations` is at least that, `VSInvocations` is at least one per vertex drawn, and neither plain depth nor the overdraw variant runs the pixel shader less often than conservative depth;
+- the overdraw view against its twin;
 - the intact station from several fixed cameras at 161 × 91, with the visibility buffer read back and compared per pixel with the reference tracer — a 3D DDA through the dense grid that uses the ray-box twin per occupied cell. The odd resolution gives a level camera a whole row and column of rays with exactly-zero components (§4.2, item 6);
 - a shadow map with the sun straight overhead, where every ray is axis-parallel;
 - the aligned and oriented permutations at *t* = 0;

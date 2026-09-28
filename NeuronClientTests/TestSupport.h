@@ -31,16 +31,19 @@ namespace NeuronClientTests
 // fails the test too.
 void RunGpuTest(const std::function<void(NeuronClient::GraphicsDevice&)>& _body);
 
-// What the view splat wrote for one view: per pixel, row by row, the visibility buffer's two words and the depth.
+// What the view splat wrote for one view: per pixel, row by row, the visibility buffer's two words and the depth, and
+// what the overdraw variant counted.
 struct SplatImage
 {
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
   std::vector<std::uint32_t> visibility; // voxel index, then packed normal
   std::vector<float> depth;
+  std::vector<std::uint32_t> overdraw; // pixel-shader invocations; empty unless the pass counts them
 };
 
-// Clears, splats _scene for _view with a view splat pass and reads both targets back. An oriented pass reads _explosion.
+// Clears, splats _scene for _view with a view splat pass and reads its targets back, the overdraw count among them when
+// the pass counts it. An oriented pass reads _explosion.
 [[nodiscard]] SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient::VoxelScene& _scene,
                                      const NeuronClient::SplatPass& _pass, const NeuronCore::PerspectiveView& _view,
                                      const std::optional<NeuronClient::ExplosionConstants>& _explosion = std::nullopt);

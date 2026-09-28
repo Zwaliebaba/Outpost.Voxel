@@ -21,7 +21,11 @@ constexpr bool DEBUG_BUILD = true;
 constexpr bool DEBUG_BUILD = false;
 #endif
 
-constexpr std::wstring_view USAGE = L"Outpost.exe [--vox <path>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv]";
+constexpr std::wstring_view USAGE =
+  L"Outpost.exe [--vox <path>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds>]";
+
+// --bench's timeline runs at 60 frames a second, so an hour is 216,000 frames in each of the two variants.
+constexpr std::uint32_t BENCH_SECONDS_MAXIMUM = 3600;
 
 [[nodiscard]] std::wstring Mistake(std::wstring_view _what)
 {
@@ -63,7 +67,7 @@ constexpr std::wstring_view USAGE = L"Outpost.exe [--vox <path>] [--size <width>
 std::expected<GameLib::GameOptions, std::wstring> ParseCommandLine(std::span<const std::wstring> _arguments)
 {
   GameLib::GameOptions options{
-    ExecutableFolder() / L"GameData" / L"MilitaryStation.vox", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}};
+    ExecutableFolder() / L"GameData" / L"MilitaryStation.vox", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}, std::nullopt};
   for (std::size_t i = 0; i < _arguments.size(); ++i)
   {
     const std::wstring_view argument = _arguments[i];
@@ -105,6 +109,16 @@ std::expected<GameLib::GameOptions, std::wstring> ParseCommandLine(std::span<con
     else if (argument == L"--gbv")
     {
       options.device.gpuBasedValidation = true;
+    }
+    else if (argument == L"--bench" && hasValue)
+    {
+      std::uint32_t seconds = 0;
+      if (!ParseNumber(_arguments[++i], seconds) || seconds == 0 || seconds > BENCH_SECONDS_MAXIMUM)
+      {
+        return std::unexpected(Mistake(
+          std::format(L"--bench takes the timeline's length in whole seconds, 1 to {}, not {}.", BENCH_SECONDS_MAXIMUM, _arguments[i])));
+      }
+      options.benchSeconds = seconds;
     }
     else
     {

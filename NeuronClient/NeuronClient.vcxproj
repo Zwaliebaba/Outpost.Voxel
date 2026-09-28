@@ -104,10 +104,12 @@
     <ClInclude Include="CanvasQuad.h" />
     <ClInclude Include="CanvasShading.h" />
     <ClInclude Include="Clock.h" />
+    <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="FrameQueries.h" />
     <ClInclude Include="GlyphAtlas.h" />
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
@@ -134,10 +136,12 @@
   <ItemGroup>
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="FrameQueries.cpp" />
     <ClCompile Include="GlyphAtlas.cpp" />
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
@@ -171,6 +175,11 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>CanvasVertex</EntryPointName>
       <VariableName>CANVAS_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\CoverageVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>FullScreenVertex</EntryPointName>
+      <VariableName>COVERAGE_VS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -217,6 +226,16 @@
       <EntryPointName>FullScreenVertex</EntryPointName>
       <VariableName>TONE_MAP_VS</VariableName>
     </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedOverdrawPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ALIGNED_OVERDRAW_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedPlainDepthPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ALIGNED_PLAIN_DEPTH_PS</VariableName>
+    </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>SplatPixel</EntryPointName>
@@ -226,6 +245,16 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>SplatVertex</EntryPointName>
       <VariableName>VIEW_SPLAT_ALIGNED_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedOverdrawPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_OVERDRAW_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPlainDepthPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_PLAIN_DEPTH_PS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">
       <ShaderType>Pixel</ShaderType>

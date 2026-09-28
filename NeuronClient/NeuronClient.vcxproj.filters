@@ -17,12 +17,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Clock.h" />
+    <ClInclude Include="CoveragePass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="ExplosionConstants.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="FrameQueries.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="GlyphAtlas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -67,12 +73,18 @@
     <ClCompile Include="CanvasShading.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CoveragePass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="ExplosionConstants.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="FrameQueries.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="GlyphAtlas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -193,6 +205,9 @@
     <FxCompile Include="Shader\CanvasVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\CoverageVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
@@ -220,10 +235,22 @@
     <FxCompile Include="Shader\ToneMapVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedOverdrawPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedPlainDepthPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedOverdrawPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPlainDepthPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">

@@ -28,6 +28,7 @@ enum RootParameter : std::uint8_t
   InstanceConstantsParameter,
   ExplosionConstantsParameter,
   RecordsParameter,
+  OverdrawParameter,
   RootParameterCount
 };
 
@@ -56,10 +57,26 @@ constexpr D3D12_COMPARISON_FUNC SHADOW_NEARER = D3D12_COMPARISON_FUNC_LESS;
   return indices;
 }
 
+// The view splat's pixel shader for a permutation and a variant.
+[[nodiscard]] D3D12_SHADER_BYTECODE ViewSplatPixelShader(bool _oriented, SplatPass::Variant _variant) noexcept
+{
+  switch (_variant)
+  {
+  case SplatPass::Variant::PlainDepth:
+    return _oriented ? ViewSplatOrientedPlainDepthPixelShader() : ViewSplatAlignedPlainDepthPixelShader();
+  case SplatPass::Variant::Overdraw:
+    return _oriented ? ViewSplatOrientedOverdrawPixelShader() : ViewSplatAlignedOverdrawPixelShader();
+  case SplatPass::Variant::Standard:
+    break;
+  }
+  return _oriented ? ViewSplatOrientedPixelShader() : ViewSplatAlignedPixelShader();
+}
+
 } // namespace
 
-SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutation)
-  : m_permutation(_permutation)
+SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutation, Variant _variant)
+  : m_permutation(_permutation),
+    m_variant(_variant)
 {
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -74,7 +91,14 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
   parameters[RecordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[RecordsParameter].Descriptor = {0, 0};
   parameters[RecordsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  const D3D12_ROOT_SIGNATURE_DESC rootSignature{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
+  const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, 0};
+  parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
+  parameters[OverdrawParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  // Only the overdraw variant has the UAV table, the last parameter. Below resource binding tier 3 a UAV table in the
+  // root signature must be set for every draw, even one whose shaders never read it (§5 keeps to tier 1).
+  const UINT parameterCount = _variant == Variant::Overdraw ? RootParameterCount : OverdrawParameter;
+  const D3D12_ROOT_SIGNATURE_DESC rootSignature{parameterCount, parameters.data(), 0, nullptr,
                                                 D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
                                                   D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
                                                   D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS};
@@ -89,7 +113,7 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
   if (_kind == Kind::View)
   {
     pipeline.VS = oriented ? ViewSplatOrientedVertexShader() : ViewSplatAlignedVertexShader();
-    pipeline.PS = oriented ? ViewSplatOrientedPixelShader() : ViewSplatAlignedPixelShader();
+    pipeline.PS = ViewSplatPixelShader(oriented, _variant);
     pipeline.DepthStencilState.DepthFunc = VIEW_NEARER;
     pipeline.NumRenderTargets = 1;
     pipeline.RTVFormats[0] = ViewTargets::VISIBILITY_FORMAT;
@@ -107,7 +131,13 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
   winrt::check_hresult(_device.Device()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(m_pipeline.put())));
   if (_kind == Kind::View)
   {
-    m_pipeline->SetName(oriented ? L"View splat, oriented" : L"View splat, aligned");
+    constexpr std::array<const wchar_t*, 6> VIEW_NAMES{L"View splat, aligned",
+                                                       L"View splat, oriented",
+                                                       L"View splat, aligned, plain depth",
+                                                       L"View splat, oriented, plain depth",
+                                                       L"View splat, aligned, overdraw",
+                                                       L"View splat, oriented, overdraw"};
+    m_pipeline->SetName(VIEW_NAMES[2u * static_cast<std::size_t>(_variant) + (oriented ? 1u : 0u)]);
   }
   else
   {
@@ -120,7 +150,7 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Permutation _permutati
 }
 
 void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
-                       D3D12_GPU_VIRTUAL_ADDRESS _explosionConstants) const
+                       D3D12_GPU_VIRTUAL_ADDRESS _explosionConstants, D3D12_GPU_DESCRIPTOR_HANDLE _overdrawTable) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
@@ -132,6 +162,10 @@ void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scen
     _list->SetGraphicsRootConstantBufferView(ExplosionConstantsParameter, _explosionConstants);
   }
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
+  if (m_variant == Variant::Overdraw)
+  {
+    _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _overdrawTable);
+  }
   for (const SceneInstance& instance : _scene.Instances())
   {
     if (instance.recordCount == 0)

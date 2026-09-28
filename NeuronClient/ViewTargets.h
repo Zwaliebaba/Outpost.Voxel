@@ -13,8 +13,9 @@ class DescriptorHeap;
 class GraphicsDevice;
 
 // The targets at the size of the view (Design/SampleRenderer.md §7.3, §8): the view splat's reversed-Z depth and
-// visibility buffer of voxel index and packed normal, and the lighting's HDR color. Between frames the depth and the
-// visibility buffer rest readable by every shader stage, and the HDR color by pixel shaders.
+// visibility buffer of voxel index and packed normal, the lighting's HDR color, and the overdraw count the view splat's
+// overdraw variant keeps (§11). Between frames the depth, the visibility buffer and the overdraw count rest readable by
+// every shader stage, and the HDR color by pixel shaders.
 class ViewTargets
 {
 public:
@@ -24,6 +25,8 @@ public:
   static constexpr DXGI_FORMAT DEPTH_READ_FORMAT = DXGI_FORMAT_R32_FLOAT;
   static constexpr DXGI_FORMAT HDR_FORMAT = DXGI_FORMAT_R16G16B16A16_FLOAT;
   static constexpr std::uint32_t HDR_BYTES_PER_PIXEL = 8;
+  static constexpr DXGI_FORMAT OVERDRAW_FORMAT = DXGI_FORMAT_R32_UINT;
+  static constexpr std::uint32_t OVERDRAW_BYTES_PER_PIXEL = 4;
   static constexpr D3D12_RESOURCE_STATES READABLE = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
 
   // _shaderHeap is shader visible; _cpuHeap is not, and holds the second descriptor a UAV clear needs.
@@ -43,6 +46,11 @@ public:
   void BeginLighting(ID3D12GraphicsCommandList* _list) const;
   void EndLighting(ID3D12GraphicsCommandList* _list) const;
 
+  // Clears the overdraw count to zero and makes it writable by the view splat's overdraw variant, between BeginSplat and
+  // EndSplat; afterwards, readable by every shader stage again. The shader-visible heap must be set on _list.
+  void BeginOverdraw(ID3D12GraphicsCommandList* _list) const;
+  void EndOverdraw(ID3D12GraphicsCommandList* _list) const;
+
   [[nodiscard]] ID3D12Resource* Visibility() const noexcept
   {
     return m_visibility.get();
@@ -58,12 +66,23 @@ public:
     return m_hdrColor.get();
   }
 
+  [[nodiscard]] ID3D12Resource* Overdraw() const noexcept
+  {
+    return m_overdraw.get();
+  }
+
   // Descriptor tables of one view each: the visibility buffer as Texture2D<uint2>, the depth as Texture2D<float>, the
-  // HDR color as Texture2D<float4> and as RWTexture2D<float4>.
+  // HDR color as Texture2D<float4> and as RWTexture2D<float4>, and the overdraw count as Texture2D<uint> and as
+  // RWTexture2D<uint>.
   [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE VisibilityTable() const noexcept;
   [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE DepthTable() const noexcept;
   [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE HdrColorTable() const noexcept;
   [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE HdrColorWriteTable() const noexcept;
+  [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE OverdrawTable() const noexcept;
+  [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE OverdrawWriteTable() const noexcept;
+
+  // The depth's DSV, for a pass that tests against the view's depth between BeginSplat and EndSplat.
+  [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE DepthView() const noexcept;
 
   [[nodiscard]] std::uint32_t WidthPixels() const noexcept
   {
@@ -88,9 +107,13 @@ private:
   std::uint32_t m_depthSrv;
   std::uint32_t m_hdrColorSrv;
   std::uint32_t m_hdrColorUav;
+  std::uint32_t m_overdrawSrv;
+  std::uint32_t m_overdrawUav;
+  std::uint32_t m_overdrawCpuUav;
   winrt::com_ptr<ID3D12Resource> m_visibility;
   winrt::com_ptr<ID3D12Resource> m_depth;
   winrt::com_ptr<ID3D12Resource> m_hdrColor;
+  winrt::com_ptr<ID3D12Resource> m_overdraw;
   std::uint32_t m_widthPixels = 0;
   std::uint32_t m_heightPixels = 0;
 };

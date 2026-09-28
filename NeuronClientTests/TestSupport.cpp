@@ -103,8 +103,8 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
 {
   NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
   NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
-  NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 8, true, L"Test shader views");
-  NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, false, L"Test CPU-only views");
+  NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 12, true, L"Test shader views");
+  NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, false, L"Test CPU-only views");
   NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);
   targets.Resize(_device, _view.widthPixels, _view.heightPixels);
   NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Test constants");
@@ -117,7 +117,15 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       targets.BeginSplat(_list);
-      _pass.Record(_list, _scene, viewConstants, explosionConstants);
+      if (_pass.CountsOverdraw())
+      {
+        targets.BeginOverdraw(_list);
+      }
+      _pass.Record(_list, _scene, viewConstants, explosionConstants, targets.OverdrawWriteTable());
+      if (_pass.CountsOverdraw())
+      {
+        targets.EndOverdraw(_list);
+      }
       targets.EndSplat(_list);
     });
 
@@ -125,10 +133,20 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
                                                                         NeuronClient::ViewTargets::VISIBILITY_BYTES_PER_PIXEL);
   const std::vector<std::byte> depth =
     NeuronClient::ReadTexture2D(_device, targets.Depth(), NeuronClient::ViewTargets::READABLE, sizeof(float));
-  SplatImage image{_view.widthPixels, _view.heightPixels, std::vector<std::uint32_t>(visibility.size() / sizeof(std::uint32_t)),
-                   std::vector<float>(depth.size() / sizeof(float))};
+  SplatImage image{_view.widthPixels,
+                   _view.heightPixels,
+                   std::vector<std::uint32_t>(visibility.size() / sizeof(std::uint32_t)),
+                   std::vector<float>(depth.size() / sizeof(float)),
+                   {}};
   std::memcpy(image.visibility.data(), visibility.data(), visibility.size());
   std::memcpy(image.depth.data(), depth.data(), depth.size());
+  if (_pass.CountsOverdraw())
+  {
+    const std::vector<std::byte> overdraw = NeuronClient::ReadTexture2D(_device, targets.Overdraw(), NeuronClient::ViewTargets::READABLE,
+                                                                        NeuronClient::ViewTargets::OVERDRAW_BYTES_PER_PIXEL);
+    image.overdraw.resize(overdraw.size() / sizeof(std::uint32_t));
+    std::memcpy(image.overdraw.data(), overdraw.data(), overdraw.size());
+  }
   return image;
 }
 

@@ -71,6 +71,22 @@ public:
     AreEqualFloat3({0.25f, 0.25f, 0.25f}, NeuronCore::ShadowMapViewColor(0.25f), L"a depth as gray");
   }
 
+  // §11: black for no invocation, the ramp's five colors exactly at 1, 3, 8, 24 and 64, a mix between them, and white
+  // above the saturation.
+  TEST_METHOD(OverdrawRampsFromBlueToRed)
+  {
+    AreEqualFloat3({0.0f, 0.0f, 0.0f}, NeuronCore::OverdrawViewColor(0), L"no invocation");
+    AreEqualFloat3({0.0f, 0.0f, 1.0f}, NeuronCore::OverdrawViewColor(1), L"one: blue");
+    AreEqualFloat3({0.0f, 4.0f / 6.0f, 1.0f}, NeuronCore::OverdrawViewColor(2), L"two: two thirds of the way to cyan");
+    AreEqualFloat3({0.0f, 1.0f, 1.0f}, NeuronCore::OverdrawViewColor(3), L"three: cyan");
+    AreEqualFloat3({0.0f, 1.0f, 0.0f}, NeuronCore::OverdrawViewColor(8), L"eight: green");
+    AreEqualFloat3({1.0f, 1.0f, 0.0f}, NeuronCore::OverdrawViewColor(24), L"24: yellow");
+    AreEqualFloat3({1.0f, 0.0f, 0.0f}, NeuronCore::OverdrawViewColor(NeuronCore::OVERDRAW_VIEW_SATURATION), L"the saturation: red");
+    AreEqualFloat3({1.0f, 1.0f, 1.0f}, NeuronCore::OverdrawViewColor(NeuronCore::OVERDRAW_VIEW_SATURATION + 1), L"above it: white");
+    AreEqualFloat3({0.0f, 0.0f, 0.0f}, NeuronCore::DebugViewColor(DebugView::Overdraw, 7u, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}),
+                   L"the visibility buffer shows nothing in the overdraw view");
+  }
+
   // The map as a square as tall as the view, in the middle of a 16:9 view: the first and last pixels of the square reach
   // the first and last texels, and the bands either side show nothing.
   TEST_METHOD(ShowsTheShadowMapAsACenteredSquare)

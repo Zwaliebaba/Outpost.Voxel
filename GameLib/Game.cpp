@@ -2,9 +2,12 @@
 
 #include "Game.h"
 
+#include "Bench.h"
+
 #include "Canvas.h"
 #include "Clock.h"
 #include "FailureReport.h"
+#include "FrameQueries.h"
 #include "InputState.h"
 #include "Renderer.h"
 
@@ -59,8 +62,13 @@ constexpr float TIME_SCALE_STEP = 2.0f;
 constexpr float TIME_SCALE_MINIMUM = 1.0f / 16.0f;
 constexpr float TIME_SCALE_MAXIMUM = 8.0f;
 
-// Keys 2 to 5 choose these debug views; key 1 returns to the lit image.
-constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NAMES{L"albedo", L"normal", L"voxel index", L"shadow map"};
+// Keys 2 to 6 choose these debug views; key 1 returns to the lit image.
+constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NAMES{L"albedo", L"normal", L"voxel index", L"shadow map",
+                                                                                    L"overdraw"};
+
+// The passes the title and the panel time, by NeuronClient::GpuPass.
+constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAMES{L"shadow splat", L"view splat", L"coverage", L"lighting",
+                                                                                  L"tone map",     L"debug view", L"canvas"};
 
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
@@ -72,7 +80,7 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Space\tpause\n"
                                    L"+ -\ttime faster, slower\n"
                                    L"1\tthe lit image\n"
-                                   L"2 - 5\talbedo, normal, voxel index, shadow map\n"
+                                   L"2 - 6\talbedo, normal, voxel index, shadow map, overdraw\n"
                                    L"[ ]\temissive glow down, up\n"
                                    L"G\tground\n"
                                    L"V\tvsync\n"
@@ -133,6 +141,32 @@ void RunClock(ExplosionClock& _clock, const InputState& _input, float _restSecon
     _clock.direction = 0.0f;
   }
 }
+
+// The GPU's figures over one title interval (§8, §13): the mean of each pass over the frames that ran it, of the whole
+// frame, and of the view splat's pixel-shader invocations.
+struct GpuFigures
+{
+  std::array<double, NeuronClient::GPU_PASS_COUNT> passMilliseconds{};
+  std::array<std::uint32_t, NeuronClient::GPU_PASS_COUNT> passFrames{};
+  double gpuMilliseconds = 0.0;
+  double pixelShaderInvocations = 0.0;
+  std::uint32_t frames = 0;
+
+  void Add(const NeuronClient::FrameStatistics& _statistics) noexcept
+  {
+    for (std::size_t pass = 0; pass < NeuronClient::GPU_PASS_COUNT; ++pass)
+    {
+      if (const std::optional<float>& milliseconds = _statistics.passMilliseconds[pass]; milliseconds.has_value())
+      {
+        passMilliseconds[pass] += *milliseconds;
+        ++passFrames[pass];
+      }
+    }
+    gpuMilliseconds += _statistics.gpuMilliseconds;
+    pixelShaderInvocations += static_cast<double>(_statistics.pixelShaderInvocations);
+    ++frames;
+  }
+};
 
 // The sphere around a box, which the camera frames.
 struct Sphere
@@ -220,16 +254,29 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   return brightest;
 }
 
-// What the title and the panel on screen carry (§13): the adapter, the view, the mean frame time once there is one, and
-// whatever else is not at its default.
+// What the title and the panel on screen carry (§13): the adapter, the view, the mean frame time and the GPU's figures
+// once there are some, and whatever else is not at its default.
 [[nodiscard]] std::vector<std::wstring> Figures(const NeuronClient::GraphicsDevice& _device, const Controls& _controls,
-                                                const ExplosionClock& _clock, std::optional<double> _frameSeconds, float _brightestEmissive)
+                                                const ExplosionClock& _clock, std::optional<double> _frameSeconds, const GpuFigures& _gpu,
+                                                float _brightestEmissive)
 {
   std::vector<std::wstring> figures{_device.AdapterName(),
                                     _controls.debugView ? DEBUG_VIEW_NAMES[static_cast<std::size_t>(*_controls.debugView)] : L"lit"};
   if (_frameSeconds)
   {
     figures.push_back(std::format(L"frame {:.2f} ms", *_frameSeconds * 1000.0));
+  }
+  if (_gpu.frames > 0)
+  {
+    figures.push_back(std::format(L"GPU {:.2f} ms", _gpu.gpuMilliseconds / _gpu.frames));
+    for (std::size_t pass = 0; pass < NeuronClient::GPU_PASS_COUNT; ++pass)
+    {
+      if (_gpu.passFrames[pass] > 0)
+      {
+        figures.push_back(std::format(L"{} {:.2f} ms", GPU_PASS_NAMES[pass], _gpu.passMilliseconds[pass] / _gpu.passFrames[pass]));
+      }
+    }
+    figures.push_back(std::format(L"PSInvocations {:.2f} M", _gpu.pixelShaderInvocations / _gpu.frames / 1.0e6));
   }
   if (_brightestEmissive > 0.0f)
   {
@@ -314,7 +361,9 @@ void RunGame(const GameOptions& _options)
   const NeuronCore::ExplosionParameters explosion = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(scene.model));
   const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(explosion, scene.lower, scene.upper);
   NeuronClient::Window window({L"Outpost", _options.windowSize});
-  const NeuronClient::ClientSize size = window.Size();
+  // --bench renders at its own size whatever the window's, and the swap chain stretches it over the window (§13).
+  const NeuronClient::ClientSize size =
+    _options.benchSeconds ? NeuronClient::ClientSize{BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS} : window.Size();
   NeuronClient::Renderer renderer(
     {_options.device, window.Handle(), size.widthPixels, size.heightPixels, FitShadowView(scene, settings, envelope), explosion},
     scene.model);
@@ -324,6 +373,16 @@ void RunGame(const GameOptions& _options)
     if (renderer.Device().DebugLayer() == NeuronClient::DebugLayerState::Unavailable)
     {
       OutputDebugStringW(L"The Direct3D 12 debug layer is not installed; running without it.\n");
+    }
+    if (_options.benchSeconds)
+    {
+      if (const std::optional<std::wstring> summary =
+            RunBench(window, renderer, scene, settings, envelope.restTimeSeconds, *_options.benchSeconds))
+      {
+        OutputDebugStringW(summary->c_str());
+        MessageBoxW(window.Handle(), summary->c_str(), L"Outpost --bench", MB_OK | MB_ICONINFORMATION);
+      }
+      return;
     }
     OrbitCamera camera(scene.center, scene.radius);
     Controls controls;
@@ -335,6 +394,8 @@ void RunGame(const GameOptions& _options)
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
     std::optional<double> frameSeconds;
+    GpuFigures gpu;      // shown
+    GpuFigures gpuSince; // collected since the title was last brought up to date
     while (window.PumpMessages())
     {
       const double seconds = clock.Tick();
@@ -353,14 +414,20 @@ void RunGame(const GameOptions& _options)
       sinceTitleSeconds += seconds;
       ++framesSinceTitle;
       const bool titleDue = sinceTitleSeconds >= TITLE_INTERVAL_SECONDS;
+      for (const NeuronClient::FrameStatistics& statistics : renderer.TakeStatistics())
+      {
+        gpuSince.Add(statistics);
+      }
       if (titleDue)
       {
         frameSeconds = sinceTitleSeconds / framesSinceTitle;
         sinceTitleSeconds = 0.0;
         framesSinceTitle = 0;
+        gpu = gpuSince;
+        gpuSince = GpuFigures{};
       }
       renderer.Resize(current.widthPixels, current.heightPixels);
-      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, explosionClock, frameSeconds, brightestEmissive);
+      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, explosionClock, frameSeconds, gpu, brightestEmissive);
       if (titleDue)
       {
         window.SetTitle(L"Outpost - " + Joined(figures, L" - "));
@@ -372,7 +439,7 @@ void RunGame(const GameOptions& _options)
       NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
       lighting.groundVisible = controls.ground;
       renderer.Render(camera.View(current.widthPixels, current.heightPixels),
-                      {controls.debugView, lighting, settings.exposure, explosionClock.seconds, controls.vsync});
+                      {controls.debugView, lighting, settings.exposure, explosionClock.seconds, controls.vsync, false, false});
     }
   }
   catch (...)

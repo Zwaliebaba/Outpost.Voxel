@@ -10,6 +10,10 @@ static const uint DEBUG_VIEW_ALBEDO = 0;
 static const uint DEBUG_VIEW_NORMAL = 1;
 static const uint DEBUG_VIEW_VOXEL_INDEX = 2;
 static const uint DEBUG_VIEW_SHADOW_MAP = 3;
+static const uint DEBUG_VIEW_OVERDRAW = 4;
+
+// The overdraw view is white above this many invocations per pixel, and a ramp from blue at one to red here below it.
+static const uint OVERDRAW_VIEW_SATURATION = 64;
 
 // A linear color for a pixel of the visibility buffer in the views that show it: albedo, normal and voxel index. A pixel
 // no voxel covers is black.
@@ -58,4 +62,38 @@ bool ShadowMapViewTexel(uint2 _pixel, uint _widthPixels, uint _heightPixels, uin
 float3 ShadowMapViewColor(float _depth)
 {
   return float3(_depth, _depth, _depth);
+}
+
+// The heat map the overdraw view shows for the splat pixel-shader invocations a pixel counted: black for none, then a ramp
+// through blue, cyan, green, yellow and red, evenly spaced in log2 of the count from 1 to OVERDRAW_VIEW_SATURATION, and
+// white above it. Between two powers of two the position is linear in the count, which puts the colors at 1, 3, 8, 24
+// and 64 and needs no logarithm.
+float3 OverdrawViewColor(uint _invocations)
+{
+  if (_invocations == 0u)
+  {
+    return float3(0.0, 0.0, 0.0);
+  }
+  if (_invocations > OVERDRAW_VIEW_SATURATION)
+  {
+    return float3(1.0, 1.0, 1.0);
+  }
+  uint octave = firstbithigh(_invocations);
+  float power = float(1u << octave);
+  float position = (float(octave) + (float(_invocations) - power) / power) * (4.0 / 6.0);
+  float segment = min(floor(position), 3.0);
+  float t = position - segment;
+  if (segment < 1.0)
+  {
+    return float3(0.0, t, 1.0);
+  }
+  if (segment < 2.0)
+  {
+    return float3(0.0, 1.0, 1.0 - t);
+  }
+  if (segment < 3.0)
+  {
+    return float3(t, 1.0, 0.0);
+  }
+  return float3(1.0, 1.0 - t, 0.0);
 }

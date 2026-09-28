@@ -22,6 +22,9 @@
     <ClCompile Include="LightingPassTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MeasurementTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="ShadowSplatTests.cpp">
       <Filter>Source Files</Filter>

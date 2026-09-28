@@ -1,7 +1,7 @@
 #pragma once
 
 // The debug view pass (Design/SampleRenderer.md §11): one triangle over the viewport, and for each pixel the color the
-// chosen view gives it: DebugViewColor of its entry in the visibility buffer, or the shadow map.
+// chosen view gives it: DebugViewColor of its entry in the visibility buffer, the shadow map, or the overdraw count.
 
 #include "DebugView.hlsli"
 #include "FullScreen.hlsli"
@@ -14,6 +14,7 @@ ConstantBuffer<PaletteConstants> g_palette : register(b1);
 StructuredBuffer<uint> g_records : register(t0);
 Texture2D<uint2> g_visibility : register(t1);
 Texture2D<float> g_shadowMap : register(t2);
+Texture2D<uint> g_overdraw : register(t3);
 
 // One 32-bit root constant: the DEBUG_VIEW_* value to show.
 cbuffer DebugViewSelection : register(b2)
@@ -40,6 +41,10 @@ DebugViewTarget DebugViewPixel(FullScreenVaryings _varyings)
     {
       color = ShadowMapViewColor(g_shadowMap.Load(int3(int2(texel), 0)));
     }
+  }
+  else if (g_debugView == DEBUG_VIEW_OVERDRAW)
+  {
+    color = OverdrawViewColor(g_overdraw.Load(int3(int2(pixel), 0)));
   }
   else
   {
