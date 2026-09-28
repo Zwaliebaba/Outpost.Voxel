@@ -1,9 +1,9 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14 · **Date:** 2026-09-28
-**Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
+**Status:** accepted by the owner, 2026-09-28; sixteen questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14, and the seventeenth, on N-M0's pins, is open; S-M0 and N-M0 are done (§16) · **Date:** 2026-09-28
+**Builds on:** [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md), the renderer, and [`Archive/SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md), its measured performance (§3.3); [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout; [ADR-012](ADR/ADR-012-arm64-platform.md), ARM64 beside x64 · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
-This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this changes in `SampleRenderer.md`.
+This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). `SampleRenderer.md` is archived as the record of what M0 to M5 built, so it is not rewritten: what this design changes there is said here (§3), and the archive's status line points to it.
 
 ## 1. Summary
 
@@ -59,7 +59,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 
 **`--bench` keeps its phases:** intact, in flight and at rest become intact, in flight and drifted to a stop, under the new motion, until S-M8's space bench replaces them. Its machinery stays: the warm-up, both depth variants of every frame, the coverage count, the CSV and the summary.
 
-**The documents.** In `SampleRenderer.md`, D2 and D3 stay, rewritten for zero gravity; §12 is rewritten to match; §11 loses the ground; §13 loses the G key and the time scale; and §14's pose tests become the zero-gravity ones. ADR-009 is superseded rather than edited, and ADR-011's row for the explosion and ADR-008's ground paragraph are amended.
+**The documents.** `SampleRenderer.md` is archived as the record of what it built, and S-M1 does not rewrite it. D2 and D3 hold as written, since neither names gravity. §12's motion, §11's ground, §13's G key and time scale, and §14's pose tests no longer describe the code, and the archive's status line says so, pointing here and to the detonation's ADR; the code cites those two from then on. ADR-009 is superseded rather than edited, and ADR-011's row for the explosion and ADR-008's ground paragraph are amended.
 
 **N-M0's pins** (`NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. `LightsAsPinned`'s shades stay: the formula they pin does not change.
 
@@ -69,7 +69,14 @@ N-M0 landed first, on 2026-09-28 (ADR-011), so it converted the explosion and th
 
 ### 3.3 A baseline first
 
-M5 is done when a measured performance note exists, and none is in `Design/`. The station bench is the only measurement of the renderer as it stands, and S-M1 changes the motion its phases measure. So S-M0 asks for one run of `--bench` on the owner's hardware, committed as M5's note, before S-M1 changes the motion. N-M0 changed a flying voxel's orientation already (ADR-011), which is why the note is taken on the code as it stands now. S-M8's preset of one station and no ships (§14) then has something to be compared with.
+S-M0 asked for M5's measured note before S-M1 changes the motion its phases measure, and the owner committed it on 2026-09-28 ([`SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md)). It is one run of `--bench 20`, Release for ARM64 on a Qualcomm Adreno X1-85, on the tree N-M0 left. Four of its findings bear on this design:
+
+- **The GPU was not the limit.** The frame's four passes took a median 4.00 ms and the frame interval 5.35 ms, so the GPU waited, at whatever clock its governor chose.
+- **Pixel-shader lanes cost nothing measurable.** Plain depth shaded a median 1.5 M more lanes than conservative depth, in 0.983 of its time, and the view splat's time did not follow its lanes (a correlation of −0.10).
+- **The detonation costs vertex work, on the note's reading.** From frame 300 to 301, with the debris still in place, each splat slowed by 0.22 to 0.25 ms. The note points that at the oriented permutation, whose four vertices per voxel each evaluate the pose, in both splats, and calls it a lead, not a decision. The shadow splat cost about what the view splat did: 1.57 against 1.58 ms, medians.
+- **Early rejection realised 10 % of its ideal saving on the intact station** and 98 to 99 % once the voxels separated, and sorting would buy no time on that GPU, so no ADR orders a model's voxels.
+
+So the space scene's cost is expected in vertex work, which its ships multiply, being all oriented, and its cascades multiply, being four splats where the sample had two. That is the work S-M9's levers cut (§7.6) and the detonation's pose repeats (§17). §7.4 keeps its order of placements for another reason than the one it gave, and the bench says whether the GPU was the limit (§14). S-M8's preset of one station and no ships stands against the note's intact phase, on the same GPU.
 
 ## 4. The assets, measured
 
@@ -153,7 +160,7 @@ For now, commands detonate the camera's target and restore it, for testing and f
 
 | Project | Gains |
 |---|---|
-| `NeuronCore` | The messages, their encoding and their validation (§6.2). `Transport`, an abstract pipe of whole messages, and `LoopbackTransport`, two queues between two ends. Quaternions and rigid transforms. The standard library only, as before. |
+| `NeuronCore` | The messages, their encoding and their validation (§6.2). `Transport`, an abstract pipe of whole messages, and `LoopbackTransport`, two queues between two ends, each behind a mutex (§6.3). Quaternions and rigid transforms. The standard library only, as before. |
 | `NeuronServer` | `ServerHost`: sessions over transports, the handshake, one snapshot per tick to every session, and commands. It runs the tick on a thread of its own, or one step at a time for a caller (§6.3). It simulates nothing: it asks a `World`, an abstract class it defines, to advance a tick and to list its entities and events. |
 | `GameLogic` | `SpaceWorld`, the `World` of §5: the layout, the flight, the detonations, and the manifest of the models it places. It loads those models itself to measure their boxes. |
 | `NeuronClient` | `ClientSession`: the handshake, then snapshots into a `SnapshotBuffer`, which says where every entity is at a given time (§6.4). The renderer's placements (§7), cascades (§10), sky (§11), bloom and temporal anti-aliasing (§12). |
@@ -184,6 +191,8 @@ A model's name is its file's stem, letters and digits; the client adds its loade
 The server's thread runs `ServerHost` on a `std::jthread` at the tick rate. It wakes, runs every tick that is due (at most a few, so that a stall never turns into a spiral), sends each tick's snapshot, and sleeps until the next tick is due. A tick's time is its number times the period, so a late wake-up delays a snapshot's arrival but never changes anything in it. `NeuronServer` has no Windows header (ADR-003), so the thread sleeps with `std::this_thread::sleep_until`. On Windows that can wake some milliseconds late, which the interpolation delay absorbs (§6.4).
 
 `--bench` and the tests run no thread. They call the host's `Step` themselves, one tick at a time, which is what makes a bench run repeatable (§14).
+
+The two threads share nothing but the loopback's queues, and each queue is guarded by a mutex; nothing crosses through an atomic. These are the tree's first threads. ARM64 orders memory more weakly than x64, and CI runs x64 alone (ADR-012), so a lock-free queue with one ordering too weak would pass CI and fail on the owner's laptop. A queue the bench shows to be too slow earns a lock-free one, and its ADR.
 
 The pause command freezes the world, not the clock. Ticks and snapshots go on, each state the same as the last, so the client's time never jumps and a resume needs no resynchronization.
 
@@ -219,7 +228,7 @@ ADR-006's tie rule holds within a placement: its records draw in order, and the 
 
 ### 7.4 Draws, culling and order (amends SampleRenderer §4.2, item 10, and §9.1)
 
-Each view, the camera's and each cascade's, culls placements on the CPU: the sphere around each part, or around a detonated placement's envelope (§7.7), tested against the view's frustum or the cascade's box. The survivors draw one `DrawIndexedInstanced` each, as each instance does today. The camera's view draws front to back, nearest sphere first, so that conservative depth lets the most pixels be rejected early (SampleRenderer §9.3). None of this runs on the GPU, so none of it needs a twin; its tests are CPU tests (§15). Every view counts what it drew and what it culled, and both the figures and the bench report the counts.
+Each view, the camera's and each cascade's, culls placements on the CPU: the sphere around each part, or around a detonated placement's envelope (§7.7), tested against the view's frustum or the cascade's box. The survivors draw one `DrawIndexedInstanced` each, as each instance does today. The camera's view draws them front to back, nearest sphere first, and each placement's records in file order. The sort costs a few dozen comparisons, and it puts every occluding placement thousands of draws before what it hides, which is what early rejection needs (SampleRenderer §9.3); on a GPU bound by pixel shading, that saves time. M5's note found none to save on the owner's GPU (§3.3). The order stays because it costs nothing there and other GPUs differ. None of this runs on the GPU, so none of it needs a twin; its tests are CPU tests (§15). Every view counts what it drew and what it culled, and both the figures and the bench report the counts.
 
 The frame's placements go through its upload ring, which grows with them at 64 bytes a placement. A view's draw list is just indices into them.
 
@@ -281,7 +290,7 @@ SampleRenderer §10's map holds 1,024 units, four texels to a voxel, fitted once
 
 **Views.** The shadow-map debug view shows one cascade at a time. A new debug view tints the lit image by the cascade each pixel used, for tuning the splits.
 
-**Cost.** The shadow splat runs once per cascade, over whatever that cascade's culling leaves, and the farthest cascade sees most of the world. The bench times each cascade (§14); nothing here assumes the sum is small.
+**Cost.** The shadow splat runs once per cascade, over whatever that cascade's culling leaves, and the farthest cascade sees most of the world. On the owner's GPU one shadow splat of the station cost what its view splat did (§3.3), so the three cascades together may cost several times what the view does. The bench times each cascade (§14); nothing here assumes the sum is small.
 
 Until S-M7 the space scene keeps one map, fitted to the whole layout: coarse, but correct.
 
@@ -369,7 +378,7 @@ What it takes from the look is some softness where history is rejected or clampe
 
 ## 13. Application
 
-**Command line.** `--seed <n>`, `--stations <n>`, `--frigates <n>`, `--capitals <n>` and `--debris-lifetime <seconds>` set the world's parameters (§5.2) and are handed to the in-process server. `--size`, `--warp`, `--adapter`, `--d3d-debug` and `--gbv` are unchanged. `--bench <seconds>` is §14's. `--vox` is retired: models come from the welcome.
+**Command line.** `--seed <n>`, `--stations <n>`, `--frigates <n>`, `--capitals <n>` and `--debris-lifetime <seconds>` set the world's parameters (§5.2) and are handed to the in-process server. `--size`, `--warp`, `--adapter`, `--d3d-debug` and `--gbv` are unchanged. `--bench <seconds>` and `--stable-power` are §14's. `--vox` is retired: models come from the welcome.
 
 **Camera.** The orbit camera orbits a target entity and follows it as it moves. N and B cycle the target forward and back through the stations and the flights' leaders. C switches to a chase camera behind and above a ship, in the ship's frame, sprung so that the ship's banking reads without the view shaking. Tab still flies free, now with +Y as up, and F frames the target.
 
@@ -385,7 +394,9 @@ What it takes from the look is some softness where history is rejected or clampe
 
 **What it measures:** everything it measures today (per-pass GPU times, pipeline statistics, covered pixels, both depth variants). To that it adds the sky, bloom, the resolve and each cascade, the placements and voxels each view drew, and CPU times: the server's tick, a snapshot's encoding and decoding, the interpolation, and the client's culling and recording. Each depth variant keeps its own anti-aliasing history, so the pair stays comparable. The summary names the seed and the parameters, so any run can be repeated exactly.
 
-**A preset** of one station, no ships and an orbiting camera at the default framing stands nearest to the M5 note's intact phase (§3.3), with the sky and without the ground. It is what shows the placement refactor's cost on the old workload. S-M9 runs the whole timeline with each lever on and off.
+**The clock.** M5's run left the GPU waiting, so its absolute times are whatever clock the GPU's governor chose (§3.3); only the comparisons within a frame's pair are free of it. The summary sets the frame interval beside the GPU's time, so every run says whether the GPU was the limit. `--stable-power`, off by default, asks Direct3D for a stable power state for the run. Windows grants it only in developer mode and removes the device otherwise, and it holds the clock lower than a player's, so it serves comparisons between runs, not absolute figures; the summary says whether it was on.
+
+**A preset** of one station, no ships and an orbiting camera at the default framing stands nearest to the M5 note's intact phase (§3.3), with the sky and without the ground. It is what shows the placement refactor's cost on the old workload. S-M9 draws every frame of the timeline with a lever off and on, back to back as the depth variants are, so that the comparison does not depend on the clock.
 
 ## 15. Verification
 
@@ -437,11 +448,11 @@ What it takes from the look is some softness where history is rejected or clampe
 
 | | Delivers | Done when |
 |---|---|---|
-| S-M0 | This design accepted (2026-09-28); M5's performance note committed from the owner's run of `--bench` | The owner accepts; the note is in `Design/` |
+| S-M0 | This design accepted; M5's performance note committed from the owner's run of `--bench` | Done on 2026-09-28: the design accepted, and the note measured on an Adreno X1-85 (§3.3) |
 | N-M0 | NeuronVoxelFormat.md §12: the engine on Direct3D's axes | Done on 2026-09-28 (ADR-011) |
-| S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion, and the pins of the retired behaviors retired with them; `SampleRenderer.md` amended; ADR-009 superseded by the detonation's ADR, and ADR-008 and ADR-011 amended | Every suite green; the owner has seen the station lit without a floor, detonated in zero gravity and restored |
+| S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion, and the pins of the retired behaviors retired with them; the archived `SampleRenderer.md`'s status line pointing to what replaces its parts (§3.1); ADR-009 superseded by the detonation's ADR, and ADR-008 and ADR-011 amended | Every suite green; the owner has seen the station lit without a floor, detonated in zero gravity and restored |
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, detonated placements, ids, culling and order, the scene tracer; the placements ADR | §15's placement tests green; the station renders, detonates and is restored as before, through one placement |
-| S-M3 | The messages, the transports, `ServerHost`, and `SpaceWorld` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green |
+| S-M3 | The messages, the transports, `ServerHost`, and `SpaceWorld` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green, on x64 in CI and on ARM64 on the owner's machine, since CI runs no ARM64 and the threads are the tree's first (§6.3, ADR-012) |
 | S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots and events, the camera, keys, figures and command line; the space scene replaces the station sample | The owner has flown among the ships, confirmed their facing and detonated a station |
 | S-M5 | The sky, bloom and the lighting in space; the sky ADR and the bloom ADR; ADR-008 superseded | The sky and bloom tests green; the owner has seen them on hardware |
 | S-M6 | Temporal anti-aliasing; its ADR | The resolve tests green; the owner accepts the look: lighting, sky, bloom and anti-aliasing together |
@@ -472,26 +483,27 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 15. **Debris stays until it is restored or its lifetime, a world setting with no limit by default, runs out (S19, §5.5).**
 16. **The names stand** (this document, `NeuronServerTests` and `GameLogicTests`), **and S3 becomes a conformance rule (S20, §18).**
 
-No question is open.
+**Open, and S-M1 waits on it:**
+
+17. **Do the pins of the retired behaviors retire with them (§3.1)?** N-M0 landed after the owner accepted this design, and ADR-011 forbids re-pinning. §3.1 reads the thirteen gravity flights of `ExplodesAsPinned`, and the ground half of `LightsAsPinned`'s column, as pins of behavior the owner retired in S1, which S-M1 removes with it and names in its ADR; the four tracer images and the shades stay. Recommended: yes. The alternative, keeping the gravity explosion alive beside the detonation so that its pins hold, keeps a floor the scene no longer has.
 
 **Risks:**
 
-- **The workload is vertex work on small voxels.** A view of the whole cluster puts most of a million voxels under a pixel, and the splat pays four vertex invocations for each whatever its size (SampleRenderer §2). That is the regime the paper's Listing 3 addresses and §4.2 left out. The bench will show what it costs, and S-M9's coarse models are the first answer to it.
-- **A debris field is the heaviest workload.** A detonated station's 225,048 voxels are all oriented, none of them can be culled as hidden or drawn coarse, and the field lasts. The bench's detonation phase measures it (§14).
+- **The workload is vertex work on small voxels.** A view of the whole cluster puts most of a million voxels under a pixel, and the splat pays four vertex invocations for each whatever its size (SampleRenderer §2). That is the regime the paper's Listing 3 addresses and §4.2 left out. M5's note points the same way on the owner's GPU, where pixel-shader lanes cost nothing measurable (§3.3). The bench will show what it costs, and S-M9's coarse models are the first answer to it.
+- **A debris field is the heaviest workload.** A detonated station's 225,048 voxels are all oriented, none of them can be culled as hidden or drawn coarse, and the field lasts. With three cascades, each voxel's pose is evaluated sixteen times a frame, four vertices in each of four splats, where M5's bench evaluated it eight times. The bench's detonation phase measures it (§14). If its time matters, the note's lead comes first: posing each voxel once a frame, in a compute pass that every splat reads.
 - **Shadows multiply the work.** Each cascade splats what its culling leaves, and the farthest cascade sees most of the world. The bench times each cascade.
-- **Determinism holds within one build.** The simulation repeats itself exactly in one build. MSVC's FMA contraction under `/arch:AVX2` (`AGENTS.md` §3), or another compiler, changes its rounding, so runs are compared within a build. The server, being authoritative, never needs another machine to agree with it. Debris is computed on each client, so two clients of different builds may round a voxel differently; debris is cosmetic, and whatever fighting needs from it is the server's.
+- **Determinism holds within one build.** The simulation repeats itself exactly in one build. MSVC's FMA contraction under `/arch:AVX2` (`AGENTS.md` §3), or another compiler, changes its rounding, so runs are compared within a build; an x64 build and an ARM64 one (ADR-012) are two builds. The server, being authoritative, never needs another machine to agree with it. Debris is computed on each client, so two clients of different builds may round a voxel differently; debris is cosmetic, and whatever fighting needs from it is the server's.
 - **The server's sleep on Windows** can wake milliseconds late. Ticks are stamped exactly and the interpolation delay absorbs it. If the bench's CPU times say otherwise, a high-resolution timer needs Windows headers in `NeuronServer`, the decision ADR-003 deferred.
 - **Snapshots are whole states.** 2.5 KB at 30 ticks is nothing within one process. Over a network, delta encoding belongs to the UDP ADR.
 - **The GPU's transcendental functions** (`exp`, `sqrt`) in the sky and the detonation differ from the CPU's by a few ulps. Their tests carry a relative bound set from their first run, as SampleRenderer §14 allows.
-- **The station bench's numbers** change with the motion unless S-M0's note records them first (§3.3).
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, so the next free number is ADR-012.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes and ADR-012 to ARM64, so the next free number is ADR-013.
 
 - **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
-- **S-M3, the client/server boundary:** the messages, the events and their validation, `Transport`, the host's tick, threads and stepping, and the client's time. Also the two new suites, amending ADR-003's table.
+- **S-M3, the client/server boundary:** the messages, the events and their validation, `Transport`, the host's tick, threads and stepping, and the client's time. Also the two new suites, amending ADR-003's table; each has Debug and Release on x64 and ARM64, as ADR-012 requires of every project.
 - **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
 - **S-M6, temporal anti-aliasing:** the jitter, the reprojection, the rejection, the resolve and its twin.
 - **S-M7, cascades:** amending SampleRenderer §10 and ADR-006's shadow section.
@@ -503,7 +515,7 @@ ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, so the nex
 - **§2's table:** `NeuronServer` and `GameLogic` say what they hold, and `NeuronServerTests` and `GameLogicTests` join the table. `.clang-tidy`'s `HeaderFilterRegex` already matches every `*Tests` folder, and CI finds suites by name, so neither changes.
 - **R15's list of twins:** the placement's pose joins the explosion's, now without gravity, and the sky's functions, the star's point-spread function, bloom's filters, the temporal resolve and the choice of cascade join them.
 - **A new rule,** accepted by the owner on 2026-09-28 (S20), added in S-M3's commit under the next free number (R18 unless NVF's has taken it): *Client and server share bytes, never objects: what the server knows reaches the client only as messages through a `Transport`, in one process as in two.* Its source is S3. Project references already keep `GameLib` away from `GameLogic`; the rule covers `Outpost`, the one project that links both.
-- **The paragraph that names the design document** names this one beside `SampleRenderer.md`.
+- **The paragraph that names the designs** names this one beside `NeuronVoxelFormat.md` as a design whose plan runs. That landed with the merge of 2026-09-28 that archived `SampleRenderer.md`.
 
 ## 19. References
 

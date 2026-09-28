@@ -470,7 +470,7 @@ M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed 
 
 **WARP's shader model.** The WARP guide documents FL 12_1 but says nothing about Shader Model 6.7. On the owner's machine, in-box WARP runs the 6.7 suite (ADR-007); CI's first run after the change answers it for the runner. If WARP lacks it, that is a blocker to raise, not a suite to skip.
 
-**Aliasing.** The first version has no anti-aliasing, so silhouettes and voxels smaller than a pixel crawl in motion, and bloom will make that more visible. D14 allows anti-aliasing: the options are the paper's route (a ray per MSAA sample) or TAA, either is an ADR, and `SpaceScene.md` §17 weighs them.
+**Aliasing.** The first version has no anti-aliasing, so silhouettes and voxels smaller than a pixel crawl in motion, and bloom will make that more visible. D14 allows anti-aliasing. The options were the paper's route (a ray per MSAA sample) and TAA; the owner chose TAA for the space scene (`SpaceScene.md` S15, §12.3), and it lands with an ADR of its own.
 
 **Interpenetrating piles** are an accepted consequence of D3. **Flat lighting** no longer is one of D4's: since its revision on 2026-09-28, it is where the lighting stands, not where it has to stay.
 
