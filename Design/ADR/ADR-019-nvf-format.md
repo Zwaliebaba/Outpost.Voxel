@@ -1,6 +1,6 @@
 # ADR-019 — The Neuron Voxel Format as it is read and written
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M1 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10) · **Implements:** that design's §4, and settles what §4 left open, each point written back into §4 in the same commit
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M1 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and its Python twin with N-M3 · **Implements:** that design's §4, and settles what §4 left open, each point written back into §4 in the same commit
 
 ## Context
 
@@ -28,7 +28,7 @@ The owner answered three questions on 2026-09-28 (§11). A part's default pivot 
 | 8 | Unknown chunks | They may lie anywhere after the header, and their framing is checked like any chunk's: a reserved field of 0 and zero padding. The five known chunks appear once each, in order; one that appears again, or before one it should follow, is `ChunkOutOfOrder`. The reader lists the ids it skipped, and a tool that rewrites a file refuses a model with any (§4.6). |
 | 9 | Minor versions | Any minor version of major version 1 is read. |
 | 10 | The writer's order | Hardpoints in name order, by the bytes of their ASCII names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints. Without it, `--check` would fail after every export. STRS's first-use order follows from it. Parts are written in the order the model gives; the importer's order is ADR-020's. |
-| 11 | What the writer may write | Nothing the reader refuses. `SerializeNvfModel` reads its own bytes back and returns the reader's refusal, by the same name. It first refuses an extent that the file's 16 bits would wrap. |
+| 11 | What the writer may write | Nothing the reader refuses, and nothing it reads back otherwise. `SerializeNvfModel` reads its own bytes back and returns the reader's refusal, by the same name. It first refuses an extent that the file's 16 bits would wrap. N-M3 added the last check: a name the reader gives back otherwise than it was written is `BadString` (below). |
 
 **The order of checking.** Both implementations check in one order and report the first failure, so that a file with two faults gets the same name from each:
 
@@ -42,6 +42,16 @@ The owner answered three questions on 2026-09-28 (§11). A part's default pivot 
 8. **HPNT:** `MalformedChunk` (a size other than 48 bytes a record, more than 4,096). Then, hardpoint by hardpoint: `BadString`, `DuplicateName`, `BadHardpointPart`, `MalformedChunk` (flags, reserved), `NotFinite` (position, rotation), `NotUnitRotation`.
 
 **A unit rotation** is what `IsUnitRotation` accepts, the test the protocol shares (ADR-015): |‖q‖ − 1| ≤ 10⁻⁴ in single precision, and w ≥ 0. NvfFormat.py computes the length in double precision. The two can disagree only about a quaternion within rounding of the tolerance, which no tool writes.
+
+**A name read back otherwise (N-M3).** Writing the Python twin turned up a model that `SerializeNvfModel` wrote and read back changed: a name with a NUL in it, which the reader takes as the part before the NUL, so that `hull\0x` came back as `hull`. Both writers now compare the names they read back with those they wrote, once the reader has accepted the file, and refuse a difference as `BadString`. The check comes after the reader's, so that a model with another fault still gets the reader's name for it.
+
+**The Python twin (N-M3).** `Tools/Blender/NeuronVoxelFormat/NvfFormat.py` is `NvfModel.cpp` in Python, function for function (`parse_nvf_model`, `load_nvf_model`, `serialize_nvf_model`, `save_nvf_model`), and it checks in the order above. What Python can hold and the file cannot is settled so that the reader still decides:
+- a float is stored as single precision rounds it (`as_single`), and a finite value beyond single precision's range becomes an infinity, which the reader refuses as `NotFinite` in its place;
+- a name is encoded as UTF-8 with any surrogate kept, so that a string no UTF-8 encoder would write reaches the reader and is refused as `BadString` in its place;
+- a value its record's field cannot hold at all, such as a negative index, raises Python's `struct.error`. C++'s types rule that value out, so it is a caller's mistake rather than a refusal;
+- a file that cannot be opened is `FileNotFound`, as it is for `std::ifstream`.
+
+Its tests in `Tests/NvfFormatTests.py` are `NvfModelTests`', case for case and named alike, and corrupt the golden file into the same refusals. They also read `NvfError`'s names from `NvfModel.h`, so that the two lists cannot drift, and they write each of `GameData`'s `.nvf` files back byte for byte.
 
 **The golden file.** `Tools/Golden/Golden.nvf`, 848 bytes, holds the model `NeuronCoreTests/NvfGolden.cpp` builds field by field:
 - three parts two levels deep, with negative translations, default pivots and one authored pivot;

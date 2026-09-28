@@ -780,6 +780,12 @@ public:
                              _record.voxelCount = 0;
                            }),
                   L"a part without a voxel");
+    RawFile emptied = Split(WithPart(1, [](NvfPartRecord& _record) { _record.voxelCount = 0; }));
+    NvfPartRecord barrel = GetRecord<NvfPartRecord>(ChunkNamed(emptied, "PART"), 2);
+    barrel.firstVoxel = 8;
+    barrel.voxelCount = 8;
+    SetRecord(ChunkNamed(emptied, "PART"), 2, barrel);
+    ExpectRefusal(NvfError::BadVoxelRange, Assemble(emptied), L"a part without a voxel, the counts adding up");
     ExpectRefusal(NvfError::BadVoxelRange, WithPart(2, [](NvfPartRecord& _record) { _record.voxelCount = 3; }), L"a record no part holds");
 
     RawFile extra = GoldenRaw();
@@ -944,6 +950,14 @@ public:
     model = GoldenNvfModel();
     model.records.push_back(NeuronCore::PackVoxelRecord({0, 0, 1, 0}));
     expectWriteRefusal(NvfError::BadVoxelRange, model, L"a record no part holds");
+
+    // A name with a NUL in it reads back as the part before the NUL, which the reader alone would accept.
+    model = GoldenNvfModel();
+    model.parts[0].path = std::string("hull\0x", 6);
+    expectWriteRefusal(NvfError::BadString, model, L"a part path with a NUL in it");
+    model = GoldenNvfModel();
+    model.hardpoints[3].name = std::string("dock.aft\0", 9);
+    expectWriteRefusal(NvfError::BadString, model, L"a hardpoint name ending in a NUL");
   }
 
   TEST_METHOD(NamesEveryError)

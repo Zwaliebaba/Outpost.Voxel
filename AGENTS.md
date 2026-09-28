@@ -204,7 +204,11 @@ msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=ARM64 /m /v:mini
 
 **A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
 
-**Run the tests**, through `vstest.console.exe`, over every suite the build produced.
+**Run the tests**, through `vstest.console.exe`, over every suite the build produced. `NvfFormat.py`'s suite is Python's and needs no build (R19):
+
+```powershell
+python -m unittest discover -s Tools\Blender\NeuronVoxelFormat\Tests -p "*Tests.py"
+```
 
 **vstest reports "no tests found" as a pass.** An empty suite is therefore worse than no suite: it is a green check mark over a library nobody exercised. Every test project ships a placeholder `SuiteSmoke` for exactly this reason; delete it when the first real test lands, never before.
 
@@ -241,7 +245,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
-**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing the design it comes from, [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) or [`Design/SpaceScene.md`](Design/SpaceScene.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing the design it comes from, [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md), [`Design/SpaceScene.md`](Design/SpaceScene.md) or [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 
@@ -253,6 +257,8 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R18 — Client and server share bytes, never objects.** What the server knows reaches the client only as messages through a `Transport`, in one process as in two (SpaceScene S3 and S20, [ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). Project references already keep the two sides apart (§2). `Outpost`, the one project that links both, creates the transport and hands each side its own end, and nothing else crosses: no pointer, reference or object of one side reaches the other. Review enforces it.
 
+**R19 — NVF has one specification and two implementations.** [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) §4 is the specification. `NeuronCore/NvfModel.cpp` implements it for the engine and `NvfImport`, and the Blender extension's `Tools/Blender/NeuronVoxelFormat/NvfFormat.py` for Blender (design N7, §8). The golden file, `Tools/Golden/Golden.nvf`, keeps the two in agreement: each one's tests write it byte for byte and read it back, and corrupt it alike into the same refusals, checked in the order [ADR-019](Design/ADR/ADR-019-nvf-format.md) fixes. A change to the format changes §4, both implementations and the golden file in one commit, and is an ADR. CI runs both suites, the C++ on Windows and the Python on Linux.
+
 ---
 
 ## 6. Working rules
@@ -263,7 +269,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **The checkers are part of the build.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on. Each prints what it checked and exits non-zero on a finding; run them before you push, and extend one rather than working around it.
 
-**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites, checks the models in `GameData` against their sources and then runs clang-tidy; and a Linux job that checks formatting on a pinned clang-format and runs `NvfFormat.py`'s tests with the system Python. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
 **CI does not build Release or ARM64.** The Windows build is the slow half of the pipeline, and each further configuration roughly doubles it for a tree whose configurations differ only in optimisation and instruction set. What stands in for them is the static alignment check on the four configurations (§3) — and an actual build by whoever needs one: Release by whoever is shipping, before a release, and ARM64 by whoever runs on it (ADR-012). If you change something that could plausibly break only under optimisation, build Release yourself and say so. If it could break on one platform only — an intrinsic, or code that leans on x64's stronger memory ordering — build the other one and say so.
 

@@ -703,10 +703,19 @@ std::expected<std::vector<std::uint8_t>, NvfError> SerializeNvfModel(const NvfMo
   AppendChunk(bytes, KNOWN_CHUNK_IDS[3], static_cast<std::uint32_t>(_model.records.size()), records);
   AppendChunk(bytes, KNOWN_CHUNK_IDS[4], static_cast<std::uint32_t>(hardpoints.size()), hardpointBytes);
 
-  // Whatever the writer emits, the reader must accept; a model it would refuse is refused here, by the same name.
-  if (const Parsed check = Parse(bytes); !check)
+  // Whatever the writer emits, the reader must accept; a model it would refuse is refused here, by the same name. A
+  // name with a NUL in it passes the reader as the part before the NUL, so a name read back otherwise than written is
+  // refused too, as a bad string.
+  const Parsed check = Parse(bytes);
+  if (!check)
   {
     return std::unexpected(check.error());
+  }
+  const auto nameOf = [](const NvfHardpoint* _hardpoint) -> const std::string& { return _hardpoint->name; };
+  if (!std::ranges::equal(check->parts, _model.parts, {}, &NvfPart::path, &NvfPart::path) ||
+      !std::ranges::equal(check->hardpoints, hardpoints, {}, &NvfHardpoint::name, nameOf))
+  {
+    return std::unexpected(NvfError::BadString);
   }
   return bytes;
 }

@@ -143,7 +143,7 @@ A reader refuses by name, as the `.vox` reader does, returning `std::expected<Nv
 
 `FileNotFound`, `ReadFailed`, `WriteFailed` (opening, reading or writing a file), `NotAnNvfFile`, `UnsupportedVersion`, `Truncated`, `MalformedChunk` (bad size, count or padding, a nonzero reserved field or undefined flag bit, a count beyond the limits below), `MissingChunk`, `ChunkOutOfOrder`, `BadString` (an offset off a string start, invalid UTF-8, no final NUL, a name that breaks §4.1), `DuplicateName`, `BadPartTree` (no root, a second root, a parent not before its child, a path that is not its parent's plus one segment), `PartTooLarge`, `TranslationOutOfRange` (a part's origin beyond ±2²¹), `BadVoxelRange`, `VoxelOutOfBounds`, `DuplicateVoxel`, `ReservedBitsSet` (a voxel record's bits 28–31), `BadHardpointPart`, `NotFinite`, `NotUnitRotation` (|‖q‖ − 1| > 10⁻⁴, or w < 0).
 
-Both readers check in the order ADR-019 fixes and report the first failure, so that a file with two faults gets the same name from each.
+Both readers check in the order ADR-019 fixes and report the first failure, so that a file with two faults gets the same name from each. A writer refuses, by the reader's name, a model the reader would refuse or would read back otherwise, so that whatever it writes reads back as it was written (ADR-019).
 
 Limits, so that a bad file fails fast rather than allocating: 1,024 parts, 4,096 hardpoints, 64 KiB of strings. The voxel count is bounded by the parts' sizes.
 
