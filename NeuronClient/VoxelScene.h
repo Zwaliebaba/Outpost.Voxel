@@ -23,7 +23,7 @@ struct SceneInstance
   std::uint32_t recordCount;
 };
 
-// A model's static data on the GPU (Design/SampleRenderer.md §7, §8): the voxel records, the palette and a constant
+// A model's static data on the GPU (Design/Archive/SampleRenderer.md §7, §8): the voxel records, the palette and a constant
 // buffer per placed model, uploaded once. The buffers rest in the common state and are promoted by each read.
 class VoxelScene
 {

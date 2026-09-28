@@ -1,6 +1,6 @@
 #pragma once
 
-// Stephen Hill's fit of the ACES reference rendering and output device transforms (Design/SampleRenderer.md §11), from
+// Stephen Hill's fit of the ACES reference rendering and output device transforms (Design/Archive/SampleRenderer.md §11), from
 // his BakingLab sample: linear Rec. 709 in, linear Rec. 709 out, clamped to [0, 1]. The C++ twins are in
 // NeuronCore/ToneMap.h (R15).
 

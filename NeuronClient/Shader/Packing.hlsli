@@ -1,6 +1,6 @@
 #pragma once
 
-// The packing of the voxel record and of the visibility buffer's normal (Design/SampleRenderer.md §7.1, §7.3). The C++
+// The packing of the voxel record and of the visibility buffer's normal (Design/Archive/SampleRenderer.md §7.1, §7.3). The C++
 // twins are NeuronCore/VoxelRecord.h and NeuronCore/OctahedralNormal.cpp (R15).
 
 // The visibility buffer's value for a pixel that no voxel covers, as NeuronCore/TraceHit.h names it.

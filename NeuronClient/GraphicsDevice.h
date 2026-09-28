@@ -15,7 +15,7 @@
 namespace NeuronClient
 {
 
-// How the device is chosen and what watches over it (Design/SampleRenderer.md §5, §13).
+// How the device is chosen and what watches over it (Design/Archive/SampleRenderer.md §5, §13).
 struct GraphicsDeviceDesc
 {
   bool warp;                            // WARP rather than hardware (--warp)
@@ -85,7 +85,7 @@ public:
   void Execute(const std::function<void(ID3D12GraphicsCommandList*)>& _record);
 
   // Why the device was removed and what DRED recorded of it, then the debug layer's messages; empty while the device is
-  // well. A failure's catch block adds this to its message while the device still exists (Design/SampleRenderer.md §13).
+  // well. A failure's catch block adds this to its message while the device still exists (Design/Archive/SampleRenderer.md §13).
   [[nodiscard]] std::string DescribeRemoval() const;
 
   // The debug layer's warnings and errors since the last call, oldest first. Empty without the debug layer.

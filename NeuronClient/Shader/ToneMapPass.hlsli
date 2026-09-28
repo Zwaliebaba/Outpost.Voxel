@@ -1,6 +1,6 @@
 #pragma once
 
-// The tone map pass (Design/SampleRenderer.md §8, §11): one triangle over the render target the caller binds, which
+// The tone map pass (Design/Archive/SampleRenderer.md §8, §11): one triangle over the render target the caller binds, which
 // shows the lighting's HDR color through the exposure and the ACES fit. The application's target is an sRGB view,
 // which encodes the result.
 

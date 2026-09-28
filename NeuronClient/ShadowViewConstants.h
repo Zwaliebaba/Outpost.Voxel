@@ -10,7 +10,7 @@ namespace NeuronClient
 {
 
 // The sun's orthographic view as the shadow splat, the lighting and the shadow-map view read it (R16,
-// Design/SampleRenderer.md §7.4, §10). This struct is the truth; Shader/ShadowViewConstants.hlsli mirrors it, and the
+// Design/Archive/SampleRenderer.md §7.4, §10). This struct is the truth; Shader/ShadowViewConstants.hlsli mirrors it, and the
 // layout echo in NeuronClientTests proves the two agree. A float3 and one scalar to each 16 bytes, so no padding.
 struct ShadowViewConstants
 {

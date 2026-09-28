@@ -5,10 +5,10 @@
 namespace NeuronCore
 {
 
-// R14: the palette has sixteen entries, and the owner fixed it there (Design/SampleRenderer.md D5).
+// R14: the palette has sixteen entries, and the owner fixed it there (Design/Archive/SampleRenderer.md D5).
 inline constexpr std::uint32_t PALETTE_ENTRY_COUNT = 16;
 
-// One voxel as the GPU reads it, unpacked (R14, Design/SampleRenderer.md §7.1).
+// One voxel as the GPU reads it, unpacked (R14, Design/Archive/SampleRenderer.md §7.1).
 struct VoxelRecord
 {
   std::uint8_t x; // model coordinates, in voxels

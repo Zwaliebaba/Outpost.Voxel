@@ -1,6 +1,6 @@
 #pragma once
 
-// What the debug view pass shows in place of the lit image (Design/SampleRenderer.md §11). The C++ twins are in
+// What the debug view pass shows in place of the lit image (Design/Archive/SampleRenderer.md §11). The C++ twins are in
 // NeuronCore/DebugView.h (R15), and these values are NeuronCore::DebugView's.
 
 #include "Hash.hlsli"

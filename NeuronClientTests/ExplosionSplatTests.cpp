@@ -39,7 +39,7 @@ constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
 constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
 // How far inside or outside a box a ray may pass and still be answered differently by the GPU and the twin, in voxel
-// units: the sliver the other splat tests use (Design/SampleRenderer.md §14).
+// units: the sliver the other splat tests use (Design/Archive/SampleRenderer.md §14).
 constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 
 // The GPU poses each voxel with its own sin, cos and sqrt, so an exploded box sits where the twin puts it to rounding,
@@ -272,7 +272,7 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
 
 } // namespace
 
-// The oriented splat permutations, which draw the explosion (Design/SampleRenderer.md §9.2, §12, §14).
+// The oriented splat permutations, which draw the explosion (Design/Archive/SampleRenderer.md §9.2, §12, §14).
 TEST_CLASS(ExplosionSplatTests)
 {
 public:

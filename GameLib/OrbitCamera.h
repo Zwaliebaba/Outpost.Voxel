@@ -8,7 +8,7 @@
 namespace GameLib
 {
 
-// The camera of Design/SampleRenderer.md §13. It orbits a target, pans across the view and dollies towards the target,
+// The camera of Design/Archive/SampleRenderer.md §13. It orbits a target, pans across the view and dollies towards the target,
 // or, in fly mode, moves freely and looks about. Angles are about the world's +Y, which is up; a heading of 0 looks
 // along +X and one of a quarter turn along +Z.
 class OrbitCamera

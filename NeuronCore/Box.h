@@ -7,7 +7,7 @@
 namespace NeuronCore
 {
 
-// A box as the splat pass draws one: an intact voxel is axis-aligned, an exploding one is not (Design/SampleRenderer.md
+// A box as the splat pass draws one: an intact voxel is axis-aligned, an exploding one is not (Design/Archive/SampleRenderer.md
 // §9.4).
 struct Box
 {

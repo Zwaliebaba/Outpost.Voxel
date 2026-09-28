@@ -57,7 +57,7 @@ struct FrameSettings
   bool countCoverage; // counts the pixels a voxel covers (§14)
 };
 
-// The frame of Design/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
+// The frame of Design/Archive/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
 // visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
 // their place, and last the canvas over it all (§13). Both splats draw the aligned permutation while the model is intact
 // and the oriented one once the explosion has started (§12). Two frames are in flight, each with its own allocator,

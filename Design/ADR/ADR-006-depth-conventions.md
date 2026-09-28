@@ -1,6 +1,6 @@
 # ADR-006 — Depth conventions
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15)
+**Status:** accepted, 2026-09-27 · **Lands with:** M2 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15)
 
 ## Context
 

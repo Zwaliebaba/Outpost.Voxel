@@ -1,6 +1,6 @@
 #pragma once
 
-// The canvas pass (Design/SampleRenderer.md §13, Design/ADR/ADR-010): each instance is one CanvasQuad, a strip of four
+// The canvas pass (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010): each instance is one CanvasQuad, a strip of four
 // vertices over the render target the caller binds. A glyph's pixels take the quad's color times the glyph's coverage in
 // the atlas, a fill's the color alone, and the blend state lays them over the target with premultiplied alpha.
 

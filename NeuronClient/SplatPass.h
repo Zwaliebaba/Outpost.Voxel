@@ -12,7 +12,7 @@ namespace NeuronClient
 class GraphicsDevice;
 class VoxelScene;
 
-// The splat (Design/SampleRenderer.md §9, §10): every voxel as a screen-space rectangle, intersected per pixel with its
+// The splat (Design/Archive/SampleRenderer.md §9, §10): every voxel as a screen-space rectangle, intersected per pixel with its
 // box. The view splat writes reversed-Z depth and the visibility buffer ViewTargets::BeginSplat has bound; the shadow
 // splat writes standard-Z depth alone into the map ShadowMap::BeginSplat has bound. Each kind comes in the aligned
 // permutation, for the intact model, and the oriented one, whose boxes the explosion poses (§12).

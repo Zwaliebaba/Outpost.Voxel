@@ -12,7 +12,7 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// The sun's depth (Design/SampleRenderer.md §8, §10): an R32_TYPELESS texture, written through a D32_FLOAT view by the
+// The sun's depth (Design/Archive/SampleRenderer.md §8, §10): an R32_TYPELESS texture, written through a D32_FLOAT view by the
 // shadow splat and read through an R32_FLOAT view by the lighting and the shadow-map view. Standard Z, cleared to the far
 // plane (Design/ADR/ADR-006). Between frames it rests readable by every shader stage.
 class ShadowMap

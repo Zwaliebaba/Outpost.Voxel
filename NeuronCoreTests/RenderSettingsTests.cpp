@@ -43,7 +43,7 @@ void AreEqualSettings(const RenderSettings& _expected, const RenderSettings& _ac
 
 } // namespace
 
-// How the lighting reads a scene's render objects (Design/SampleRenderer.md §3, §11, Design/ADR/ADR-008).
+// How the lighting reads a scene's render objects (Design/Archive/SampleRenderer.md §3, §11, Design/ADR/ADR-008).
 TEST_CLASS(RenderSettingsTests)
 {
 public:

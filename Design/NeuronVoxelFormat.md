@@ -1,7 +1,7 @@
 # Neuron Voxel Format (NVF) — Design and Implementation
 
 **Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 is done (§10) · **Date:** 2026-09-27
-**Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
+**Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](Archive/SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what NVF is, how models get into it, and how its tools are built. `AGENTS.md` says how the code is written; the engineering decisions below land as ADRs in the commits that implement them (§10).
 
@@ -331,4 +331,4 @@ The octahedral normal encoding needs no change. It is exact for all six axis dir
 
 - MagicaVoxel file format, chunks and scene graph: https://github.com/ephtracy/voxel-model/blob/master/MagicaVoxel-file-format-vox.txt and `MagicaVoxel-file-format-vox-extension.txt` in the same repository.
 - Blender extensions and the manifest: https://docs.blender.org/manual/en/latest/advanced/extensions/getting_started.html
-- `Design/SampleRenderer.md` §7.1 (the reader), §7.2 (palette), §7.5 (coordinates); ADR-002 (record and palette); ADR-006 (tie order).
+- `Design/Archive/SampleRenderer.md` §7.1 (the reader), §7.2 (palette), §7.5 (coordinates); ADR-002 (record and palette); ADR-006 (tie order).

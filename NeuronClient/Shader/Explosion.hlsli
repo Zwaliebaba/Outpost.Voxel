@@ -1,6 +1,6 @@
 #pragma once
 
-// pose(i, t) of the explosion (Design/SampleRenderer.md §12): where a voxel is, and how it is turned, some time after the
+// pose(i, t) of the explosion (Design/Archive/SampleRenderer.md §12): where a voxel is, and how it is turned, some time after the
 // detonation. The C++ twin is NeuronCore/Explosion.h and .cpp (R15), function for function; the explosion's envelope is
 // the CPU's alone, since no shader needs it.
 

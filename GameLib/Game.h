@@ -10,7 +10,7 @@
 namespace GameLib
 {
 
-// How the client runs, from the command line (Design/SampleRenderer.md §13).
+// How the client runs, from the command line (Design/Archive/SampleRenderer.md §13).
 struct GameOptions
 {
   std::filesystem::path voxPath;

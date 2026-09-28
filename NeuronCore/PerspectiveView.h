@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// A pinhole camera as the view splat pass and the reference tracer both see it (Design/SampleRenderer.md §7.5): world
+// A pinhole camera as the view splat pass and the reference tracer both see it (Design/Archive/SampleRenderer.md §7.5): world
 // space is Direct3D's, left-handed with +Y up, the view looks along forward, and depth is reversed-Z with an infinite far
 // plane.
 struct PerspectiveView

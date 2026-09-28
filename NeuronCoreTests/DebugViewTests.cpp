@@ -27,7 +27,7 @@ void AreEqualFloat3(Float3 _expected, Float3 _actual, const wchar_t* _what)
 
 } // namespace
 
-// The debug view twin and the palette's color conversion (Design/SampleRenderer.md §7.2, §11). The GPU side is compared
+// The debug view twin and the palette's color conversion (Design/Archive/SampleRenderer.md §7.2, §11). The GPU side is compared
 // with the twin in NeuronClientTests; these pin the twin itself.
 TEST_CLASS(DebugViewTests)
 {

@@ -15,7 +15,7 @@ namespace GameLib
 {
 
 // --bench renders at this size whatever the window or the display, and the swap chain stretches it over the window
-// (Design/SampleRenderer.md §13, D11).
+// (Design/Archive/SampleRenderer.md §13, D11).
 inline constexpr std::uint32_t BENCH_WIDTH_PIXELS = 1920;
 inline constexpr std::uint32_t BENCH_HEIGHT_PIXELS = 1080;
 

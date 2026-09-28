@@ -21,7 +21,7 @@ namespace NeuronCore
 // every voxel centre, an integer plus a half, is exact in single precision.
 inline constexpr std::int32_t MAX_TRANSLATION = 1 << 20;
 
-// Why a .vox file was refused (Design/SampleRenderer.md §7.1). The reader refuses by name anything the design has no
+// Why a .vox file was refused (Design/Archive/SampleRenderer.md §7.1). The reader refuses by name anything the design has no
 // tested answer for, rather than guessing at it.
 enum class VoxError : std::uint8_t
 {

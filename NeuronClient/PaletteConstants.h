@@ -10,7 +10,7 @@
 namespace NeuronClient
 {
 
-// One palette entry as the shaders read it (Design/SampleRenderer.md §7.2): linear albedo, and the scale that turns it
+// One palette entry as the shaders read it (Design/Archive/SampleRenderer.md §7.2): linear albedo, and the scale that turns it
 // into emitted light, NeuronCore::EmissiveScale's reading of the file's _emit and _flux (Design/ADR/ADR-008).
 struct PaletteMaterial
 {

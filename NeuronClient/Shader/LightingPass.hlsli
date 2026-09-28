@@ -1,6 +1,6 @@
 #pragma once
 
-// The lighting pass (Design/SampleRenderer.md §8, §11): a thread per pixel in 8 × 8 groups, from the view splat's depth
+// The lighting pass (Design/Archive/SampleRenderer.md §8, §11): a thread per pixel in 8 × 8 groups, from the view splat's depth
 // and visibility and the shadow map into the HDR color target.
 
 #include "Lighting.hlsli"

@@ -1,6 +1,6 @@
 #pragma once
 
-// The sun's view for the shadow map (Design/SampleRenderer.md §7.5, §10): every ray travels along forward from the near
+// The sun's view for the shadow map (Design/Archive/SampleRenderer.md §7.5, §10): every ray travels along forward from the near
 // plane, and depth is standard Z. The C++ twins are in NeuronCore/OrthographicView.h (R15); here the view is the
 // constant buffer itself.
 

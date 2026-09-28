@@ -1,6 +1,6 @@
 # ADR-001 — Repository layout and build settings
 
-**Status:** accepted, 2026-09-27; the project layout is superseded by [ADR-003](ADR-003-engine-and-game-layout.md), [ADR-012](ADR-012-arm64-platform.md) adds ARM64 beside x64, and the build settings, output paths, tooling and test framework below still hold · **Lands with:** M0 of [`Design/SampleRenderer.md`](../SampleRenderer.md) (§15)
+**Status:** accepted, 2026-09-27; the project layout is superseded by [ADR-003](ADR-003-engine-and-game-layout.md), [ADR-012](ADR-012-arm64-platform.md) adds ARM64 beside x64, and the build settings, output paths, tooling and test framework below still hold · **Lands with:** M0 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15)
 
 *This record is kept as it was decided. The five projects it names were renamed and joined by three more in ADR-003: `VoxelCore` is now `NeuronCore`, `VoxelRender` `NeuronClient`, `VoxelSample` `Outpost`, and the suites `NeuronCoreTests` and `NeuronClientTests`.*
 

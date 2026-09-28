@@ -12,7 +12,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
 3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
 
-The design document, [`Design/SampleRenderer.md`](Design/SampleRenderer.md), sits alongside rather than above: it says what is built and this file says how. A task that needs a design answer the document does not give asks the owner, and gets the answer written down there before the code is.
+The design documents sit alongside rather than above: each says what is built and this file says how. A design lives in `Design/` while its plan runs, as [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) does. It moves to `Design/Archive/` when the plan is done, as [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) has. There it stays the record of what it built, and the code keeps citing it. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in a design before the code is.
 
 If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
 
@@ -236,7 +236,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
-**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing [`Design/SampleRenderer.md`](Design/SampleRenderer.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 

@@ -40,7 +40,7 @@ struct TextExtent
   float heightPixels;
 };
 
-// The 2D overlay drawn over the finished frame, and the surface a HUD draws on (Design/SampleRenderer.md §13,
+// The 2D overlay drawn over the finished frame, and the surface a HUD draws on (Design/Archive/SampleRenderer.md §13,
 // Design/ADR/ADR-010). During a frame it collects rectangles and text: DirectWrite lays text out with IDWriteTextLayout
 // and hands each glyph run to the canvas's own IDWriteTextRenderer, which makes every glyph a quad over its bitmap in
 // the glyph atlas. Record draws the lot, in the order it came, with one instanced draw, and starts the next collection.

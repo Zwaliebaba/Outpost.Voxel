@@ -49,7 +49,7 @@ constexpr std::uint32_t SHADOW_MAP_PIXELS = 256;
 
 } // namespace
 
-// The debug view pass against its twin on the buffers the GPU wrote (Design/SampleRenderer.md §11, R15).
+// The debug view pass against its twin on the buffers the GPU wrote (Design/Archive/SampleRenderer.md §11, R15).
 TEST_CLASS(DebugViewPassTests)
 {
 public:

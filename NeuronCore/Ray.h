@@ -6,7 +6,7 @@ namespace NeuronCore
 {
 
 // A ray as the views make it. The direction is not normalized: a perspective ray has a view-depth component of exactly
-// one, so that the parameter of a hit is its view depth (Design/SampleRenderer.md §9.3).
+// one, so that the parameter of a hit is its view depth (Design/Archive/SampleRenderer.md §9.3).
 struct Ray
 {
   Float3 origin;

@@ -4,7 +4,7 @@
 
 ## Context
 
-The tree was x64 only (ADR-001, `AGENTS.md` §3), and `Build/CheckProjectFiles.py` failed anything else. The owner works on a Snapdragon X laptop, whose Qualcomm Adreno X1-85 ran M5's measured bench ([`SampleRendererPerformance.md`](../SampleRendererPerformance.md)). There, an x64 build runs only under Windows' x64 emulation.
+The tree was x64 only (ADR-001, `AGENTS.md` §3), and `Build/CheckProjectFiles.py` failed anything else. The owner works on a Snapdragon X laptop, whose Qualcomm Adreno X1-85 ran M5's measured bench ([`SampleRendererPerformance.md`](../Archive/SampleRendererPerformance.md)). There, an x64 build runs only under Windows' x64 emulation.
 
 The owner added `Debug|ARM64` and `Release|ARM64` to every project and to the solution in 52d4db7, built Release for ARM64, and ran it. The checker then failed `main`'s CI with 25 findings, one rule's worth: x64 is the only platform. The owner decided to keep ARM64 as a valid platform, with CI building x64 only.
 

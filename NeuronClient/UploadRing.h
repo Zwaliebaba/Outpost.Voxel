@@ -14,7 +14,7 @@ namespace NeuronClient
 
 class GraphicsDevice;
 
-// Constants the CPU writes for one frame and the GPU reads in place from an upload heap (Design/SampleRenderer.md §8),
+// Constants the CPU writes for one frame and the GPU reads in place from an upload heap (Design/Archive/SampleRenderer.md §8),
 // in pieces aligned for a constant buffer view. A frame in flight owns one ring and resets it only after the GPU has
 // finished the frame that last used it.
 class UploadRing

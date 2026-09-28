@@ -253,7 +253,7 @@ template <bool Oriented> void ExpectExactCases(std::span<const ExactCase> _cases
 
 } // namespace
 
-// Majercik et al. 2018, Listing 5, as NeuronCore's twin computes it (Design/SampleRenderer.md §14).
+// Majercik et al. 2018, Listing 5, as NeuronCore's twin computes it (Design/Archive/SampleRenderer.md §14).
 TEST_CLASS(BoxTests)
 {
 public:

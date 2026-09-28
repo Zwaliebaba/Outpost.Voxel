@@ -126,7 +126,7 @@ struct RunCounter : winrt::implements<RunCounter, IDWriteTextRenderer>
 
 } // namespace
 
-// The canvas (Design/SampleRenderer.md §13, Design/ADR/ADR-010): its twin, and what the GPU draws against the twin's
+// The canvas (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010): its twin, and what the GPU draws against the twin's
 // composite of the same quads over the same atlas (R15).
 TEST_CLASS(CanvasTests)
 {

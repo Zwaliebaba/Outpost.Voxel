@@ -8,7 +8,7 @@
 namespace NeuronClient
 {
 
-// One rectangle the canvas draws (Design/SampleRenderer.md §13, Design/ADR/ADR-010): a glyph from the atlas in its
+// One rectangle the canvas draws (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010): a glyph from the atlas in its
 // color, or a fill of its color, in pixels of the target with y down. This struct is the truth; Shader/CanvasQuad.hlsli
 // mirrors it as the element of a structured buffer, and the layout echo in NeuronClientTests proves the two agree
 // (R16). A structured buffer packs to four bytes, so the struct has no padding.
