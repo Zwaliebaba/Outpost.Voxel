@@ -835,7 +835,7 @@ public:
     static_cast<void>(ExpectAccepted(withRotation({0.0f, 0.0f, -1.0f, 0.0f}), L"half a turn, w zero"));
   }
 
-  // ADR-018: the reader checks in one order and reports the first fault, and NvfFormat.py checks in the same order, so
+  // ADR-019: the reader checks in one order and reports the first fault, and NvfFormat.py checks in the same order, so
   // that both name the same fault in a file that has two.
   TEST_METHOD(ChecksInTheFixedOrder)
   {

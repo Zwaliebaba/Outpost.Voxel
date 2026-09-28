@@ -625,7 +625,7 @@ std::expected<std::vector<std::uint8_t>, NvfError> SerializeNvfModel(const NvfMo
     return std::unexpected(NvfError::MalformedChunk);
   }
 
-  // Hardpoints in name order, so that whichever tool wrote the table, the bytes are the same (§4.3, ADR-018).
+  // Hardpoints in name order, so that whichever tool wrote the table, the bytes are the same (§4.3, ADR-019).
   std::vector<const NvfHardpoint*> hardpoints;
   hardpoints.reserve(_model.hardpoints.size());
   for (const NvfHardpoint& hardpoint : _model.hardpoints)

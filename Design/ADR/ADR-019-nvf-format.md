@@ -1,4 +1,4 @@
-# ADR-018 — The Neuron Voxel Format as it is read and written
+# ADR-019 — The Neuron Voxel Format as it is read and written
 
 **Status:** accepted, 2026-09-28 · **Lands with:** N-M1 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10) · **Implements:** that design's §4, and settles what §4 left open, each point written back into §4 in the same commit
 
@@ -6,7 +6,7 @@
 
 NVF §4 specifies the file: a header, five chunks, fixed-size records and a list of refusals by name. N-M1 builds the C++ reader, writer and validation in `NeuronCore`, with a golden file that N-M3's Python must reproduce byte for byte (N7). Writing the code turned up places where §4 left a choice open. A choice two implementations make differently is a file one of them refuses, so each is made here, once.
 
-The owner answered three questions on 2026-09-28 (§11). A part's default pivot is its geometric centre, `size / 2`: §4.3's ⌊size / 2⌋ was the corner of MagicaVoxel's pivot voxel, half a voxel off-centre on every odd axis. NVF's ADRs are ADR-018 and ADR-019, reserved because the space scene takes numbers in parallel. And an authored hardpoint that shares a marker's name stays a refusal, which ADR-019 records with the importer.
+The owner answered three questions on 2026-09-28 (§11). A part's default pivot is its geometric centre, `size / 2`: §4.3's ⌊size / 2⌋ was the corner of MagicaVoxel's pivot voxel, half a voxel off-centre on every odd axis. NVF's ADRs are ADR-019 and ADR-020, reserved because the space scene takes numbers in parallel and S-M4 had already taken ADR-018. And an authored hardpoint that shares a marker's name stays a refusal, which ADR-020 records with the importer.
 
 ## Decision
 
@@ -27,7 +27,7 @@ The owner answered three questions on 2026-09-28 (§11). A part's default pivot 
 | 7 | Strings | STRS is empty or ends in a NUL, and all of it is well-formed UTF-8 (the Unicode Standard's Table 3-7), else `BadString`. A name is referred to at a string's first byte. A string nothing refers to is allowed, since a newer chunk may refer to it. |
 | 8 | Unknown chunks | They may lie anywhere after the header, and their framing is checked like any chunk's: a reserved field of 0 and zero padding. The five known chunks appear once each, in order; one that appears again, or before one it should follow, is `ChunkOutOfOrder`. The reader lists the ids it skipped, and a tool that rewrites a file refuses a model with any (§4.6). |
 | 9 | Minor versions | Any minor version of major version 1 is read. |
-| 10 | The writer's order | Hardpoints in name order, by the bytes of their ASCII names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints. Without it, `--check` would fail after every export. STRS's first-use order follows from it. Parts are written in the order the model gives; the importer's order is ADR-019's. |
+| 10 | The writer's order | Hardpoints in name order, by the bytes of their ASCII names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints. Without it, `--check` would fail after every export. STRS's first-use order follows from it. Parts are written in the order the model gives; the importer's order is ADR-020's. |
 | 11 | What the writer may write | Nothing the reader refuses. `SerializeNvfModel` reads its own bytes back and returns the reader's refusal, by the same name. It first refuses an extent that the file's 16 bits would wrap. |
 
 **The order of checking.** Both implementations check in one order and report the first failure, so that a file with two faults gets the same name from each:
@@ -49,7 +49,7 @@ The owner answered three questions on 2026-09-28 (§11). A part's default pivot 
 - a voxel in every entry, and one at each part's far corner;
 - four hardpoints, two from the `.vox` and one of three segments, turned by 0, 90, 180 and 30 degrees, listed out of name order.
 
-`Tools/` is a new top-level folder. It holds data and, from N-M3, Python, never C++; ADR-019 records it with the importer's layout.
+`Tools/` is a new top-level folder. It holds data and, from N-M3, Python, never C++; ADR-020 records it with the importer's layout.
 
 ## Figures
 

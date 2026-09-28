@@ -18,7 +18,7 @@
 namespace NeuronCore
 {
 
-// The Neuron Voxel Format, the game's own voxel model format (Design/NeuronVoxelFormat.md §4, Design/ADR/ADR-018). A
+// The Neuron Voxel Format, the game's own voxel model format (Design/NeuronVoxelFormat.md §4, Design/ADR/ADR-019). A
 // model is a tree of rigid parts, each a voxel grid in the R14 record, sharing one 16-entry palette, plus named
 // hardpoints. Model space is the engine's, Direct3D's: left-handed, +Y up, +Z forward, one unit per voxel edge (N9).
 // This is the C++ implementation; the Blender extension's NvfFormat.py is the other, and Tools/Golden/Golden.nvf holds
@@ -38,7 +38,7 @@ inline constexpr std::int32_t NVF_MAX_PART_EXTENT = 256;
 
 // How far a part's origin may lie from model space's on any axis: the sum of the translations from part 0 down to it.
 // A .vox the reader accepts places every model within MAX_TRANSLATION + 128 of the origin, so this admits every import,
-// keeps every voxel centre exact in single precision, and keeps any sum of translations inside int32 (ADR-018).
+// keeps every voxel centre exact in single precision, and keeps any sum of translations inside int32 (ADR-019).
 inline constexpr std::int32_t NVF_MAX_PART_ORIGIN = 1 << 21;
 
 // A name's segments are 1 to this many of [a-z0-9_] (§4.1).
@@ -132,7 +132,7 @@ static_assert(offsetof(NvfHardpointRecord, rotation) == 24);
 static_assert(offsetof(NvfHardpointRecord, reserved) == 40);
 
 // Why an .nvf file was refused (§4.4). The reader refuses by name, and NvfFormat.py raises the same names, in the same
-// order of checking, so that both implementations name the same fault in the same file (ADR-018).
+// order of checking, so that both implementations name the same fault in the same file (ADR-019).
 enum class NvfError : std::uint8_t
 {
   FileNotFound,
@@ -206,7 +206,7 @@ struct NvfModel
 [[nodiscard]] bool IsNvfHardpointName(std::string_view _name) noexcept;
 
 // Reads and validates a whole file. Accepts any minor version of major version 1 and skips chunks it does not know,
-// wherever they lie; refuses everything else §4.4 names, checking in the order ADR-018 fixes and reporting the first
+// wherever they lie; refuses everything else §4.4 names, checking in the order ADR-019 fixes and reporting the first
 // fault.
 [[nodiscard]] std::expected<NvfModel, NvfError> ParseNvfModel(std::span<const std::uint8_t> _bytes);
 

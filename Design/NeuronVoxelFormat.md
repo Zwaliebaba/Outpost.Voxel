@@ -120,7 +120,7 @@ This is `PaletteEntry` as the `.vox` reader already produces it (SampleRenderer 
 | 40 | `u32` | firstVoxel — index into `VOXL` |
 | 44 | `u32` | voxelCount — at least 1 |
 
-A part's ranges in `VOXL` follow one another in part order, without gaps or overlap. Parts are translated but never rotated at rest (N2). A part's origin in model space, the sum of the translations from part 0 down to it, lies within ±2²¹ on every axis (ADR-018). The default pivot is the part's geometric centre, size / 2, taken per axis after the swap (§11, question 5).
+A part's ranges in `VOXL` follow one another in part order, without gaps or overlap. Parts are translated but never rotated at rest (N2). A part's origin in model space, the sum of the translations from part 0 down to it, lies within ±2²¹ on every axis (ADR-019). The default pivot is the part's geometric centre, size / 2, taken per axis after the swap (§11, question 5).
 
 **`VOXL` — voxels.** `u32` records exactly as R14 packs them: x, y, z in bits 0–23, the colour in bits 24–27, bits 28–31 zero. Within a part, a record lies inside `sizeVoxels`, and no position repeats. Records keep the order the `.vox` gave them, because the renderer breaks depth ties by record order (ADR-006).
 
@@ -135,7 +135,7 @@ A part's ranges in `VOXL` follow one another in part order, without gaps or over
 | 24 | `f32[4]` | rotation — x, y, z, w: a unit quaternion from the hardpoint's frame to part space, with w ≥ 0 |
 | 40 | `u32[2]` | reserved, 0 |
 
-The type is not stored separately. It is the name's first segment, and the reader exposes it, so the two can never disagree. Writers store hardpoints in name order, by the bytes of their names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints (ADR-018).
+The type is not stored separately. It is the name's first segment, and the reader exposes it, so the two can never disagree. Writers store hardpoints in name order, by the bytes of their names, so that `NvfImport`'s merge and Blender's export write the same bytes for the same hardpoints (ADR-019).
 
 ### 4.4 Validation
 
@@ -143,7 +143,7 @@ A reader refuses by name, as the `.vox` reader does, returning `std::expected<Nv
 
 `FileNotFound`, `ReadFailed`, `WriteFailed` (opening, reading or writing a file), `NotAnNvfFile`, `UnsupportedVersion`, `Truncated`, `MalformedChunk` (bad size, count or padding, a nonzero reserved field or undefined flag bit, a count beyond the limits below), `MissingChunk`, `ChunkOutOfOrder`, `BadString` (an offset off a string start, invalid UTF-8, no final NUL, a name that breaks §4.1), `DuplicateName`, `BadPartTree` (no root, a second root, a parent not before its child, a path that is not its parent's plus one segment), `PartTooLarge`, `TranslationOutOfRange` (a part's origin beyond ±2²¹), `BadVoxelRange`, `VoxelOutOfBounds`, `DuplicateVoxel`, `ReservedBitsSet` (a voxel record's bits 28–31), `BadHardpointPart`, `NotFinite`, `NotUnitRotation` (|‖q‖ − 1| > 10⁻⁴, or w < 0).
 
-Both readers check in the order ADR-018 fixes and report the first failure, so that a file with two faults gets the same name from each.
+Both readers check in the order ADR-019 fixes and report the first failure, so that a file with two faults gets the same name from each.
 
 Limits, so that a bad file fails fast rather than allocating: 1,024 parts, 4,096 hardpoints, 64 KiB of strings. The voxel count is bounded by the parts' sizes.
 
@@ -270,7 +270,7 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Not started |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
-ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, so on 2026-09-28 the owner reserved ADR-018 for N-M1's format ([ADR-018](ADR/ADR-018-nvf-format.md)) and ADR-019 for N-M2's importer and layout; the space scene continues from ADR-020.
+ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, and S-M4 took ADR-018, so on 2026-09-28 the owner reserved ADR-019 for N-M1's format ([ADR-019](ADR/ADR-019-nvf-format.md)) and ADR-020 for N-M2's importer and layout; the space scene continues from ADR-021.
 
 ## 11. Risks and open questions
 
@@ -285,7 +285,7 @@ ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M
 
 5. **A part's default pivot is its geometric centre, `size / 2` (§4.3).** The draft's ⌊size / 2⌋ was the corner of MagicaVoxel's pivot voxel: half a voxel off-centre on every odd axis, and not a point a marker can give, since markers land on voxel centres.
 6. **Refining a marker's hardpoint in Blender keeps the name clash an error (§6.2, §7).** Moving a `FromVox` hardpoint in Blender clears its flag, so the next import finds an authored hardpoint and a marker of one name. The refusal names the fix: delete the marker in MagicaVoxel, now that Blender owns the hardpoint. A marker seeds a hardpoint once.
-7. **NVF's ADRs are ADR-018 and ADR-019 (§10),** reserved because the space scene takes ADRs in parallel.
+7. **NVF's ADRs are ADR-019 and ADR-020 (§10),** reserved because the space scene takes ADRs in parallel; S-M4 had already taken ADR-018.
 
 **Risks:**
 
