@@ -12,7 +12,7 @@ namespace
 
 using NeuronCore::Float3;
 
-constexpr Float3 WORLD_UP{0.0f, 0.0f, 1.0f};
+constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 constexpr float ORBIT_RADIANS_PER_PIXEL = 0.005f;
 constexpr float DOLLY_PER_NOTCH = 0.9f;
 constexpr float MINIMUM_DISTANCE = 1.0f;
@@ -107,7 +107,7 @@ NeuronCore::PerspectiveView OrbitCamera::View(std::uint32_t _widthPixels, std::u
 Float3 OrbitCamera::Forward() const noexcept
 {
   const float horizontal = std::cos(m_pitchRadians);
-  return {horizontal * std::cos(m_yawRadians), horizontal * std::sin(m_yawRadians), std::sin(m_pitchRadians)};
+  return {horizontal * std::cos(m_yawRadians), std::sin(m_pitchRadians), horizontal * std::sin(m_yawRadians)};
 }
 
 Float3 OrbitCamera::Eye() const noexcept

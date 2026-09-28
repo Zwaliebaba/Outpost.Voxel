@@ -69,7 +69,9 @@ struct ModelInstance
   std::uint32_t recordCount;
 };
 
-// A validated MagicaVoxel scene, flattened into what the renderer draws.
+// A validated MagicaVoxel scene, flattened into what the renderer draws. Its voxels, sizes and origins are in the
+// engine's axes, Direct3D's, left-handed with +Y up (Design/NeuronVoxelFormat.md §12): the reader swaps MagicaVoxel's
+// y and z as it reads, and keeps the records in the file's order.
 struct VoxModel
 {
   std::int32_t version;

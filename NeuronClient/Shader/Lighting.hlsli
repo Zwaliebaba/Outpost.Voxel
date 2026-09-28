@@ -12,10 +12,10 @@
 #include "ShadowViewConstants.hlsli"
 #include "ViewConstants.hlsli"
 
-// §11's hemisphere: _uni _i × lerp(ground color, sky color, ½ + ½ N.z), written out as the twin writes it.
+// §11's hemisphere: _uni _i × lerp(ground color, sky color, ½ + ½ N.y), written out as the twin writes it.
 float3 Ambient(float3 _normal, LightingConstants _lighting)
 {
-  float up = 0.5 + 0.5 * _normal.z;
+  float up = 0.5 + 0.5 * _normal.y;
   return (_lighting.groundAlbedo + (_lighting.skyColor - _lighting.groundAlbedo) * up) * _lighting.skyIntensity;
 }
 
@@ -49,7 +49,7 @@ float ShadowFactor(Texture2D<float> _map, SamplerComparisonState _sampler, Shado
 }
 
 // What the lighting pass writes for the pixel whose centre is _pixelCenter: a voxel at the depth the view splat wrote,
-// the ground plane z = 0 where no voxel was hit and the ray meets it from above, and otherwise the background.
+// the ground plane y = 0 where no voxel was hit and the ray meets it from above, and otherwise the background.
 float3 LightPixel(ViewConstants _view, float2 _pixelCenter, uint _voxel, float3 _normal, float _depth, float3 _albedo, float _emissiveScale,
                   Texture2D<float> _shadowMap, SamplerComparisonState _shadowSampler, ShadowViewConstants _shadowView,
                   LightingConstants _lighting)
@@ -62,10 +62,10 @@ float3 LightPixel(ViewConstants _view, float2 _pixelCenter, uint _voxel, float3 
     float shadow = ShadowFactor(_shadowMap, _shadowSampler, _shadowView, position + _normal * _lighting.shadowNormalOffset);
     return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
   }
-  if (_lighting.groundVisible != 0u && ray.origin.z > 0.0 && ray.direction.z < 0.0)
+  if (_lighting.groundVisible != 0u && ray.origin.y > 0.0 && ray.direction.y < 0.0)
   {
-    float3 up = float3(0.0, 0.0, 1.0);
-    float3 position = ray.origin + ray.direction * (-ray.origin.z / ray.direction.z);
+    float3 up = float3(0.0, 1.0, 0.0);
+    float3 position = ray.origin + ray.direction * (-ray.origin.y / ray.direction.y);
     float shadow = ShadowFactor(_shadowMap, _shadowSampler, _shadowView, position + up * _lighting.shadowNormalOffset);
     return ShadeSurface(_lighting.groundAlbedo, 0.0, up, shadow, _lighting);
   }

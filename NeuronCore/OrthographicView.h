@@ -13,7 +13,7 @@ namespace NeuronCore
 struct OrthographicView
 {
   Float3 origin; // the centre of the near plane
-  Float3 right;  // orthonormal and right-handed: right x up = -forward
+  Float3 right;  // orthonormal and left-handed: right × up = +forward
   Float3 up;
   Float3 forward;
   float halfWidth; // world units

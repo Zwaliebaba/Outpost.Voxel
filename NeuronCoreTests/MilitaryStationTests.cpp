@@ -39,8 +39,10 @@ namespace
 using NeuronCore::Float3;
 using NeuronCore::Int3;
 
-constexpr Int3 MODEL_SIZE{207, 228, 255};
-constexpr Int3 MODEL_ORIGIN{-103, -114, 0}; // the translation 0 0 127, minus floor(size / 2)
+// In the engine's axes: MagicaVoxel's 207 x 228 x 255 with y and z swapped, and its translation 0 0 127, which the
+// engine reads as (0, 127, 0), minus floor(size / 2).
+constexpr Int3 MODEL_SIZE{207, 255, 228};
+constexpr Int3 MODEL_ORIGIN{-103, 0, -114};
 constexpr std::uint32_t VOXEL_COUNT = 225048;
 
 // _relative in _start or the nearest directory above it that holds it.
@@ -142,7 +144,7 @@ constexpr std::uint32_t LANDING_SAMPLES = 16;
   std::vector<std::uint32_t> voxels;
   for (std::uint32_t voxel = 0; voxel < _centers.size(); ++voxel)
   {
-    if (voxel % EXPLOSION_STRIDE == 0u || _centers[voxel].z < 1.0f)
+    if (voxel % EXPLOSION_STRIDE == 0u || _centers[voxel].y < 1.0f)
     {
       voxels.push_back(voxel);
     }
@@ -165,10 +167,10 @@ constexpr std::uint32_t LANDING_SAMPLES = 16;
   return times;
 }
 
-// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Z.
+// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Y.
 [[nodiscard]] float LowestPoint(const NeuronCore::VoxelPose& _pose) noexcept
 {
-  return _pose.center.z - 0.5f * (std::abs(_pose.axisX.z) + std::abs(_pose.axisY.z) + std::abs(_pose.axisZ.z));
+  return _pose.center.y - 0.5f * (std::abs(_pose.axisX.y) + std::abs(_pose.axisY.y) + std::abs(_pose.axisZ.y));
 }
 
 [[nodiscard]] bool SamePose(const NeuronCore::VoxelPose& _a, const NeuronCore::VoxelPose& _b) noexcept
@@ -190,11 +192,20 @@ void ExpectSameHit(const NeuronCore::TraceHit& _expected, const NeuronCore::Trac
   }
 }
 
+// The pins are in MagicaVoxel's axes (PinnedStation.h), and the engine's swap y and z (Design/NeuronVoxelFormat.md §12).
+[[nodiscard]] constexpr Float3 FromPinnedAxes(Float3 _vector) noexcept
+{
+  return {_vector.x, _vector.z, _vector.y};
+}
+
 // The pins of Design/NeuronVoxelFormat.md §12.4 (PinnedStation.h). A pixel may show another voxel than its pin, or
 // none, only where its ray passes within PIN_EDGE_EPSILON of an edge, the sliver of the splat tests (SampleRenderer §14):
 // where it meets the grown box of the voxel it shows, if any, and misses the shrunk box of the voxel it was pinned to,
-// if any. The pixels that do so are counted against PIN_EDGE_LIMIT, which is not measured yet: the first run after the
-// axis move sets it.
+// if any. Two more checks make that rule mean what it says (Design/ADR/ADR-011): the ray must also meet the grown box of
+// the voxel it was pinned to, and where it was pinned to none, miss the shrunk box of the voxel it shows. The tracer
+// found the voxel a pixel shows along the ray, but not its pin, and without them a pin the ray passes nowhere near would
+// count as grazed: a mirrored image would pass as differences on edges. The pixels that differ on an edge are counted
+// against PIN_EDGE_LIMIT, which is not measured yet: the first run after the axis move sets it.
 constexpr float PIN_EDGE_EPSILON = 1.0f / 256.0f;
 constexpr std::uint32_t PIN_EDGE_LIMIT = 16;
 
@@ -241,8 +252,9 @@ void ExpectPinnedImage(const wchar_t* _name, std::span<const PinnedPixel> _pinne
         continue;
       }
       const bool nearTraced = traced == NeuronCore::NO_VOXEL || MeetsCell(ray, _centers[traced], PIN_EDGE_EPSILON, _minDistance);
-      const bool grazedPinned = expected == NeuronCore::NO_VOXEL || !MeetsCell(ray, _centers[expected], -PIN_EDGE_EPSILON, _minDistance);
-      if (nearTraced && grazedPinned)
+      const bool nearPinned = expected == NeuronCore::NO_VOXEL || MeetsCell(ray, _centers[expected], PIN_EDGE_EPSILON, _minDistance);
+      const std::uint32_t grazed = expected != NeuronCore::NO_VOXEL ? expected : traced;
+      if (nearTraced && nearPinned && !MeetsCell(ray, _centers[grazed], -PIN_EDGE_EPSILON, _minDistance))
       {
         ++edges;
         continue;
@@ -276,8 +288,8 @@ void ExpectPinnedImage(const wchar_t* _name, std::span<const PinnedPixel> _pinne
 {
   const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(_model.renderObjects);
   const auto [lower, upper] = GridBox(_grid);
-  return NeuronCore::MakeShadowView(NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians), PINNED_TARGET,
-                                    PINNED_SUN_HALF_EXTENT, lower, upper, PINNED_SUN_PIXELS);
+  return NeuronCore::MakeShadowView(NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians),
+                                    FromPinnedAxes(PINNED_TARGET), PINNED_SUN_HALF_EXTENT, lower, upper, PINNED_SUN_PIXELS);
 }
 
 void ExpectColor(Float3 _expected, Float3 _actual, const std::wstring& _what)
@@ -330,8 +342,8 @@ public:
     {
       Assert::AreEqual(expected[i], counts[i], std::format(L"voxels in entry {}", i + 1).c_str());
     }
-    AreEqualInt3({1, 1, 0}, lower, L"lowest occupied position");
-    AreEqualInt3({205, 227, 254}, upper, L"highest occupied position");
+    AreEqualInt3({1, 0, 1}, lower, L"lowest occupied position");
+    AreEqualInt3({205, 254, 227}, upper, L"highest occupied position");
 
     std::uint32_t emissive = 0;
     for (std::size_t i = 0; i < counts.size(); ++i)
@@ -408,17 +420,17 @@ public:
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const NeuronCore::VoxelGrid grid(model);
 
-    // The occupied cells, in world space: the lowest layer sits exactly on z = 0.
-    AreEqualInt3({-102, -113, 0}, grid.Origin(), L"grid origin");
-    AreEqualInt3({205, 227, 255}, grid.Size(), L"grid size");
+    // The occupied cells, in world space: the lowest layer sits exactly on y = 0 (Design/NeuronVoxelFormat.md §12.4).
+    AreEqualInt3({-102, 0, -113}, grid.Origin(), L"grid origin");
+    AreEqualInt3({205, 255, 227}, grid.Size(), L"grid size");
 
-    // The default view frames this box's bounding sphere: radius about 199 around (0.5, 0.5, 127.5).
+    // The default view frames this box's bounding sphere: radius about 199 around (0.5, 127.5, 0.5).
     const Int3 size = grid.Size();
     const double radius = 0.5 * std::hypot(static_cast<double>(size.x), static_cast<double>(size.y), static_cast<double>(size.z));
     Assert::AreEqual(199.1, radius, 0.05, L"bounding sphere radius");
     Assert::AreEqual(0.5, grid.Origin().x + 0.5 * size.x, 0.0, L"centre x");
-    Assert::AreEqual(0.5, grid.Origin().y + 0.5 * size.y, 0.0, L"centre y");
-    Assert::AreEqual(127.5, grid.Origin().z + 0.5 * size.z, 0.0, L"centre z");
+    Assert::AreEqual(127.5, grid.Origin().y + 0.5 * size.y, 0.0, L"centre y");
+    Assert::AreEqual(0.5, grid.Origin().z + 0.5 * size.z, 0.0, L"centre z");
   }
 
   TEST_METHOD(GridHoldsEveryVoxel)
@@ -453,16 +465,16 @@ public:
     // Three views of the bounding sphere at the design's distance, in the file's 45-degree field of view, and the sun
     // straight overhead, each sampled on a lattice over the station's silhouette. The level view's centre row and column
     // and every ray of the sun have exactly-zero components.
-    const Float3 center{0.5f, 0.5f, 127.5f};
+    const Float3 center{0.5f, 127.5f, 0.5f};
     constexpr float DISTANCE = 520.3f;
-    const std::array<Float3, 3> offsets{Float3{0.0f, -1.0f, 0.0f}, NeuronCore::Normalize({1.0f, -1.2f, 0.8f}),
-                                        NeuronCore::Normalize({1.0f, 0.3f, -0.1f})};
+    const std::array<Float3, 3> offsets{Float3{0.0f, 0.0f, -1.0f}, NeuronCore::Normalize({1.0f, 0.8f, -1.2f}),
+                                        NeuronCore::Normalize({1.0f, -0.1f, 0.3f})};
     std::uint32_t hits = 0;
     std::uint32_t rays = 0;
     for (const Float3& offset : offsets)
     {
       const NeuronCore::PerspectiveView view =
-        NeuronCore::MakePerspectiveView(center + offset * DISTANCE, center, {0.0f, 0.0f, 1.0f}, 0.785398163f, 0.1f, 161, 91);
+        NeuronCore::MakePerspectiveView(center + offset * DISTANCE, center, {0.0f, 1.0f, 0.0f}, 0.785398163f, 0.1f, 161, 91);
       for (const std::uint32_t pixelY : {40u, 45u, 52u, 58u, 66u})
       {
         for (const std::uint32_t pixelX : {70u, 76u, 80u, 86u, 92u})
@@ -477,7 +489,7 @@ public:
     }
 
     const NeuronCore::OrthographicView sun =
-      NeuronCore::MakeOrthographicView({0.5f, 0.5f, 300.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 120.0f, 120.0f, 310.0f, 64, 64);
+      NeuronCore::MakeOrthographicView({0.5f, 300.0f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 120.0f, 120.0f, 310.0f, 64, 64);
     for (const std::uint32_t pixelY : {14u, 26u, 34u, 44u, 52u})
     {
       for (const std::uint32_t pixelX : {12u, 24u, 32u, 40u, 52u})
@@ -534,7 +546,7 @@ public:
     Logger::WriteMessage(std::format(L"{} voxels followed; the lowest point any reached is {}\n", followed.size(), lowest).c_str());
   }
 
-  // §14: from its rest time on, a voxel lies flat on the ground, its center at z = 0.5 and its rotation one of the cube's
+  // §14: from its rest time on, a voxel lies flat on the ground, its center at y = 0.5 and its rotation one of the cube's
   // 24, and it stays there.
   TEST_METHOD(ExplosionComesToRestFlat)
   {
@@ -546,7 +558,7 @@ public:
       const float rest = NeuronCore::ExplosionRestTime(voxel, centers[voxel], parameters);
       const NeuronCore::VoxelPose landed = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, rest);
       const std::wstring what = std::format(L"voxel {} at rest", voxel);
-      Assert::AreEqual(NeuronCore::VOXEL_REST_HEIGHT, landed.center.z, what.c_str());
+      Assert::AreEqual(NeuronCore::VOXEL_REST_HEIGHT, landed.center.y, what.c_str());
       for (const Float3 axis : {landed.axisX, landed.axisY, landed.axisZ})
       {
         for (const float entry : {axis.x, axis.y, axis.z})
@@ -574,7 +586,7 @@ public:
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
     const float launch = parameters.launchSpeed * (1.0f + parameters.speedJitter);
     const float liftSquared = 2.0f * parameters.gravity * (NeuronCore::VOXEL_BOUNDING_RADIUS + NeuronCore::EXPLOSION_LIFT_CLEARANCE);
-    const float top = static_cast<float>(MODEL_ORIGIN.z + MODEL_SIZE.z);
+    const float top = static_cast<float>(MODEL_ORIGIN.y + MODEL_SIZE.y);
     const float fastest = std::sqrt(launch * launch + liftSquared + 2.0f * parameters.gravity * top);
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
@@ -616,20 +628,20 @@ public:
         const float radius = NeuronCore::VOXEL_BOUNDING_RADIUS;
         const std::wstring where = std::format(L"voxel {} at {} s", voxel, time);
         Assert::IsTrue(pose.center.x - radius >= envelope.lower.x && pose.center.x + radius <= envelope.upper.x, where.c_str());
-        Assert::IsTrue(pose.center.y - radius >= envelope.lower.y && pose.center.y + radius <= envelope.upper.y, where.c_str());
-        Assert::IsTrue(pose.center.z + radius <= envelope.upper.z, where.c_str());
+        Assert::IsTrue(pose.center.z - radius >= envelope.lower.z && pose.center.z + radius <= envelope.upper.z, where.c_str());
+        Assert::IsTrue(pose.center.y + radius <= envelope.upper.y, where.c_str());
       }
     }
 
     const Float3 middle = (lower + upper) * 0.5f;
     const float reachX = std::max(middle.x - envelope.lower.x, envelope.upper.x - middle.x);
-    const float reachY = std::max(middle.y - envelope.lower.y, envelope.upper.y - middle.y);
-    Logger::WriteMessage(std::format(L"envelope {} x {} x {} voxels, {} and {} from the station's middle; rest by {} s, the latest "
-                                     L"followed voxel at {} s\n",
-                                     envelope.upper.x - envelope.lower.x, envelope.upper.y - envelope.lower.y,
-                                     envelope.upper.z - envelope.lower.z, reachX, reachY, envelope.restTimeSeconds, latestRest)
+    const float reachZ = std::max(middle.z - envelope.lower.z, envelope.upper.z - middle.z);
+    Logger::WriteMessage(std::format(L"envelope {} x {} voxels across and {} high, {} and {} from the station's middle; rest by {} s, "
+                                     L"the latest followed voxel at {} s\n",
+                                     envelope.upper.x - envelope.lower.x, envelope.upper.z - envelope.lower.z,
+                                     envelope.upper.y - envelope.lower.y, reachX, reachZ, envelope.restTimeSeconds, latestRest)
                            .c_str());
-    Assert::IsTrue(reachX <= NeuronCore::SHADOW_HALF_EXTENT && reachY <= NeuronCore::SHADOW_HALF_EXTENT,
+    Assert::IsTrue(reachX <= NeuronCore::SHADOW_HALF_EXTENT && reachZ <= NeuronCore::SHADOW_HALF_EXTENT,
                    L"the defaults keep the envelope inside the shadow map's square");
   }
 
@@ -657,8 +669,9 @@ public:
     const std::vector<Float3> centers = RestCenters(model);
     for (const PinnedCamera& camera : PINNED_CAMERAS)
     {
-      const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(
-        camera.eye, PINNED_TARGET, PINNED_UP, PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
+      const NeuronCore::PerspectiveView view =
+        NeuronCore::MakePerspectiveView(FromPinnedAxes(camera.eye), FromPinnedAxes(PINNED_TARGET), FromPinnedAxes(PINNED_UP),
+                                        PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
       ExpectPinnedImage(
         camera.name, camera.pixels, grid, centers, [&view](std::uint32_t _x, std::uint32_t _y)
         { return NeuronCore::PerspectiveRay(view, _x, _y); }, view.nearPlane, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
@@ -688,7 +701,7 @@ public:
       for (std::size_t i = 0; i < PINNED_FLIGHT_SECONDS.size(); ++i)
       {
         const Float3 center = NeuronCore::ExplosionPose(flight.voxel, centers[flight.voxel], parameters, PINNED_FLIGHT_SECONDS[i]).center;
-        const float distance = NeuronCore::Length(center - flight.centers[i]);
+        const float distance = NeuronCore::Length(center - FromPinnedAxes(flight.centers[i]));
         Assert::IsTrue(distance <= PIN_CENTER_TOLERANCE,
                        std::format(L"voxel {} at {} s is {} from its pin", flight.voxel, PINNED_FLIGHT_SECONDS[i], distance).c_str());
       }
@@ -705,12 +718,13 @@ public:
       NeuronCore::MakeLightingParameters(NeuronCore::ReadRenderSettings(model.renderObjects), 1.0f);
     for (const PinnedShade& shade : PINNED_SHADES)
     {
-      ExpectColor(shade.color, NeuronCore::ShadeSurface({1.0f, 1.0f, 1.0f}, 0.0f, shade.normal, 1.0f, lighting),
+      ExpectColor(shade.color, NeuronCore::ShadeSurface({1.0f, 1.0f, 1.0f}, 0.0f, FromPinnedAxes(shade.normal), 1.0f, lighting),
                   std::format(L"normal ({}, {}, {})", shade.normal.x, shade.normal.y, shade.normal.z));
     }
 
-    const NeuronCore::PerspectiveView level = NeuronCore::MakePerspectiveView(
-      PINNED_CAMERAS[1].eye, PINNED_TARGET, PINNED_UP, PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
+    const NeuronCore::PerspectiveView level =
+      NeuronCore::MakePerspectiveView(FromPinnedAxes(PINNED_CAMERAS[1].eye), FromPinnedAxes(PINNED_TARGET), FromPinnedAxes(PINNED_UP),
+                                      PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
     const std::array<float, 1> unshadowed{NeuronCore::ORTHOGRAPHIC_FAR_DEPTH};
     const NeuronCore::ShadowMapImage map{1, 1, unshadowed};
     const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);

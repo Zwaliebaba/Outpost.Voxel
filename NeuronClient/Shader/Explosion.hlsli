@@ -54,23 +54,23 @@ float3 LaunchVelocity(uint _voxel, float3 _restCenter, ExplosionConstants _explo
 {
   float3 offset = _restCenter - _explosion.blastOrigin;
   float distance = length(offset);
-  float3 away = distance > 0.0 ? offset * (1.0 / distance) : float3(0.0, 0.0, 1.0);
+  float3 away = distance > 0.0 ? offset * (1.0 / distance) : float3(0.0, 1.0, 0.0);
 
   // A unit vector uniform on the sphere: its height uniform in [-1, 1), its heading uniform.
   float jitterHeight = 2.0 * HashUnit(_voxel, HASH_JITTER_HEIGHT) - 1.0;
   float jitterAngle = TWO_PI * HashUnit(_voxel, HASH_JITTER_ANGLE);
   float jitterRing = sqrt(max(1.0 - jitterHeight * jitterHeight, 0.0));
-  float3 jitter = float3(jitterRing * cos(jitterAngle), jitterRing * sin(jitterAngle), jitterHeight);
+  float3 jitter = float3(jitterRing * cos(jitterAngle), jitterHeight, jitterRing * sin(jitterAngle));
 
-  float3 sum = away + float3(0.0, 0.0, _explosion.upwardBias) + jitter * _explosion.directionJitter;
+  float3 sum = away + float3(0.0, _explosion.upwardBias, 0.0) + jitter * _explosion.directionJitter;
   float sumLength = length(sum);
-  float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0 / sumLength) : float3(0.0, 0.0, 1.0);
+  float3 direction = sumLength > SMALLEST_DIRECTION ? sum * (1.0 / sumLength) : float3(0.0, 1.0, 0.0);
   float variation = 1.0 + _explosion.speedJitter * (2.0 * HashUnit(_voxel, HASH_SPEED_VARIATION) - 1.0);
   float speed = _explosion.launchSpeed / (1.0 + distance / _explosion.falloffDistance) * variation;
 
   float3 velocity = direction * speed;
-  float liftHeight = VOXEL_BOUNDING_RADIUS + EXPLOSION_LIFT_CLEARANCE - _restCenter.z;
-  velocity.z = max(velocity.z, sqrt(max(2.0 * _explosion.gravity * liftHeight, 0.0)));
+  float liftHeight = VOXEL_BOUNDING_RADIUS + EXPLOSION_LIFT_CLEARANCE - _restCenter.y;
+  velocity.y = max(velocity.y, sqrt(max(2.0 * _explosion.gravity * liftHeight, 0.0)));
   return velocity;
 }
 
@@ -90,12 +90,13 @@ Trajectory FollowTrajectory(uint _voxel, float3 _restCenter, ExplosionConstants 
 
   // A voxel that starts at or above the bounding radius turns from the start; a lifted one once it has risen that far,
   // which is the earlier root of the same quadratic.
-  float rise = launch.z * launch.z + 2.0 * gravity * (_restCenter.z - VOXEL_BOUNDING_RADIUS);
-  float spinStart = max((launch.z - sqrt(max(rise, 0.0))) / gravity, 0.0);
+  float rise = launch.y * launch.y + 2.0 * gravity * (_restCenter.y - VOXEL_BOUNDING_RADIUS);
+  float spinStart = max((launch.y - sqrt(max(rise, 0.0))) / gravity, 0.0);
 
+  // Up is +Y, and the ground is the plane y = 0 (§7.5).
   float x = _restCenter.x;
-  float y = _restCenter.y;
-  float height = _restCenter.z;
+  float height = _restCenter.y;
+  float z = _restCenter.z;
   float velocityX = launch.x;
   float velocityY = launch.y;
   float velocityZ = launch.z;
@@ -106,31 +107,31 @@ Trajectory FollowTrajectory(uint _voxel, float3 _restCenter, ExplosionConstants 
   [unroll] for (uint flight = 0; flight <= EXPLOSION_BOUNCES; ++flight)
   {
     float contactHeight = flight < EXPLOSION_BOUNCES ? VOXEL_BOUNDING_RADIUS : VOXEL_REST_HEIGHT;
-    float duration = FlightTime(height, velocityZ, contactHeight, gravity);
+    float duration = FlightTime(height, velocityY, contactHeight, gravity);
     if (flight == EXPLOSION_BOUNCES)
     {
-      spinEnd = flightStart + FlightTime(height, velocityZ, VOXEL_BOUNDING_RADIUS, gravity);
+      spinEnd = flightStart + FlightTime(height, velocityY, VOXEL_BOUNDING_RADIUS, gravity);
     }
     if (!placed && _explosion.timeSeconds < flightStart + duration)
     {
       float elapsed = max(_explosion.timeSeconds - flightStart, 0.0);
-      center = float3(x + velocityX * elapsed, y + velocityY * elapsed, height + velocityZ * elapsed - 0.5 * gravity * elapsed * elapsed);
+      center = float3(x + velocityX * elapsed, height + velocityY * elapsed - 0.5 * gravity * elapsed * elapsed, z + velocityZ * elapsed);
       placed = true;
     }
 
     // At the contact, the vertical velocity reflects with restitution and the horizontal one is damped.
     x += velocityX * duration;
-    y += velocityY * duration;
+    z += velocityZ * duration;
     height = contactHeight;
-    float impactSpeed = gravity * duration - velocityZ;
-    velocityZ = _explosion.restitution * impactSpeed;
+    float impactSpeed = gravity * duration - velocityY;
+    velocityY = _explosion.restitution * impactSpeed;
     velocityX *= _explosion.horizontalDamping;
-    velocityY *= _explosion.horizontalDamping;
+    velocityZ *= _explosion.horizontalDamping;
     flightStart += duration;
   }
   if (!placed)
   {
-    center = float3(x, y, VOXEL_REST_HEIGHT);
+    center = float3(x, VOXEL_REST_HEIGHT, z);
   }
   Trajectory trajectory;
   trajectory.center = center;
