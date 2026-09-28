@@ -47,6 +47,17 @@ public:
     return m_distance;
   }
 
+  // The view direction's heading about +Z, which --bench turns the camera by (§13).
+  [[nodiscard]] float YawRadians() const noexcept
+  {
+    return m_yawRadians;
+  }
+
+  void SetYawRadians(float _yawRadians) noexcept
+  {
+    m_yawRadians = _yawRadians;
+  }
+
 private:
   [[nodiscard]] NeuronCore::Float3 Forward() const noexcept;
   [[nodiscard]] NeuronCore::Float3 Eye() const noexcept;

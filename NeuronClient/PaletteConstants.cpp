@@ -3,6 +3,7 @@
 #include "PaletteConstants.h"
 
 #include "ColorSpace.h"
+#include "Lighting.h"
 
 #include <cstddef>
 
@@ -16,7 +17,8 @@ PaletteConstants MakePaletteConstants(const std::array<NeuronCore::PaletteEntry,
   {
     const NeuronCore::PaletteEntry& entry = _palette[i];
     constants.materials[i] = {
-      {NeuronCore::SrgbToLinear(entry.red), NeuronCore::SrgbToLinear(entry.green), NeuronCore::SrgbToLinear(entry.blue)}, 0.0f};
+      {NeuronCore::SrgbToLinear(entry.red), NeuronCore::SrgbToLinear(entry.green), NeuronCore::SrgbToLinear(entry.blue)},
+      NeuronCore::EmissiveScale(entry)};
   }
   return constants;
 }

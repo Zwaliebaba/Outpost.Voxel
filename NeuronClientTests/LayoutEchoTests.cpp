@@ -1,9 +1,13 @@
 #include "pch.h"
 
+#include "CanvasQuad.h"
+#include "ExplosionConstants.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "InstanceConstants.h"
+#include "LightingConstants.h"
 #include "PaletteConstants.h"
+#include "ShadowViewConstants.h"
 #include "TestSupport.h"
 #include "UploadRing.h"
 #include "ViewConstants.h"
@@ -31,11 +35,15 @@ enum RootParameter : std::uint8_t
   ViewParameter,
   InstanceParameter,
   PaletteParameter,
+  ShadowViewParameter,
+  LightingParameter,
+  ExplosionParameter,
+  CanvasQuadsParameter,
   EchoParameter,
   RootParameterCount
 };
 
-// Fills a constants struct word by word with values that name the struct and the word, and that are ordinary floats, so
+// Fills a struct word by word with values that name the struct and the word, and that are ordinary floats, so
 // that nothing between the CPU and the shader can mistake one for a NaN or a denormal and change its bits.
 template <typename T> [[nodiscard]] T Sentinel(std::uint32_t _structIndex) noexcept
 {
@@ -59,7 +67,7 @@ template <typename T> void AppendWords(std::vector<std::uint32_t>& _words, const
 
 } // namespace
 
-// R16: the C++ constant structs and their HLSL mirrors agree on every field (Design/SampleRenderer.md §7.4, §14).
+// R16: the C++ structs shared with HLSL and their mirrors agree on every field (Design/SampleRenderer.md §7.4, §14).
 TEST_CLASS(LayoutEchoTests)
 {
 public:
@@ -71,15 +79,29 @@ public:
         const auto view = Sentinel<NeuronClient::ViewConstants>(1);
         const auto instance = Sentinel<NeuronClient::InstanceConstants>(2);
         const auto palette = Sentinel<NeuronClient::PaletteConstants>(3);
+        const auto shadowView = Sentinel<NeuronClient::ShadowViewConstants>(4);
+        const auto lighting = Sentinel<NeuronClient::LightingConstants>(5);
+        const auto explosion = Sentinel<NeuronClient::ExplosionConstants>(6);
+        const std::array<NeuronClient::CanvasQuad, 2> canvasQuads{Sentinel<NeuronClient::CanvasQuad>(7),
+                                                                  Sentinel<NeuronClient::CanvasQuad>(8)};
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, instance);
         AppendWords(expected, palette);
+        AppendWords(expected, shadowView);
+        AppendWords(expected, lighting);
+        AppendWords(expected, explosion);
+        AppendWords(expected, canvasQuads);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
         const D3D12_GPU_VIRTUAL_ADDRESS instanceAddress = constants.Push(instance);
         const D3D12_GPU_VIRTUAL_ADDRESS paletteAddress = constants.Push(palette);
+        const D3D12_GPU_VIRTUAL_ADDRESS shadowViewAddress = constants.Push(shadowView);
+        const D3D12_GPU_VIRTUAL_ADDRESS lightingAddress = constants.Push(lighting);
+        const D3D12_GPU_VIRTUAL_ADDRESS explosionAddress = constants.Push(explosion);
+        const winrt::com_ptr<ID3D12Resource> canvasQuadBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(canvasQuads)), L"Layout echo canvas quads");
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -93,6 +115,14 @@ public:
         parameters[InstanceParameter].Descriptor = {1, 0};
         parameters[PaletteParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[PaletteParameter].Descriptor = {2, 0};
+        parameters[ShadowViewParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[ShadowViewParameter].Descriptor = {3, 0};
+        parameters[LightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[LightingParameter].Descriptor = {4, 0};
+        parameters[ExplosionParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[ExplosionParameter].Descriptor = {5, 0};
+        parameters[CanvasQuadsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[CanvasQuadsParameter].Descriptor = {0, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -116,6 +146,10 @@ public:
             _list->SetComputeRootConstantBufferView(ViewParameter, viewAddress);
             _list->SetComputeRootConstantBufferView(InstanceParameter, instanceAddress);
             _list->SetComputeRootConstantBufferView(PaletteParameter, paletteAddress);
+            _list->SetComputeRootConstantBufferView(ShadowViewParameter, shadowViewAddress);
+            _list->SetComputeRootConstantBufferView(LightingParameter, lightingAddress);
+            _list->SetComputeRootConstantBufferView(ExplosionParameter, explosionAddress);
+            _list->SetComputeRootShaderResourceView(CanvasQuadsParameter, canvasQuadBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

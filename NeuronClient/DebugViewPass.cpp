@@ -5,6 +5,7 @@
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "Shaders.h"
+#include "ShadowMap.h"
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
@@ -23,6 +24,8 @@ enum RootParameter : std::uint8_t
   SelectionParameter,
   RecordsParameter,
   VisibilityParameter,
+  ShadowMapParameter,
+  OverdrawParameter,
   RootParameterCount
 };
 
@@ -31,6 +34,8 @@ enum RootParameter : std::uint8_t
 DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
 {
   const D3D12_DESCRIPTOR_RANGE visibilityRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, 0};
+  const D3D12_DESCRIPTOR_RANGE shadowMapRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0, 0};
+  const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0, 0};
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ViewConstantsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
   parameters[ViewConstantsParameter].Descriptor = {0, 0};
@@ -42,6 +47,10 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   parameters[RecordsParameter].Descriptor = {0, 0};
   parameters[VisibilityParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[VisibilityParameter].DescriptorTable = {1, &visibilityRange};
+  parameters[ShadowMapParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  parameters[ShadowMapParameter].DescriptorTable = {1, &shadowMapRange};
+  parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
   {
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -65,8 +74,8 @@ DebugViewPass::DebugViewPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   m_pipeline->SetName(L"Debug view");
 }
 
-void DebugViewPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const VoxelScene& _scene,
-                           D3D12_GPU_VIRTUAL_ADDRESS _viewConstants, NeuronCore::DebugView _view) const
+void DebugViewPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const ShadowMap& _shadowMap,
+                           const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants, NeuronCore::DebugView _view) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
@@ -76,6 +85,8 @@ void DebugViewPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& 
   _list->SetGraphicsRoot32BitConstant(SelectionParameter, static_cast<UINT>(_view), 0);
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
   _list->SetGraphicsRootDescriptorTable(VisibilityParameter, _targets.VisibilityTable());
+  _list->SetGraphicsRootDescriptorTable(ShadowMapParameter, _shadowMap.Table());
+  _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _targets.OverdrawTable());
   _list->DrawInstanced(3, 1, 0, 0);
 }
 

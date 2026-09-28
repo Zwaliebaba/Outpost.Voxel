@@ -70,7 +70,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dwrite.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
@@ -98,7 +98,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dwrite.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>

@@ -7,55 +7,161 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Canvas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CanvasQuad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CanvasShading.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Clock.h" />
+    <ClInclude Include="CoveragePass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
+    <ClInclude Include="ExplosionConstants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="FrameQueries.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GlyphAtlas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="InstanceConstants.h" />
+    <ClInclude Include="LightingConstants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LightingPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
+    <ClInclude Include="ShadowMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowViewConstants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SplatPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="SwapChain.h" />
+    <ClInclude Include="ToneMapPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="UploadRing.h" />
     <ClInclude Include="ViewConstants.h" />
-    <ClInclude Include="ViewSplatPass.h" />
     <ClInclude Include="ViewTargets.h" />
     <ClInclude Include="VoxelScene.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Canvas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CanvasShading.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CoveragePass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
+    <ClCompile Include="ExplosionConstants.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="FrameQueries.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GlyphAtlas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
+    <ClCompile Include="LightingConstants.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LightingPass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
+    <ClCompile Include="ShadowMap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowViewConstants.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SplatPass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="SwapChain.cpp" />
+    <ClCompile Include="ToneMapPass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="UploadRing.cpp" />
     <ClCompile Include="ViewConstants.cpp" />
-    <ClCompile Include="ViewSplatPass.cpp" />
     <ClCompile Include="ViewTargets.cpp" />
     <ClCompile Include="VoxelScene.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\CanvasPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\CanvasQuad.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\CanvasShading.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\DebugView.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\DebugViewPass.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\Explosion.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\ExplosionConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\FullScreen.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\Hash.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\InstanceConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\Lighting.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\LightingConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\LightingPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\OrthographicView.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\Packing.hlsli">
@@ -73,10 +179,19 @@
     <None Include="Shader\RayBox.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\ShadowViewConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\Splat.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\SplatBounds.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\ToneMap.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\ToneMapPass.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\ViewConstants.hlsli">
@@ -84,16 +199,64 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\CanvasPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\CanvasVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\CoverageVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\DebugViewVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\LightingCS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedOverdrawPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedPlainDepthPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedOverdrawPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPlainDepthPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
   </ItemGroup>

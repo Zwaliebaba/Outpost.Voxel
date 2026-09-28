@@ -1,26 +1,23 @@
 #pragma once
 
-// What the debug view pass shows for one pixel (Design/SampleRenderer.md §11). The C++ twins are in
-// NeuronCore/DebugView.h (R15), and these values are NeuronCore::DebugView's. Until the lighting lands in M3, the first
-// view is a headlight: albedo lit from the camera, enough to read the shape.
+// What the debug view pass shows in place of the lit image (Design/SampleRenderer.md §11). The C++ twins are in
+// NeuronCore/DebugView.h (R15), and these values are NeuronCore::DebugView's.
 
+#include "Hash.hlsli"
 #include "Packing.hlsli"
 
-static const uint DEBUG_VIEW_HEADLIGHT = 0;
-static const uint DEBUG_VIEW_ALBEDO = 1;
-static const uint DEBUG_VIEW_NORMAL = 2;
-static const uint DEBUG_VIEW_VOXEL_INDEX = 3;
+static const uint DEBUG_VIEW_ALBEDO = 0;
+static const uint DEBUG_VIEW_NORMAL = 1;
+static const uint DEBUG_VIEW_VOXEL_INDEX = 2;
+static const uint DEBUG_VIEW_SHADOW_MAP = 3;
+static const uint DEBUG_VIEW_OVERDRAW = 4;
 
-// The PCG hash of Jarzynski and Olano, "Hash Functions for GPU Rendering", JCGT 9(3), 2020.
-uint PcgHash(uint _value)
-{
-  uint state = _value * 747796405u + 2891336453u;
-  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return (word >> 22u) ^ word;
-}
+// The overdraw view is white above this many invocations per pixel, and a ramp from blue at one to red here below it.
+static const uint OVERDRAW_VIEW_SATURATION = 64;
 
-// A linear color. _forward is the camera's view direction; a pixel no voxel covers is black in every view.
-float3 DebugViewColor(uint _view, uint _voxel, float3 _normal, float3 _albedo, float3 _forward)
+// A linear color for a pixel of the visibility buffer in the views that show it: albedo, normal and voxel index. A pixel
+// no voxel covers is black.
+float3 DebugViewColor(uint _view, uint _voxel, float3 _normal, float3 _albedo)
 {
   if (_voxel == NO_VOXEL)
   {
@@ -39,5 +36,64 @@ float3 DebugViewColor(uint _view, uint _voxel, float3 _normal, float3 _albedo, f
     uint hash = PcgHash(_voxel);
     return float3(float(hash & 0xFFu), float((hash >> 8u) & 0xFFu), float((hash >> 16u) & 0xFFu)) / 255.0;
   }
-  return _albedo * (0.25 + 0.75 * saturate(dot(_normal, -_forward)));
+  return float3(0.0, 0.0, 0.0);
+}
+
+// The shadow-map view shows the map as a square as tall as the view's shorter side, in the middle of the view. This finds
+// the texel under a pixel, in integers as the twin finds it, and returns false outside the square.
+bool ShadowMapViewTexel(uint2 _pixel, uint _widthPixels, uint _heightPixels, uint _mapWidthPixels, uint _mapHeightPixels, out uint2 _texel)
+{
+  _texel = uint2(0u, 0u);
+  uint side = min(_widthPixels, _heightPixels);
+  uint left = (_widthPixels - side) / 2u;
+  uint top = (_heightPixels - side) / 2u;
+  if (_pixel.x < left || _pixel.y < top || _pixel.x >= left + side || _pixel.y >= top + side)
+  {
+    return false;
+  }
+  // The texel under the pixel's centre, (pixel + ½) × map / side, doubled so that it stays in integers.
+  _texel =
+    uint2(((_pixel.x - left) * 2u + 1u) * _mapWidthPixels / (side * 2u), ((_pixel.y - top) * 2u + 1u) * _mapHeightPixels / (side * 2u));
+  return true;
+}
+
+// The gray the shadow-map view shows for a depth: the depth itself, black at the sun's near plane and white at the far
+// one, which is where the map holds nothing.
+float3 ShadowMapViewColor(float _depth)
+{
+  return float3(_depth, _depth, _depth);
+}
+
+// The heat map the overdraw view shows for the splat pixel-shader invocations a pixel counted: black for none, then a ramp
+// through blue, cyan, green, yellow and red, evenly spaced in log2 of the count from 1 to OVERDRAW_VIEW_SATURATION, and
+// white above it. Between two powers of two the position is linear in the count, which puts the colors at 1, 3, 8, 24
+// and 64 and needs no logarithm.
+float3 OverdrawViewColor(uint _invocations)
+{
+  if (_invocations == 0u)
+  {
+    return float3(0.0, 0.0, 0.0);
+  }
+  if (_invocations > OVERDRAW_VIEW_SATURATION)
+  {
+    return float3(1.0, 1.0, 1.0);
+  }
+  uint octave = firstbithigh(_invocations);
+  float power = float(1u << octave);
+  float position = (float(octave) + (float(_invocations) - power) / power) * (4.0 / 6.0);
+  float segment = min(floor(position), 3.0);
+  float t = position - segment;
+  if (segment < 1.0)
+  {
+    return float3(0.0, t, 1.0);
+  }
+  if (segment < 2.0)
+  {
+    return float3(0.0, 1.0, 1.0 - t);
+  }
+  if (segment < 3.0)
+  {
+    return float3(t, 1.0, 0.0);
+  }
+  return float3(1.0, 1.0 - t, 0.0);
 }

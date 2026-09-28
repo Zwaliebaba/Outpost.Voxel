@@ -100,49 +100,87 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Canvas.h" />
+    <ClInclude Include="CanvasQuad.h" />
+    <ClInclude Include="CanvasShading.h" />
     <ClInclude Include="Clock.h" />
+    <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
+    <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="FrameQueries.h" />
+    <ClInclude Include="GlyphAtlas.h" />
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="InstanceConstants.h" />
+    <ClInclude Include="LightingConstants.h" />
+    <ClInclude Include="LightingPass.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
+    <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="ShadowViewConstants.h" />
+    <ClInclude Include="SplatPass.h" />
     <ClInclude Include="SwapChain.h" />
+    <ClInclude Include="ToneMapPass.h" />
     <ClInclude Include="UploadRing.h" />
     <ClInclude Include="ViewConstants.h" />
-    <ClInclude Include="ViewSplatPass.h" />
     <ClInclude Include="ViewTargets.h" />
     <ClInclude Include="VoxelScene.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Canvas.cpp" />
+    <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
+    <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="FrameQueries.cpp" />
+    <ClCompile Include="GlyphAtlas.cpp" />
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
+    <ClCompile Include="LightingConstants.cpp" />
+    <ClCompile Include="LightingPass.cpp" />
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
+    <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="ShadowViewConstants.cpp" />
+    <ClCompile Include="SplatPass.cpp" />
     <ClCompile Include="SwapChain.cpp" />
+    <ClCompile Include="ToneMapPass.cpp" />
     <ClCompile Include="UploadRing.cpp" />
     <ClCompile Include="ViewConstants.cpp" />
-    <ClCompile Include="ViewSplatPass.cpp" />
     <ClCompile Include="ViewTargets.cpp" />
     <ClCompile Include="VoxelScene.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\CanvasPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>CanvasPixel</EntryPointName>
+      <VariableName>CANVAS_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\CanvasVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>CanvasVertex</EntryPointName>
+      <VariableName>CANVAS_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\CoverageVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>FullScreenVertex</EntryPointName>
+      <VariableName>COVERAGE_VS</VariableName>
+    </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>DebugViewPixel</EntryPointName>
@@ -152,6 +190,51 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>FullScreenVertex</EntryPointName>
       <VariableName>DEBUG_VIEW_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\LightingCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <EntryPointName>LightPixels</EntryPointName>
+      <VariableName>LIGHTING_CS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ALIGNED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatAlignedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ALIGNED_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ORIENTED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowSplatOrientedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>SHADOW_SPLAT_ORIENTED_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ToneMapPixel</EntryPointName>
+      <VariableName>TONE_MAP_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ToneMapVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>FullScreenVertex</EntryPointName>
+      <VariableName>TONE_MAP_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedOverdrawPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ALIGNED_OVERDRAW_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatAlignedPlainDepthPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ALIGNED_PLAIN_DEPTH_PS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\ViewSplatAlignedPS.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -163,6 +246,26 @@
       <EntryPointName>SplatVertex</EntryPointName>
       <VariableName>VIEW_SPLAT_ALIGNED_VS</VariableName>
     </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedOverdrawPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_OVERDRAW_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPlainDepthPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_PLAIN_DEPTH_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>SplatPixel</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\ViewSplatOrientedVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>SplatVertex</EntryPointName>
+      <VariableName>VIEW_SPLAT_ORIENTED_VS</VariableName>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
@@ -171,16 +274,30 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\CanvasPass.hlsli" />
+    <None Include="Shader\CanvasQuad.hlsli" />
+    <None Include="Shader\CanvasShading.hlsli" />
     <None Include="Shader\DebugView.hlsli" />
     <None Include="Shader\DebugViewPass.hlsli" />
+    <None Include="Shader\Explosion.hlsli" />
+    <None Include="Shader\ExplosionConstants.hlsli" />
+    <None Include="Shader\FullScreen.hlsli" />
+    <None Include="Shader\Hash.hlsli" />
     <None Include="Shader\InstanceConstants.hlsli" />
+    <None Include="Shader\Lighting.hlsli" />
+    <None Include="Shader\LightingConstants.hlsli" />
+    <None Include="Shader\LightingPass.hlsli" />
+    <None Include="Shader\OrthographicView.hlsli" />
     <None Include="Shader\Packing.hlsli" />
     <None Include="Shader\PaletteConstants.hlsli" />
     <None Include="Shader\PerspectiveView.hlsli" />
     <None Include="Shader\Ray.hlsli" />
     <None Include="Shader\RayBox.hlsli" />
+    <None Include="Shader\ShadowViewConstants.hlsli" />
     <None Include="Shader\Splat.hlsli" />
     <None Include="Shader\SplatBounds.hlsli" />
+    <None Include="Shader\ToneMap.hlsli" />
+    <None Include="Shader\ToneMapPass.hlsli" />
     <None Include="Shader\ViewConstants.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

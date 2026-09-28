@@ -71,7 +71,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dwrite.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
@@ -100,7 +100,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dwrite.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -124,11 +124,16 @@
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CanvasTests.cpp" />
     <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="ExplosionSplatTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
+    <ClCompile Include="LightingPassTests.cpp" />
+    <ClCompile Include="MeasurementTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ShadowSplatTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
   </ItemGroup>

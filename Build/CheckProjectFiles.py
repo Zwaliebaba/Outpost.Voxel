@@ -21,6 +21,7 @@ It checks, over the whole tree:
   - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
     anywhere else (§2, R17);
   - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
+  - an HLSL semantic that clang-format has broken onto a line of its own (ADR-005);
   - shader compilation: every project that compiles HLSL does it with the flags ADR-005 and ADR-007 fix, and names
     each .hlsl for its stage (ADR-007);
   - every *Tests project holds at least one TEST_METHOD, because vstest reports an empty suite as a pass (§3).
@@ -108,6 +109,12 @@ IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 
 # R12: COM objects are held in winrt::com_ptr, so WRL has no place here: not its header, its namespace or its pointer.
 R12_WRL = re.compile(r'#\s*include\s*[<"]wrl[/.\\]|\bMicrosoft::WRL\b|\bComPtr\s*<')
+
+# Design/ADR/ADR-005: clang-format reads a semantic after a parameter list, or on a parameter of a function that carries
+# an attribute such as [numthreads], as a constructor's initializer list and breaks the line before it. The layout it
+# leaves passes Build/CheckFormat.py, so its signature is caught here: a system-value semantic starting a line. A
+# semantic without the SV_ prefix is not caught; none is used.
+SEMANTIC_ON_ITS_OWN_LINE = re.compile(r'^[ \t]*:[ \t]*(SV_\w+)', re.MULTILINE)
 
 
 class Findings:
@@ -575,6 +582,10 @@ def check_sources(projects, files, findings):
       for match in R12_WRL.finditer(code_and_includes):
         findings.add(f'{path}:{line_of(code_and_includes, match.start())}', 'R12', f'uses WRL ({match.group(0).strip()}); '
                      'COM objects are held in winrt::com_ptr')
+    if suffix in HLSL_EXTENSIONS:
+      for match in SEMANTIC_ON_ITS_OWN_LINE.finditer(code):
+        findings.add(f'{path}:{line_of(code, match.start(1))}', 'ADR-005', f'{match.group(1)} starts a line, where '
+                     'clang-format breaks a semantic it has misread; carry the semantic on a struct member')
     if suffix == '.hlsl':
       check_hlsl_entry_file(path, code, findings)
 

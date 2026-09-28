@@ -24,6 +24,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
 | D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
+| D13 | A canvas draws text and the HUD over the frame: DirectWrite lays text out and rasterizes its glyphs, and Direct3D 12 draws them. Direct2D is not used. | §13; owner, 2026-09-28 (ADR-010) |
 
 ## 2. Scope
 
@@ -104,7 +105,7 @@ The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and 
 
 In-box WARP implements FL 12_1 on Windows 10 1709 and later, so CI can run the real renderer (§14).
 
-The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp and pipeline-statistics queries; and a flip-model swap chain.
+The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp, pipeline-statistics and occlusion queries; a flip-model swap chain; and DirectWrite, which lays the canvas's text out and rasterizes its glyphs on the CPU (§13, ADR-010).
 
 It deliberately does not use:
 
@@ -113,7 +114,8 @@ It deliberately does not use:
 - geometry shaders, because vertex pulling does the same job without them;
 - wave intrinsics, which are optional below FL 12_2 and not needed;
 - any vendor extension;
-- the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships.
+- the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships;
+- Direct2D and Direct3D 11On12, because the canvas's glyphs go from DirectWrite straight to Direct3D 12 (ADR-010).
 
 One package comes from outside the SDK: WinPixEventRuntime, with which a program names the regions of a frame for PIX. The owner added it to the client engine, and no code calls it yet (ADR-004).
 
@@ -130,7 +132,7 @@ ADR-001 settled the first layout with the first project. The owner then reshaped
 | Project | Kind | Namespace | Depends on | Holds |
 |---|---|---|---|---|
 | `NeuronCore` | static library | `NeuronCore` | — | The engine core that client and server share: `.vox` reader, voxel model, maths, the CPU twins (ray-box, bounds, pose, packing), reference tracer. No Windows or Direct3D headers. |
-| `NeuronClient` | static library | `NeuronClient` | `NeuronCore` | The client engine: device, resources, passes and their shaders (in `Shader/`), window, input, clock. Owns the single Windows include header of `AGENTS.md` §4. |
+| `NeuronClient` | static library | `NeuronClient` | `NeuronCore` | The client engine: device, resources, passes and their shaders (in `Shader/`), the canvas with its DirectWrite text and its twin (ADR-010), window, input, clock. Owns the single Windows include header of `AGENTS.md` §4. |
 | `NeuronServer` | static library | `NeuronServer` | `NeuronCore` | The server engine; empty until the server has code of its own. |
 | `GameLogic` | static library | `GameLogic` | `NeuronServer`, `NeuronCore` | The game's rules on the server side; empty for now. |
 | `GameLib` | static library | `GameLib` | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
@@ -142,7 +144,7 @@ There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it.
 
 ### 6.2 Shader sources
 
-HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
+HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, the canvas's arithmetic, and the mirrors of the layouts shared with C++ (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages, and the view splat's pixel stage has two measurement variants of each orientation besides: `PLAIN_DEPTH` (§9.3) and `COUNT_OVERDRAW` (§11). `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
 
 ### 6.3 Data flow
 
@@ -164,6 +166,8 @@ voxel records, 225,048 × u32 · palette, 16 entries · frame constants (cameras
                                               │
                                               ▼
                                  tone map, ACES ──► back buffer, sRGB view
+                                                          ▲
+                           canvas: text and panels ───────┘  (DirectWrite glyphs, R8 atlas)
 ```
 
 ## 7. Data
@@ -192,7 +196,7 @@ The view pass writes `R32G32_UINT`: x is the voxel index (`0xFFFFFFFF` where no 
 
 ### 7.4 Constants shared with HLSL
 
-The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`. A compute shader includes the mirrors and copies every field of every struct into a UAV; a `NeuronClientTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
+The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`: the constant buffers, and the canvas's quad, which is the element of a structured buffer (§13). A compute shader includes the mirrors and copies every field of every struct into a UAV, reading two quads so that the buffer's stride is checked too; a `NeuronClientTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
 
 ### 7.5 Coordinate conventions
 
@@ -215,6 +219,8 @@ Depth conventions are the classic place for a sign error, so the code names each
 | View splat | Graphics | Voxel records, constants | Depth, visibility |
 | Lighting | Compute, 8 × 8 groups | Depth, visibility, shadow map, voxel records, palette | HDR colour |
 | Tone map | Graphics, one full-screen triangle | HDR colour | Back buffer |
+| Canvas | Graphics, one instanced draw of quads | Quads, glyph atlas | Back buffer |
+| Coverage count, `--bench` only | Graphics, one depth-only triangle | Depth | An occlusion query's count |
 
 | Resource | Format | Size at 1920 × 1080 |
 |---|---|---|
@@ -226,10 +232,14 @@ Depth conventions are the classic place for a sign error, so the code names each
 | HDR colour | `R16G16B16A16_FLOAT` | 16.6 MB |
 | Shadow map | `R32_TYPELESS`, 4096² | 67.1 MB |
 | Back buffers | 2 × `R8G8B8A8_UNORM` | 16.6 MB |
+| Glyph atlas | `R8_UNORM`, 1024² | 1.0 MB |
+| Overdraw count | `R32_UINT` | 8.3 MB |
 
-That is about 126 MB in all, just over half of it the shadow map.
+That is about 136 MB in all, half of it the shadow map.
 
-Two frames are in flight on one direct queue, with one command list and one fence value per frame. Per-frame constants live in a ring in an upload heap and are bound as root CBVs; static data is uploaded once. Barriers are ordinary resource-state transitions. A resize waits for the GPU to go idle and recreates the size-dependent targets. Each pass is bracketed by timestamp queries, and the view splat also by a pipeline-statistics query (`VSInvocations`, `PSInvocations`, `CPrimitives`); both are read back two frames late.
+Two frames are in flight on one direct queue, with one command list and one fence value per frame. Per-frame constants live in a ring in an upload heap and are bound as root CBVs; static data is uploaded once. Barriers are ordinary resource-state transitions. A resize waits for the GPU to go idle and recreates the size-dependent targets.
+
+Each pass is timed by timestamp queries: one before the first pass, and one after each pass's last draw or dispatch, so that a pass's time runs from its predecessor's end to its own and the transitions between two passes count to the second. The view splat is also bracketed by a pipeline-statistics query (`VSInvocations`, `PSInvocations`, `CPrimitives`), and `--bench`'s coverage count by an occlusion query. Each frame in flight has its own slot of query heaps and readback memory, which the frame's last command resolves into and the renderer reads when it next waits on that frame's fence: two frames late. The title and the panel on screen show the means over half a second (§13).
 
 ## 9. The splat pass
 
@@ -253,7 +263,7 @@ In the orthographic shadow permutation, step 3 collapses to an exact expression:
 
 The ray starts at the camera. Its direction combines the camera's axes with the pixel's normalised device coordinates, scaled by the field of view and aspect ratio, and has a view-space depth component of exactly one. The ray parameter *t* is therefore the view depth, and depth is *n* / *t* with no further division. The intersection is Listing 5, with `canStartInBox` false and `oriented` set per permutation. On a miss, or when *t* < *n*, the pixel is discarded. Otherwise the shader writes `SV_DepthLessEqual` = min(*n* / *t*, `SV_Position.z`) and `SV_Target0` = (voxel index, octahedral normal). The normal is *R* × sign vector in the oriented permutation, and the sign vector itself otherwise.
 
-Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`; it is not assumed.
+Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed.
 
 ### 9.4 Listing 5 in HLSL
 
@@ -329,7 +339,7 @@ bool IntersectBox(Box _box, float3 _origin, float3 _direction, float3 _invDirect
 
 ## 10. Shadow pass
 
-The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter. The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
+The shadow map is an orthographic view along the sun direction, taken from the file's `_inf` angles (50°, 50°). Their order is moot at equal values; the azimuth's zero direction is a MagicaVoxel convention the sample assumes rather than verifies (D12), and the direction is a parameter (ADR-008). The frustum is fitted once to the union of the station's bounds and the explosion's flight envelope (§12), so it never moves and shadows do not swim. At 4096² it gives four texels per voxel edge across a 1,024-unit square, and the explosion's defaults keep the envelope inside that.
 
 The splat shaders run in their orthographic permutation. The rays share one direction and start on the light's near plane; depth is *t* / range, written as `SV_DepthGreaterEqual` = max(*t* / range, `SV_Position.z`); the depth test is `LESS`; and the pipeline has no render target.
 
@@ -341,11 +351,13 @@ For each pixel, the lighting pass first checks the visibility buffer. Where no v
 
 *C* = albedo × (*E*sun × max(0, *N*·*S*) × shadow + ambient(*N*)) + albedo × emissive
 
-where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*z) from `_uni`. Emissive voxels light only themselves: nothing blooms, and nothing receives their light (D4). Without ambient occlusion the result will look flatter than MagicaVoxel's path tracer; D4 accepted that.
+where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*z) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: nothing blooms, and nothing receives their light (D4). Without ambient occlusion the result will look flatter than MagicaVoxel's path tracer; D4 accepted that.
 
 Tone mapping applies the exposure (`_film` `_expo` 1), then Stephen Hill's fit of the ACES reference and output transforms, and writes through an sRGB render-target view. The sRGB curve stands in for the file's gamma 2.2.
 
 Debug views replace the final image with one of: albedo; normal; voxel index, hashed to a colour; the shadow map; or an overdraw heat map that counts splat pixel-shader invocations per pixel through a UAV in a debug permutation.
+
+The overdraw view draws the view splat's `COUNT_OVERDRAW` variant, whose pixel shader adds one to its pixel's count in an `R32_UINT` UAV before anything else. A UAV write is a side effect that must happen whatever the depth test would decide, so the hardware may not test depth before such a shader unless the shader asks for it (the HLSL reference, `earlydepthstencil`), which one that writes depth cannot. The variant therefore runs for, and counts, every fragment of every rectangle over the pixel: the bounds' looseness and the depth complexity together, which is everything the standard pass could run. The heat map is black where nothing ran, then blue, cyan, green, yellow and red at 1, 3, 8, 24 and 64 invocations, evenly spaced in log₂, and white above 64. Its twin is `OverdrawViewColor` in `NeuronCore/DebugView.h` (R15).
 
 ## 12. The explosion
 
@@ -353,15 +365,15 @@ Debug views replace the final image with one of: albedo; normal; voxel index, ha
 
 **Randomness** comes from an integer hash (a PCG-style permutation) of (*i*, *k*), never from buffer order — unlike Listing 3, which assumes the voxels are shuffled.
 
-**Translation.** The launch velocity points away from a blast origin (by default the model's centroid), with a speed that falls off with distance, an upward bias and hashed jitter. Flight is ballistic under gravity. Each ground contact is a quadratic solved in closed form; it reflects the vertical velocity with restitution *e* and damps the horizontal one. After a small fixed number of bounces the voxel rests. The whole piecewise trajectory, rest time *T*rest(*i*) included, follows from the launch values at every evaluation. The first flight's contact height is capped at the launch height, so that the 22 voxels that start on the ground still have a valid first flight.
+**Translation.** The launch velocity points away from a blast origin (by default the model's centroid), with a speed that falls off with distance, an upward bias and hashed jitter. Flight is ballistic under gravity. Each ground contact is a quadratic solved in closed form; it reflects the vertical velocity with restitution *e* and damps the horizontal one. After a small fixed number of bounces the voxel rests. The whole piecewise trajectory, rest time *T*rest(*i*) included, follows from the launch values at every evaluation. A voxel whose centre starts below the bounding radius, one of the 22 that start on the ground, is launched up fast enough to clear it, and turns only once it has, so that its first flight is valid and no corner of it enters the ground (ADR-009).
 
-**Rotation.** Each voxel spins about two coordinate axes chosen by hash, through total angles that are hashed multiples of 90°, eased to zero angular velocity at *T*rest. At rest a voxel is therefore in one of the cube's 24 symmetric orientations. A voxel is one colour on every face, so that orientation is indistinguishable from its unrotated self, and the rest state is seamless: flat, bottom face on the ground (centre at z = 0.5), with no snap. In flight, contacts use the bounding-sphere radius, so no rotation can push a corner into the ground. The final landing uses 0.5, which the rotation reaches exactly at that moment.
+**Rotation.** Each voxel spins about two coordinate axes chosen by hash, through total angles that are hashed multiples of 90°, eased to zero angular velocity. At rest a voxel is therefore in one of the cube's 24 symmetric orientations. A voxel is one colour on every face, so that orientation is indistinguishable from its unrotated self, and the rest state is seamless: flat, bottom face on the ground (centre at z = 0.5), with no snap. In flight, contacts use the bounding-sphere radius, so no rotation can push a corner into the ground. The spin runs only while the centre is at least that radius above the ground: it ends as the voxel falls through it for the last time, and the voxel falls its last 0.37 voxels square and lands at 0.5 (ADR-009).
 
 **Envelope.** The parameter block bounds the highest apex and the farthest landing in closed form. The shadow frustum (§10) and the camera's framing use those bounds.
 
 **Permutations.** At *t* = 0 every rotation is the identity, and the axis-aligned permutation draws. For *t* > 0 the oriented one does. The two must agree at *t* = 0 (§14).
 
-**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-008.
+**Controls.** Detonate (*t* runs forward), reassemble (*t* runs back to 0), pause, and time scale. Parameter defaults are tuned in M4 and recorded in ADR-009.
 
 ## 13. Application
 
@@ -371,13 +383,16 @@ Rendering is 1:1 at the window's client size, in physical pixels; there is no in
 
 At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
 
-The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F). Tab toggles a fly mode (WASD and mouse) for getting in among the debris. The other keys are:
+The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F), or the explosion's envelope once it has started (§12). Tab toggles a fly mode (WASD and mouse, Page Up and Page Down to rise and sink) for getting in among the debris. The other keys are:
 
 - E detonate, R reassemble, Space pause, +/− time scale;
-- 1–6 debug views, G ground, V vsync;
-- F1 key map, Alt+F4 quit.
+- 1 the lit image, 2–6 debug views (§11), G ground, V vsync;
+- [ and ] the emissive gain (ADR-008);
+- F1 key map, F2 the figures on screen, Alt+F4 quit.
 
-The window's title carries the frame time, GPU milliseconds per pass, and `PSInvocations`; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, the emissive scale that [ and ] tune, and the explosion's time and scale. Borderless fullscreen draws no title bar, so the window shows the same figures itself: one per line, on a translucent panel in the top-left corner, which F2 hides and shows (D13, ADR-010).
+
+They are drawn by the canvas, the 2D overlay the renderer draws last and the surface a HUD will draw on. DirectWrite lays the text out and rasterizes each glyph once into an atlas, and Direct3D 12 draws a quad over each glyph's bitmap, texel for texel; Direct2D takes no part. The text is grayscale antialiased, not ClearType: three coverages per pixel cannot be blended over a 3D image with one alpha.
 
 Command line:
 
@@ -387,6 +402,16 @@ Command line:
 - `--d3d-debug` — the debug layer in Release. Debug builds always ask for it; where the Windows Graphics Tools that carry it are not installed, the window's title says so and the program runs without it;
 - `--gbv` — GPU-based validation;
 - `--bench <seconds>` — a fixed camera path and explosion timeline, with per-pass timings written to CSV.
+
+`--bench` runs a timeline of `<seconds>` at 60 frames a second, one frame of it per rendered frame however long that frame takes, so that every run draws the same frames; a fast GPU finishes sooner. It renders at 1920 × 1080 with vsync off. The camera circles the model once at the default framing. The model stands intact for the first quarter of the timeline; over the middle half the explosion runs from its detonation to the envelope's rest time; for the last quarter it lies at rest.
+
+Every frame is drawn twice, back to back: with the view splat's conservative depth and with plain `SV_Depth` (§9.3). Both count the pixels a voxel covers (§14). After 120 warm-up frames, every drawn frame goes to `Outpost-bench-<date>-<time>.csv` in the working directory: its GPU time per pass, its view-splat pipeline statistics and its covered pixels. A summary goes to a `.txt` beside the CSV and to a message box:
+- the median, mean and 95th percentile of each pass in each variant;
+- `PSInvocations` per covered pixel;
+- plain depth over conservative for each frame's pair, in `PSInvocations` and in view-splat time;
+- the view splat by phase: intact, in flight and at rest.
+
+The canvas shows the run's progress, as a pass of its own. The summary counts only the frame's four passes of §8.
 
 Loader failures are values (§7.1). A Direct3D failure during initialisation, or a device removal, ends the program with a message giving its `HRESULT` and the file and line that checked it (`winrt::check_hresult`, `AGENTS.md` R12). DRED is enabled, so a device removal also reports breadcrumbs and the faulting address.
 
@@ -403,6 +428,10 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 `NeuronClientTests` run on WARP at FL 12_1. If the device cannot be created, the suite fails; it does not skip. They cover:
 
 - the layout echo of §7.4;
+- the canvas: text in two faces and translucent fills, drawn and compared pixel for pixel with its twin's composite of the same quads over the atlas's CPU copy (§13), and a glyph rasterized once per face and size;
+- the view splat's measurement variants, which draw what the standard pass draws, and the overdraw count, which lies in every pixel between the numbers of the twin's rectangles that cover its centre for certain and that might;
+- the frame queries: the coverage count equals the pixels a voxel wrote, `PSInvocations` is at least that, `VSInvocations` is at least one per vertex drawn, and neither plain depth nor the overdraw variant runs the pixel shader less often than conservative depth;
+- the overdraw view against its twin;
 - the intact station from several fixed cameras at 161 × 91, with the visibility buffer read back and compared per pixel with the reference tracer — a 3D DDA through the dense grid that uses the ray-box twin per occupied cell. The odd resolution gives a level camera a whole row and column of rays with exactly-zero components (§4.2, item 6);
 - a shadow map with the sun straight overhead, where every ray is axis-parallel;
 - the aligned and oriented permutations at *t* = 0;
@@ -422,8 +451,8 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | M0 | `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` (with the HLSL rules), `Build/RunClangTidy.py`; `Outpost.Voxel.slnx` with the five projects; `SuiteSmoke` in both suites; `HeaderFilterRegex`; R14–R17 and the layout in `AGENTS.md`; CI guards removed; ADR-001 | CI is green with every gate running |
 | M1 | `NeuronCore` (then `VoxelCore`): reader, model, maths, CPU twins, reference tracer; ADR-002 | `NeuronCoreTests` green; §3's pinned figures reproduced |
 | M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
-| M3 | Shadow splat, lighting, ground, emissive, tone mapping | Shadow tests green; the owner accepts the look |
-| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-008 | Explosion tests green; the owner has detonated and reassembled the station |
+| M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look |
+| M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station |
 | M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
@@ -456,7 +485,7 @@ The owner answered the open questions on 2026-09-27:
 `AGENTS.md` reserves R14 onward for rules with a design source. The owner accepted these four on 2026-09-27, and they are R14–R17 in `AGENTS.md`, which is where they are maintained:
 
 - **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per coordinate and four for colour (D5). Widening either is a format change and needs an ADR.
-- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `NeuronCore`, and a test compares the two.
+- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `NeuronCore`, and a test compares the two. The canvas's twin is in `NeuronClient`, because only the client draws a canvas (ADR-010).
 - **R16 — Shared layouts have one source.** The C++ struct, with `static_assert`s on size and offsets, is the truth; its HLSL mirror is written once, in a `.hlsli`; the echo test proves they agree.
 - **R17 — HLSL follows §1.** A `.hlsl` file holds one entry point and nothing but switches and an include; algorithms live in `.hlsli` files; the naming table applies; semantics and intrinsics keep the SDK's spelling (`SV_Position`).
 
@@ -469,7 +498,9 @@ Each expected ADR lands in the commit that implements it:
 - ADR-005, shader toolchain — DXC through `FxCompile`, SM 6.0, embedded headers, identical flags in both configurations (M2);
 - ADR-006, depth conventions (M2);
 - ADR-007, Shader Model 6.7 and shader file names (M2), which amends ADR-005;
-- ADR-008, explosion motion model and its defaults (M4).
+- ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
+- ADR-009, explosion motion model and its defaults (M4);
+- ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28).
 
 ## 18. References
 

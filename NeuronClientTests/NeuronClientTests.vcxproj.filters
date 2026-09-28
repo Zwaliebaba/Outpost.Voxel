@@ -11,9 +11,24 @@
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CanvasTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="ExplosionSplatTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="LayoutEchoTests.cpp" />
+    <ClCompile Include="LightingPassTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MeasurementTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="ShadowSplatTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
   </ItemGroup>

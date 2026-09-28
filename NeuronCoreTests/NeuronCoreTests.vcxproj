@@ -113,12 +113,16 @@
   <ItemGroup>
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
+    <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="LightingTests.cpp" />
     <ClCompile Include="MilitaryStationTests.cpp" />
     <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="RenderSettingsTests.cpp" />
     <ClCompile Include="SplatBoundsTests.cpp" />
+    <ClCompile Include="ToneMapTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />
     <ClCompile Include="VoxelGridTests.cpp" />
     <ClCompile Include="VoxFile.cpp" />

@@ -36,4 +36,25 @@ struct OrthographicView
   return _distance / _view.depthRange;
 }
 
+// The two facts of standard Z that code outside this header may rely on (§7.5, Design/ADR/ADR-006): the far plane has
+// depth 1, which is what a shadow map is cleared to, and a nearer point has the smaller depth. The shadow splat pass
+// clears to the one and tests with the other.
+inline constexpr float ORTHOGRAPHIC_FAR_DEPTH = 1.0f;
+
+[[nodiscard]] constexpr bool IsNearerOrthographicDepth(float _depth, float _than) noexcept
+{
+  return _depth < _than;
+}
+
+// The sun's view of §10: 4096 texels across a 1,024-unit square, four to a voxel's edge. The explosion's defaults keep
+// its envelope inside the square (§12).
+inline constexpr std::uint32_t SHADOW_MAP_PIXELS = 4096;
+inline constexpr float SHADOW_HALF_EXTENT = 512.0f;
+
+// The sun's view (§10): a square 2 × _halfExtent world units across, perpendicular to the sun and centred on _center,
+// whose near plane lies a unit before every point of the box _lower-_upper and whose depth range reaches a unit past
+// the last. The box is what casts and receives shadows; it never moves, so neither do the shadows.
+[[nodiscard]] OrthographicView MakeShadowView(Float3 _toSun, Float3 _center, float _halfExtent, Float3 _lower, Float3 _upper,
+                                              std::uint32_t _sizePixels) noexcept;
+
 } // namespace NeuronCore

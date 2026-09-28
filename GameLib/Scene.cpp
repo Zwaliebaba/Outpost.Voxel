@@ -45,7 +45,7 @@ Scene LoadScene(const std::filesystem::path& _path)
   const NeuronCore::Float3 minimum{static_cast<float>(lower.x), static_cast<float>(lower.y), static_cast<float>(lower.z)};
   const NeuronCore::Float3 maximum{static_cast<float>(upper.x), static_cast<float>(upper.y), static_cast<float>(upper.z)};
   const NeuronCore::Float3 center = (minimum + maximum) * 0.5f;
-  return {std::move(*loaded), center, NeuronCore::Length(maximum - center)};
+  return {std::move(*loaded), minimum, maximum, center, NeuronCore::Length(maximum - center)};
 }
 
 } // namespace GameLib
