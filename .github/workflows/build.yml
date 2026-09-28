@@ -243,7 +243,7 @@ jobs:
         run: python3 Build/CheckFormat.py --clang-format clang-format-18
 
       # The Blender extension's Python, on the system Python (Design/NeuronVoxelFormat.md §9). NvfFormat.py, the twin of
-      # NeuronCore's NVF reader and writer (AGENTS.md R19), and Geometry.py and Rebuild.py, which hold what the extension
+      # NeuronCore's NVF reader and writer (AGENTS.md R20), and Geometry.py and Rebuild.py, which hold what the extension
       # decides, import nothing from Blender. NvfFormat.py's tests write and read the golden file, corrupt it as
       # NvfModelTests.cpp does, and read NvfError's names from NvfModel.h, so a drift between the two implementations
       # fails here or in the Windows job. The tests that drive Blender itself skip here, since the runner has no bpy.

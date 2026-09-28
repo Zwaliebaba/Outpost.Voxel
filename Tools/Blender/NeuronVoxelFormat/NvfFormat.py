@@ -1,6 +1,6 @@
 """The Neuron Voxel Format, read and written: the Python twin of NeuronCore/NvfModel.cpp.
 
-Design/NeuronVoxelFormat.md §4 is the specification, and it has two implementations (AGENTS.md R19): this module,
+Design/NeuronVoxelFormat.md §4 is the specification, and it has two implementations (AGENTS.md R20): this module,
 for the Blender extension, and NvfModel.cpp, for the engine and NvfImport. Tools/Golden/Golden.nvf holds them to the
 same bytes, and both check a file in the order Design/ADR/ADR-019 fixes, so that a file with two faults gets the same
 name from each.

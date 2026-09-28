@@ -1,6 +1,6 @@
 # Neuron Voxel Format (NVF) — Design and Implementation
 
-**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 to N-M3 are done, and N-M4 awaits the owner's checklist (§10) · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 to N-M3 are done and N-M4 awaits the owner's checklist; the game concept, which the owner accepted on 2026-09-28, re-plans N-M1 to N-M4 (§10) · **Date:** 2026-09-27
 **Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](Archive/SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what NVF is, how models get into it, and how its tools are built. `AGENTS.md` says how the code is written; the engineering decisions below land as ADRs in the commits that implement them (§10).
@@ -249,7 +249,7 @@ It lists every problem at once, as the importer does. A `FromVox` hardpoint keep
 | `Tools/Golden/Golden.nvf` | The golden file (§9). |
 | `GameData/*.nvf` | The three converted assets. |
 
-`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R19** is added, R18 having gone to the space scene's client/server rule: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++.
+`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R20** is added, R18 and R19 having gone to the space scene's client/server rule and the game concept's opponent rule: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++.
 
 ## 9. Verification
 
@@ -274,7 +274,9 @@ It lists every problem at once, as the importer does. A `FromVox` hardpoint keep
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Built on 2026-09-28 ([ADR-020](ADR/ADR-020-nvf-import.md)): its tests pass headless on Blender 4.2.23 and 4.5.14; the checklist by hand is the owner's |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
-ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, and S-M4 took ADR-018, so on 2026-09-28 the owner reserved ADR-019 for N-M1's format ([ADR-019](ADR/ADR-019-nvf-format.md)) and ADR-020 for N-M2's importer and layout; the space scene continues from ADR-021.
+**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, in which ship and station designs and their modules are `.nvf` files (its §5 and §12.1). N-M1, N-M2 and the follow-up that has `Outpost.exe` load `.nvf` therefore open its G-M1. N-M3 and N-M4 wait until after its slice: the mounts it needs sit on the grid, turned by the cube's 24 rotations, which MagicaVoxel's markers already express (§5). N-M3 and N-M4 were built alongside the concept, on the branch that carried N-M1 and N-M2 (PR #16), before its plan reached that branch. Whether they land before the slice is the owner's to say.
+
+ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, and S-M4 took ADR-018, so on 2026-09-28 the owner reserved ADR-019 for N-M1's format ([ADR-019](ADR/ADR-019-nvf-format.md)) and ADR-020 for N-M2's importer and layout; the space scene and the game concept continue from ADR-021.
 
 ## 11. Risks and open questions
 
