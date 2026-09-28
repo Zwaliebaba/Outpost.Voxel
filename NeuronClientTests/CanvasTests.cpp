@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
+#include <optional>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -37,6 +38,85 @@ constexpr float COLOR_TOLERANCE = 1.0e-5f;
 
 constexpr NeuronClient::TextStyle MONOSPACED{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
 constexpr NeuronClient::TextStyle PROPORTIONAL{L"Segoe UI", 13.0f, DWRITE_FONT_WEIGHT_BOLD};
+
+// A DirectWrite factory of the test's own: the shared one, which the canvas gets too.
+[[nodiscard]] winrt::com_ptr<IDWriteFactory2> DirectWriteFactory()
+{
+  winrt::com_ptr<IUnknown> factory;
+  winrt::check_hresult(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory2), factory.put()));
+  return factory.as<IDWriteFactory2>();
+}
+
+// The regular face of an installed family.
+[[nodiscard]] winrt::com_ptr<IDWriteFontFace> SystemFontFace(IDWriteFactory* _factory, const wchar_t* _family)
+{
+  winrt::com_ptr<IDWriteFontCollection> collection;
+  winrt::check_hresult(_factory->GetSystemFontCollection(collection.put(), FALSE));
+  UINT32 index = 0;
+  BOOL exists = FALSE;
+  winrt::check_hresult(collection->FindFamilyName(_family, &index, &exists));
+  Assert::IsTrue(exists != FALSE, std::format(L"{} is installed", _family).c_str());
+  winrt::com_ptr<IDWriteFontFamily> family;
+  winrt::check_hresult(collection->GetFontFamily(index, family.put()));
+  winrt::com_ptr<IDWriteFont> font;
+  winrt::check_hresult(
+    family->GetFirstMatchingFont(DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, font.put()));
+  winrt::com_ptr<IDWriteFontFace> face;
+  winrt::check_hresult(font->CreateFontFace(face.put()));
+  return face;
+}
+
+// A text renderer that only counts what DirectWrite hands it, the way the canvas's own receives it.
+struct RunCounter : winrt::implements<RunCounter, IDWriteTextRenderer>
+{
+  std::uint32_t runs = 0;
+  std::uint32_t glyphs = 0;
+
+  HRESULT __stdcall IsPixelSnappingDisabled(void* /*_context*/, BOOL* _disabled) noexcept override
+  {
+    *_disabled = FALSE;
+    return S_OK;
+  }
+
+  HRESULT __stdcall GetCurrentTransform(void* /*_context*/, DWRITE_MATRIX* _transform) noexcept override
+  {
+    *_transform = {1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+    return S_OK;
+  }
+
+  HRESULT __stdcall GetPixelsPerDip(void* /*_context*/, FLOAT* _pixelsPerDip) noexcept override
+  {
+    *_pixelsPerDip = 1.0f;
+    return S_OK;
+  }
+
+  HRESULT __stdcall DrawGlyphRun(void* /*_context*/, FLOAT /*_baselineOriginX*/, FLOAT /*_baselineOriginY*/,
+                                 DWRITE_MEASURING_MODE /*_measuringMode*/, const DWRITE_GLYPH_RUN* _glyphRun,
+                                 const DWRITE_GLYPH_RUN_DESCRIPTION* /*_description*/, IUnknown* /*_effect*/) noexcept override
+  {
+    ++runs;
+    glyphs += _glyphRun->glyphCount;
+    return S_OK;
+  }
+
+  HRESULT __stdcall DrawUnderline(void* /*_context*/, FLOAT /*_baselineOriginX*/, FLOAT /*_baselineOriginY*/,
+                                  const DWRITE_UNDERLINE* /*_underline*/, IUnknown* /*_effect*/) noexcept override
+  {
+    return S_OK;
+  }
+
+  HRESULT __stdcall DrawStrikethrough(void* /*_context*/, FLOAT /*_baselineOriginX*/, FLOAT /*_baselineOriginY*/,
+                                      const DWRITE_STRIKETHROUGH* /*_strikethrough*/, IUnknown* /*_effect*/) noexcept override
+  {
+    return S_OK;
+  }
+
+  HRESULT __stdcall DrawInlineObject(void* /*_context*/, FLOAT /*_originX*/, FLOAT /*_originY*/, IDWriteInlineObject* /*_inlineObject*/,
+                                     BOOL /*_isSideways*/, BOOL /*_isRightToLeft*/, IUnknown* /*_effect*/) noexcept override
+  {
+    return E_NOTIMPL;
+  }
+};
 
 [[nodiscard]] bool Near(Float4 _a, Float4 _b) noexcept
 {
@@ -94,6 +174,64 @@ public:
     Assert::AreEqual(1.0f, NeuronClient::AtlasCoverage(255));
   }
 
+  // DirectWrite lays the digits out as the canvas asks, GDI-compatible at a pixel per DIP, and hands every glyph to a
+  // text renderer written with C++/WinRT, as the canvas's is.
+  TEST_METHOD(HandsEveryGlyphToItsRenderer)
+  {
+    const winrt::com_ptr<IDWriteFactory2> factory = DirectWriteFactory();
+    winrt::com_ptr<IDWriteTextFormat> format;
+    winrt::check_hresult(factory->CreateTextFormat(L"Consolas", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                                   DWRITE_FONT_STRETCH_NORMAL, 15.0f, L"en-us", format.put()));
+    winrt::com_ptr<IDWriteTextLayout> layout;
+    winrt::check_hresult(
+      factory->CreateGdiCompatibleTextLayout(L"0123456789", 10, format.get(), 1.0e5f, 1.0e5f, 1.0f, nullptr, TRUE, layout.put()));
+    DWRITE_TEXT_METRICS metrics{};
+    winrt::check_hresult(layout->GetMetrics(&metrics));
+    const winrt::com_ptr<RunCounter> counter = winrt::make_self<RunCounter>();
+    winrt::check_hresult(layout->Draw(nullptr, counter.get(), 0.0f, 0.0f));
+    Logger::WriteMessage(std::format(L"laid out {} x {} in {} lines; {} runs of {} glyphs drawn\n", metrics.width, metrics.height,
+                                     metrics.lineCount, counter->runs, counter->glyphs)
+                           .c_str());
+    Assert::IsTrue(metrics.width > 0.0f, L"the digits take room");
+    Assert::AreEqual(10u, counter->glyphs, L"every digit reaches the renderer");
+  }
+
+  // The atlas rasterizes a glyph of an installed face on its own, without a layout: it has ink, and a size.
+  TEST_METHOD(RasterizesAGlyph)
+  {
+    RunGpuTest(
+      [](NeuronClient::GraphicsDevice& _device)
+      {
+        const winrt::com_ptr<IDWriteFactory2> factory = DirectWriteFactory();
+        const winrt::com_ptr<IDWriteFontFace> face = SystemFontFace(factory.get(), L"Consolas");
+        const UINT32 zero = U'0';
+        UINT16 index = 0;
+        winrt::check_hresult(face->GetGlyphIndices(&zero, 1, &index));
+        Assert::IsTrue(index != 0, L"Consolas has a zero");
+        NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
+        NeuronClient::GlyphAtlas atlas(_device, factory.get(), shaderHeap, 1);
+        const std::optional<NeuronClient::GlyphAtlas::Glyph> glyph = atlas.Find(face.get(), 15.0f, index, false);
+        Assert::IsTrue(glyph.has_value(), L"the zero fits the atlas");
+        Logger::WriteMessage(std::format(L"a zero at 15 pixels: {} x {} at ({}, {}) from its origin, texel ({}, {})\n", glyph->widthPixels,
+                                         glyph->heightPixels, glyph->offsetX, glyph->offsetY, glyph->atlasX, glyph->atlasY)
+                               .c_str());
+        Assert::IsTrue(glyph->widthPixels > 0 && glyph->heightPixels > 0, L"a zero has ink");
+        std::uint32_t inked = 0;
+        for (std::uint32_t y = 0; y < glyph->heightPixels; ++y)
+        {
+          for (std::uint32_t x = 0; x < glyph->widthPixels; ++x)
+          {
+            inked +=
+              atlas.Texels()[static_cast<std::size_t>(glyph->atlasY + y) * NeuronClient::GlyphAtlas::SIZE_PIXELS + glyph->atlasX + x] != 0
+                ? 1u
+                : 0u;
+          }
+        }
+        Assert::IsTrue(inked > 0, L"the zero's texels have coverage");
+        Assert::AreEqual(std::size_t{1}, atlas.GlyphCount());
+      });
+  }
+
   // A glyph is rasterized once per face and size, a space leaves no quad, and Measure agrees with Print.
   TEST_METHOD(RasterizesEachGlyphOnce)
   {
@@ -103,6 +241,9 @@ public:
         NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
         NeuronClient::Canvas canvas(_device, shaderHeap, COLOR_FORMAT, 1);
         const NeuronClient::TextExtent digits = canvas.Print(L"0123456789", 0.0f, 0.0f, MONOSPACED, {1.0f, 1.0f, 1.0f}, 1.0f);
+        Logger::WriteMessage(std::format(L"the digits: {} x {} pixels, {} quads, {} glyphs in the atlas\n", digits.widthPixels,
+                                         digits.heightPixels, canvas.Quads().size(), canvas.Atlas().GlyphCount())
+                               .c_str());
         Assert::AreEqual(std::size_t{10}, canvas.Atlas().GlyphCount(), L"ten digits, ten glyphs");
         Assert::AreEqual(std::size_t{10}, canvas.Quads().size());
         const NeuronClient::TextExtent measured = canvas.Measure(L"0123456789", MONOSPACED);
