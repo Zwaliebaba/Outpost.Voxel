@@ -90,9 +90,6 @@ public:
   // The depth's DSV, for a pass that tests against the view's depth between BeginSplat and EndSplat.
   [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE DepthView() const noexcept;
 
-  // The HDR color's RTV, which BeginSky binds.
-  [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE HdrColorView() const noexcept;
-
   [[nodiscard]] std::uint32_t WidthPixels() const noexcept
   {
     return m_widthPixels;

@@ -213,9 +213,4 @@ D3D12_CPU_DESCRIPTOR_HANDLE ViewTargets::DepthView() const noexcept
   return m_dsvHeap.Cpu(m_depthDsv);
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE ViewTargets::HdrColorView() const noexcept
-{
-  return m_rtvHeap.Cpu(m_hdrColorRtv);
-}
-
 } // namespace NeuronClient

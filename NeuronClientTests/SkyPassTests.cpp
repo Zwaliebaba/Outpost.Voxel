@@ -61,6 +61,25 @@ constexpr std::uint32_t STRAYS_NAMED = 8;
 // What voxels leave in the HDR color here: the sky pass must not change it.
 constexpr std::array<float, 4> UNDER_THE_SKY{0.25f, 0.5f, 0.75f, 1.0f};
 
+// An HDR color of _pixels pixels, every one UNDER_THE_SKY, as its halves hold it. The test writes it rather than clearing
+// the target, which the debug layer warns is slow without a clear value the target was made with; the renderer never
+// clears it, since the lighting writes every pixel.
+[[nodiscard]] std::vector<std::byte> UnderTheSky(std::size_t _pixels)
+{
+  std::vector<std::uint16_t> halves;
+  halves.reserve(_pixels * UNDER_THE_SKY.size());
+  for (std::size_t pixel = 0; pixel < _pixels; ++pixel)
+  {
+    for (const float channel : UNDER_THE_SKY)
+    {
+      halves.push_back(NeuronCore::FloatToHalf(channel));
+    }
+  }
+  std::vector<std::byte> bytes(halves.size() * sizeof(std::uint16_t));
+  std::memcpy(bytes.data(), halves.data(), bytes.size());
+  return bytes;
+}
+
 // The rotation whose x axis is _core and whose y axis is as near _pole as a perpendicular one can be.
 [[nodiscard]] NeuronCore::Quaternion GalaxyFacing(Float3 _core, Float3 _pole) noexcept
 {
@@ -140,6 +159,9 @@ public:
         const D3D12_GPU_VIRTUAL_ADDRESS viewConstants = constants.Push(NeuronClient::MakeViewConstants(view));
         const D3D12_GPU_VIRTUAL_ADDRESS skyConstants = constants.Push(NeuronClient::MakeSkyConstants(sky));
         const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
+        WriteTexture2D(_device, targets.HdrColor(), NeuronClient::ViewTargets::READABLE,
+                       UnderTheSky(static_cast<std::size_t>(view.widthPixels) * view.heightPixels),
+                       NeuronClient::ViewTargets::HDR_BYTES_PER_PIXEL);
 
         _device.Execute(
           [&](ID3D12GraphicsCommandList* _list)
@@ -150,7 +172,6 @@ public:
             viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginSky(_list);
-            _list->ClearRenderTargetView(targets.HdrColorView(), UNDER_THE_SKY.data(), 0, nullptr);
             pass.Record(_list, viewConstants, skyConstants);
             targets.EndSky(_list);
           });
