@@ -1,6 +1,6 @@
 # Neuron Voxel Format (NVF) — Design and Implementation
 
-**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 to N-M3 are done (§10) · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-28, with §12.4's verification amended; the questions of §11 are answered; N-M0 to N-M3 are done, and N-M4 awaits the owner's checklist (§10) · **Date:** 2026-09-27
 **Inputs:** MagicaVoxel `.vox` (the existing reader, [`SampleRenderer.md`](Archive/SampleRenderer.md) §7.1) · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what NVF is, how models get into it, and how its tools are built. `AGENTS.md` says how the code is written; the engineering decisions below land as ADRs in the commits that implement them (§10).
@@ -215,23 +215,26 @@ The tool writes to a temporary file and renames it over the output, so an error 
 
 **Import** (*File › Import › Neuron Voxel (.nvf)*) builds one collection per file:
 
-- **Axes.** The extension swaps y and z on the way in and on the way out (§4.1), so the scene is in Blender's own right-handed, +Z-up space. A hardpoint's forward shows as the empty's +Y arrow and its up as +Z. The swap lives in the import and export operators, never in `NvfFormat.py`, which stays in NVF axes like its C++ twin.
-- **One object per part**, parented as the part tree is, placed at its translation, with 1 Blender unit = 1 voxel. Its mesh is a **surface-only preview**: one quad for each voxel face whose neighbour is empty, coloured by a face colour attribute from the palette. Faces between two voxels are never drawn, so the preview grows with the surface, not the volume. Location, rotation, scale and mesh are locked, and the object is not selectable by default.
+- **Axes.** The extension swaps y and z on the way in and on the way out (§4.1), so the scene is in Blender's own right-handed, +Z-up space. A hardpoint's forward shows as the empty's +Y arrow and its up as +Z. The swap lives in `Geometry.py`, which the operators and the panel call, never in `NvfFormat.py`, which stays in NVF axes like its C++ twin.
+- **One object per part**, parented as the part tree is, placed at its translation, with 1 Blender unit = 1 voxel. Its mesh is a **surface-only preview**: one quad for each voxel face whose neighbour is empty, coloured from the palette. Faces between two voxels are never drawn, so the preview grows with the surface, not the volume. Blender keeps colour attributes on points and corners, not faces, so each face's four corners carry its voxel's sRGB bytes in a byte colour attribute. Solid shading shows it with *Color › Attribute*, and a shared material shows it in Material Preview (ADR-020). Location, rotation, scale and mesh are locked, and the object is not selectable by default.
 - **One empty per hardpoint**, parented to its part, displayed as arrows, with rotation mode `QUATERNION`. Its NVF name and `FromVox` flag are custom properties. Object names are unique across a `.blend`, so two imported ships would otherwise clash over `engine.main`. The object's own name is display only.
 - **One sphere empty per part for its pivot**, with rotation and scale locked.
 - The file's bytes are kept in the `.blend`, base64-encoded in a text datablock, so export needs nothing but the `.blend` and cannot drift from a moved or changed source file.
 
-**The sidebar panel** (*N › NVF*): add a hardpoint to the active part (pick a type, type an identifier), rename one, snap its position to the nearest voxel centre, face centre or edge, snap its rotation to the nearest 90°, and **Validate**, which lists every problem §4.4 would refuse.
+**The sidebar panel** (*N › NVF*): add a hardpoint to a part at the 3D cursor (pick the part and a type, type an identifier), rename one, snap its position to the nearest voxel centre, face centre or edge midpoint, snap its rotation to the nearest 90°, and **Validate**, which lists every problem export would refuse. Snapping to an edge means its midpoint (§11, question 9), so that every snap lands on the half-voxel grid and is exact in the file. A new hardpoint faces the part's forward, and a hardpoint renamed from a marker is Blender's from then on.
 
 **Export** (*File › Export › Neuron Voxel (.nvf)*): parse the stored bytes, replace the hardpoint table and the pivots with what the scene holds now, and serialize. Voxels, palette and part tree come from the stored bytes, so they are written back byte for byte (N5). Export refuses rather than guesses when:
 
 - a part was added, deleted, renamed, reparented or moved;
 - a hardpoint is not parented to a part;
-- a hardpoint has scale, or a name that breaks §4.1, or duplicates another name.
+- a hardpoint has scale, or a name that breaks §4.1, or duplicates another name;
+- a part's pivot was deleted, copied, or parented elsewhere;
+- the stored file holds chunks this version does not know (§4.6);
+- the file it would write over holds other voxels, colours or parts than the ones imported. NvfImport has run since, and writing would put the old voxels back (N5; §11, question 11). A file there that this version cannot read is left alone too, as NvfImport leaves one.
 
-A `FromVox` hardpoint whose transform no longer matches what was imported loses its flag, so it counts as Blender-authored from then on (§6.2).
+It lists every problem at once, as the importer does. A `FromVox` hardpoint keeps its flag while its name, part, position and rotation are those it was imported with, as single precision holds them. Once any changes, it counts as Blender-authored from then on (§6.2). A pivot moved from where it was imported becomes `PivotAuthored`.
 
-**Layout:** `Tools/Blender/NeuronVoxelFormat/` holds `blender_manifest.toml`, `__init__.py` (Blender's spelling), `NvfFormat.py` (the format, with no `bpy` import), `ImportOperator.py`, `ExportOperator.py`, `HardpointPanel.py` and `Preview.py`, and a `Tests/` folder. The Python follows the style of `Build/*.py`. Classes are PascalCase with no affixes (R2); Blender's own identifiers, `bl_idname` and the like, keep Blender's spelling (R4).
+**Layout:** `Tools/Blender/NeuronVoxelFormat/` holds `blender_manifest.toml`, `__init__.py` (Blender's spelling), `NvfFormat.py` (the format), `ImportOperator.py`, `ExportOperator.py`, `HardpointPanel.py` and `Preview.py`, `Checklist.md` (§9), and a `Tests/` folder. Two more modules hold what the extension decides without Blender: `Geometry.py`, the swap, the cube's turns, snapping and the preview's surface; and `Rebuild.py`, the export's rules. With `NvfFormat.py`, they import no `bpy`, so CI tests them (ADR-020). The manifest declares GPL-3.0-or-later (§11, question 8), and the extension's build leaves out `Tests/` and the checklist. The Python follows the style of `Build/*.py`. Classes are PascalCase with no affixes (R2); Blender's own identifiers, `bl_idname` and the like, keep Blender's spelling (R4).
 
 ## 8. Code and repository
 
@@ -256,7 +259,8 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 - **Axes.** A reader test loads an asymmetric `.vox`, with a voxel only at MagicaVoxel (1, 2, 3) and a marker pointing along +X, and asserts engine (1, 3, 2) and a forward of +X. The engine-side tests of the move itself are in §12.4. In Python, a round trip through the extension's swap returns the input exactly.
 - **Merge.** Re-importing keeps Blender-authored hardpoints and pivots, replaces `FromVox` ones, and errors on an orphan or a name clash.
 - **Assets.** A test imports each `GameData/*.vox` and compares the result with its committed `.nvf`. CI also runs `NvfImport --check` over every pair, so an `.nvf` stale against its `.vox` fails the build.
-- **CI.** The Windows job runs the new C++ tests with the rest, and runs `--check`. The Linux job runs the Python tests with the system Python: `NvfFormat.py` imports no `bpy`.
+- **CI.** The Windows job runs the new C++ tests with the rest, and runs `--check`. The Linux job runs the Python tests with the system Python: `NvfFormat.py`, `Geometry.py` and `Rebuild.py` import no `bpy`.
+- **Blender, headless.** `Tests/ExtensionTests.py` drives the operators in Blender's `bpy` module, which Blender publishes for its bundled Python 3.11. CI has none, so they skip there (§11, question 10), and they are run on 4.2 and on the current LTS before the extension changes.
 - **Blender, by hand**, because CI has no Blender. This is a written checklist in the extension's folder: import the frigate, add an engine and a weapon, rotate one, export, re-import, confirm the hardpoints; then change the `.vox`, run `NvfImport`, and confirm the Blender hardpoints are still there. It is run before the extension's milestone is called done, and the report says it was.
 
 ## 10. Milestones
@@ -267,7 +271,7 @@ A `FromVox` hardpoint whose transform no longer matches what was imported loses 
 | N-M1 | §4 in `NeuronCore`: reader, writer, validation; golden file; format ADR | Golden and refusal tests green | Done on 2026-09-28 ([ADR-019](ADR/ADR-019-nvf-format.md)): green in CI, runs 36460843922 and 36462201748 |
 | N-M2 | §6.1 reader changes; `ImportVoxModel`; `NvfImport.exe`; the three assets converted; `--check` in CI; project/layout ADR | Import, rotation and merge tests green; CI checks the assets | Done on 2026-09-28 ([ADR-020](ADR/ADR-020-nvf-import.md)): green in CI, run 36464724053 |
 | N-M3 | `NvfFormat.py` and its tests in CI | Python golden and refusal tests green on Linux | Done on 2026-09-28 ([ADR-019](ADR/ADR-019-nvf-format.md)): green in CI, run 36466992290 |
-| N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Not started |
+| N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Built on 2026-09-28 ([ADR-020](ADR/ADR-020-nvf-import.md)): its tests pass headless on Blender 4.2.23 and 4.5.14; the checklist by hand is the owner's |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
 ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, and S-M4 took ADR-018, so on 2026-09-28 the owner reserved ADR-019 for N-M1's format ([ADR-019](ADR/ADR-019-nvf-format.md)) and ADR-020 for N-M2's importer and layout; the space scene continues from ADR-021.
@@ -287,6 +291,13 @@ ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M
 6. **Refining a marker's hardpoint in Blender keeps the name clash an error (§6.2, §7).** Moving a `FromVox` hardpoint in Blender clears its flag, so the next import finds an authored hardpoint and a marker of one name. The refusal names the fix: delete the marker in MagicaVoxel, now that Blender owns the hardpoint. A marker seeds a hardpoint once.
 7. **NVF's ADRs are ADR-019 and ADR-020 (§10),** reserved because the space scene takes ADRs in parallel; S-M4 had already taken ADR-018.
 
+**Answered by the owner on 2026-09-28, as N-M4 began:**
+
+8. **The extension's manifest declares GPL-3.0-or-later (§7),** Blender's norm for add-ons. The rest of the repository has no licence file, and the manifest speaks for the extension alone.
+9. **Snapping to an edge means the edge's midpoint (§7),** rather than the nearest point on the edge, so that snaps repeat and land on the half-voxel grid.
+10. **The extension's tests that need Blender run locally and skip in CI (§9).** What can be decided without Blender is kept apart from it, so that CI tests it.
+11. **Export refuses to write over voxels NvfImport has changed since the import (§7).** Export works from the bytes the `.blend` stores, so writing from an older `.blend` would put the older voxels back.
+
 **Risks:**
 
 - **Is the name clash in the merge an error or a rename?** An error is chosen: it is loud and never guesses, but an artist must then delete one of the two.
@@ -294,7 +305,7 @@ ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M
 - **Blender API drift across versions.** The preview and panel code is small and kept apart from `NvfFormat.py`, so the format itself never depends on `bpy`.
 - **A carried-over hardpoint is anchored to its part's grid.** Its position is in part space, from the grid's minimum corner. Growing a part toward negative coordinates in MagicaVoxel moves that corner, and the Blender-authored hardpoints `NvfImport` carries over move off their voxels without a refusal. The checklist of §9 looks at the hardpoints after a voxel edit.
 - **Markers and the game's `.vox` loading.** From N-M2 the reader returns marker models as instances. The game still loads `.vox` (§2), so a committed asset with a marker would draw it as voxels, or be refused if the marker is rotated (§6.1). Until the game loads `.nvf`, the three assets carry no markers, and their hardpoints are authored in Blender.
-- **A preview of a large model may be slow.** The station is the worst case the repository has; if the surface mesh is too heavy, the fallback is a point cloud instanced with cubes through geometry nodes.
+- **A preview of a large model may be slow.** The station is the worst case the repository has. Its surface is 360,330 quads, which Blender 4.2 imported headless in 2.6 s (ADR-020); the checklist looks at the viewport. If the surface mesh is too heavy there, the fallback is a point cloud instanced with cubes through geometry nodes.
 
 ## 12. Moving the engine to Direct3D's axes
 

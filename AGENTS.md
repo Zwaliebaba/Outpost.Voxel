@@ -204,7 +204,7 @@ msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=ARM64 /m /v:mini
 
 **A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
 
-**Run the tests**, through `vstest.console.exe`, over every suite the build produced. `NvfFormat.py`'s suite is Python's and needs no build (R19):
+**Run the tests**, through `vstest.console.exe`, over every suite the build produced. The Blender extension's suites are Python's and need no build (R19). Those that drive Blender skip without its `bpy` module, which `pip install bpy==4.2.*` provides on Python 3.11:
 
 ```powershell
 python -m unittest discover -s Tools\Blender\NeuronVoxelFormat\Tests -p "*Tests.py"

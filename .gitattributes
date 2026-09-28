@@ -93,6 +93,7 @@
 
 # LF in the working tree: what the Linux CI job reads, and what reads the same either way.
 *.py            text eol=lf
+*.toml          text eol=lf
 *.sh            text eol=lf
 *.yml           text eol=lf
 *.yaml          text eol=lf

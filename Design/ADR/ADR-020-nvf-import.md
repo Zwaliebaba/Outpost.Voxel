@@ -1,6 +1,6 @@
 # ADR-020 — NvfImport: the importer, its project, and `Tools/`
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10) · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and the Blender extension in `Tools/` with N-M4 · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game
 
 ## Context
 
@@ -51,6 +51,20 @@ A new project needs an ADR of its own (`AGENTS.md` §2). So does `Tools/`, the f
 
 **The assets.** `NvfImport` converted each of `GameData`'s `.vox` into an `.nvf` beside it, one part named `main` each. CI's new step runs `--check` over every `.vox` in `GameData` after the tests, and fails on a stale, missing or refused `.nvf`. `NvfImportTests::ImportsTheAssetsAsCommitted` does the same in-process.
 
+**The Blender extension (N-M4).** It is built as §7 describes, with the owner's four answers of 2026-09-28 (§11, questions 8 to 11), and these decisions of its own:
+- **What needs no Blender is kept apart from it.** `NvfFormat.py`, `Geometry.py` and `Rebuild.py` import no `bpy`, and the Linux job tests them. `Geometry.py` holds the swap, the cube's 24 turns, snapping and the preview's surface; its turns are spelled as `NvfImport`'s table spells them, which a test reads from `NvfImport.cpp`. `Rebuild.py` holds the export's rules. The operators, the panel and the preview only read and write the scene. §7 listed the `bpy` modules alone, and the two others are added so that CI tests the rules. Each of the three imports its neighbors relatively inside the extension, and as top-level modules when the tests load it alone.
+- **How a model lives in a scene.** One collection per file:
+  - `nvf_bytes` on the collection points at the text datablock that holds the file's bytes in base64, and `nvf_path` names the file, which export offers;
+  - `nvf_part` marks a part's object with its path, `nvf_pivot` a pivot's empty with its part's, and `nvf_name` and `nvf_from_vox` a hardpoint's;
+  - object names are for display, `<collection>: <name>`.
+- **Exact where nothing changed.** A transform is read from an object's channels when nothing stands between them and its parent: no parent inverse, no delta, and a quaternion rotation. An untouched hardpoint therefore gives back the values import set, and an untouched model exports byte for byte. Any other transform is composed from the object's matrices.
+  - A hardpoint keeps its stored values, and `FromVox` with them, while its name, part, position and rotation equal the stored ones in single precision. Clearing `nvf_from_vox` also drops the flag.
+  - One that Blender owns is written normalized, with w ≥ 0 and a half turn spelled as the importer's table spells it, and with no negative zero.
+- **Refusals.** Export lists every problem at once, and Validate runs the same rules. On top of §7's list, it leaves alone a file it would write over that holds other voxels, colors or parts than the ones imported, the owner's rule. It also leaves alone one this version cannot read, as `NvfImport` does.
+- **The preview.** One quad per exposed voxel face, with the corners shared. A byte color attribute on the corners holds the palette's sRGB bytes, and one material that every preview shares reads it.
+- **Tests.** `GeometryTests` and `RebuildTests` join `NvfFormatTests` in CI. `ExtensionTests` drives the operators in `bpy` and skips without it.
+- **The manifest.** Id `neuron_voxel_format`, version 1.0.0, `blender_version_min` 4.2.0, and GPL-3.0-or-later. The build leaves out `Tests/` and `Checklist.md`.
+
 ## Figures
 
 **The assets, measured from the files `NvfImport` wrote:**
@@ -84,9 +98,35 @@ A new project needs an ADR of its own (`AGENTS.md` §2). So does `Tools/`, the f
 - the marker deleted: the import keeps Blender's hardpoint where it was moved, and `--check` is clean;
 - `--replace` discards the hardpoint.
 
+**N-M4, headless.** Every figure below was measured once, on this container, with Python 3.11.15 and Blender's `bpy` 4.2.23 and 4.5.14.
+
+The assets' previews, and how long Blender 4.2 took to import each one:
+
+| Asset | Quads | Corners | Surface, pure Python | Import |
+|---|---|---|---|---|
+| `Frigate` | 1,900 | 1,924 | under 0.01 s | 0.01 s |
+| `CapitalShip` | 14,712 | 14,662 | 0.05 s | 0.10 s |
+| `MilitaryStation` | 360,330 | 355,340 | 1.07 s | 2.63 s |
+
+**The suites.** `GeometryTests` holds 13 tests, `RebuildTests` 10 and `ExtensionTests` 7. With `NvfFormatTests`' 29, all 59 pass on both versions of `bpy`. Without `bpy`, 52 pass and the 7 that need it skip.
+
+**Mutations.** 38 were made one at a time, 14 in `Geometry.py`, 16 in `Rebuild.py` and 8 in the `bpy` modules, and each failed a test.
+
+**Packaging.** The manifest validates with 4.2's and 4.5's `blender_ext.py`, which also build the extension. The zip installs, and enables as `bl_ext.user_default.neuron_voxel_format`, on both versions.
+
+**End to end,** on copies of the frigate and the capital ship:
+- Two hardpoints were added, snapped, turned and exported. `NvfImport --check` then found the file up to date, so the C++ merge writes the bytes the Python export wrote.
+- A voxel's color was changed in the `.vox`. `--check` then called the file stale, and the merge kept both hardpoints.
+- An export from the session that had imported the older voxels was refused, and left the file as it was.
+- Imported again, both hardpoints were there.
+
+**A crash, found and fixed.** Blender 4.2's `popup_menu` crashes in background mode, which the headless tests use. Validate shows its popup only when Blender has its interface.
+
 ## What this forecloses
 
 - **A turned part, group, or model with an even dimension.** A turned marker is the one turned model a `.vox` may hold, and the renderer refuses it.
 - **A second path from `.vox` to `.nvf`.** `ImportVoxModel` is the one conversion, and the tool, the tests and CI share it.
 - **A merge that drops or overwrites Blender's work silently.** An orphan or a clash stops the import, and `--replace` is the explicit way to discard it.
 - **C++ in `Tools/`, and a tool outside a project.**
+- **An export rule that only Blender can test.** What decides lives in modules that import no `bpy`.
+- **An export that writes over voxels `NvfImport` has changed since the import.**
