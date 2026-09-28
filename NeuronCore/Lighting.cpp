@@ -65,7 +65,6 @@ LightingParameters MakeLightingParameters(const RenderSettings& _settings, float
           _settings.skyColor,
           _settings.skyIntensity,
           _settings.groundColor,
-          _settings.groundVisible,
           _settings.backgroundColor,
           _emissiveGain};
 }
@@ -73,7 +72,7 @@ LightingParameters MakeLightingParameters(const RenderSettings& _settings, float
 Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept
 {
   const float up = 0.5f + 0.5f * _normal.y;
-  return (_lighting.groundAlbedo + (_lighting.skyColor - _lighting.groundAlbedo) * up) * _lighting.skyIntensity;
+  return (_lighting.groundColor + (_lighting.skyColor - _lighting.groundColor) * up) * _lighting.skyIntensity;
 }
 
 Float3 ShadeSurface(Float3 _albedo, float _emissiveScale, Float3 _normal, float _shadow, const LightingParameters& _lighting) noexcept
@@ -109,23 +108,15 @@ Float3 LightPixel(const PerspectiveView& _view, std::uint32_t _pixelX, std::uint
                   float _depth, Float3 _albedo, float _emissiveScale, const ShadowMapImage& _shadowMap, const OrthographicView& _shadowView,
                   const LightingParameters& _lighting) noexcept
 {
+  if (_voxel == NO_VOXEL)
+  {
+    return _lighting.background;
+  }
+  // The ray's direction has a view depth of one, so the view depth n / depth is its parameter (§9.3).
   const Ray ray = PerspectiveRay(_view, _pixelX, _pixelY);
-  const float normalOffset = ShadowNormalOffset(_shadowView);
-  if (_voxel != NO_VOXEL)
-  {
-    // The ray's direction has a view depth of one, so the view depth n / depth is its parameter (§9.3).
-    const Float3 position = ray.origin + ray.direction * (_view.nearPlane / _depth);
-    const float shadow = ShadowFactor(_shadowMap, _shadowView, position + _normal * normalOffset);
-    return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
-  }
-  if (_lighting.groundVisible && ray.origin.y > 0.0f && ray.direction.y < 0.0f)
-  {
-    const Float3 up{0.0f, 1.0f, 0.0f};
-    const Float3 position = ray.origin + ray.direction * (-ray.origin.y / ray.direction.y);
-    const float shadow = ShadowFactor(_shadowMap, _shadowView, position + up * normalOffset);
-    return ShadeSurface(_lighting.groundAlbedo, 0.0f, up, shadow, _lighting);
-  }
-  return _lighting.background;
+  const Float3 position = ray.origin + ray.direction * (_view.nearPlane / _depth);
+  const float shadow = ShadowFactor(_shadowMap, _shadowView, position + _normal * ShadowNormalOffset(_shadowView));
+  return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
 }
 
 } // namespace NeuronCore

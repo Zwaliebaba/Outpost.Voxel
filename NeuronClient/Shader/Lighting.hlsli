@@ -1,6 +1,6 @@
 #pragma once
 
-// The lighting of Design/Archive/SampleRenderer.md §10 and §11: the sun with its shadow map, a hemisphere of sky and ground, and
+// The lighting of Design/Archive/SampleRenderer.md §10 and §11: the sun with its shadow map, a hemisphere of two colors, and
 // emissive palette entries that light only themselves. The C++ twins are in NeuronCore/Lighting.h (R15), function for
 // function.
 
@@ -16,7 +16,7 @@
 float3 Ambient(float3 _normal, LightingConstants _lighting)
 {
   float up = 0.5 + 0.5 * _normal.y;
-  return (_lighting.groundAlbedo + (_lighting.skyColor - _lighting.groundAlbedo) * up) * _lighting.skyIntensity;
+  return (_lighting.groundColor + (_lighting.skyColor - _lighting.groundColor) * up) * _lighting.skyIntensity;
 }
 
 // §11: C = albedo × (E_sun × max(0, N·S) × shadow + ambient(N)) + albedo × emissive, with the emissive scale times the
@@ -49,25 +49,18 @@ float ShadowFactor(Texture2D<float> _map, SamplerComparisonState _sampler, Shado
 }
 
 // What the lighting pass writes for the pixel whose centre is _pixelCenter: a voxel at the depth the view splat wrote,
-// the ground plane y = 0 where no voxel was hit and the ray meets it from above, and otherwise the background.
+// and the background where no voxel was hit.
 float3 LightPixel(ViewConstants _view, float2 _pixelCenter, uint _voxel, float3 _normal, float _depth, float3 _albedo, float _emissiveScale,
                   Texture2D<float> _shadowMap, SamplerComparisonState _shadowSampler, ShadowViewConstants _shadowView,
                   LightingConstants _lighting)
 {
+  if (_voxel == NO_VOXEL)
+  {
+    return _lighting.background;
+  }
+  // The ray's direction has a view depth of one, so the view depth n / depth is its parameter (§9.3).
   Ray ray = PerspectiveRay(_view, _pixelCenter);
-  if (_voxel != NO_VOXEL)
-  {
-    // The ray's direction has a view depth of one, so the view depth n / depth is its parameter (§9.3).
-    float3 position = ray.origin + ray.direction * (_view.nearPlane / _depth);
-    float shadow = ShadowFactor(_shadowMap, _shadowSampler, _shadowView, position + _normal * _lighting.shadowNormalOffset);
-    return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
-  }
-  if (_lighting.groundVisible != 0u && ray.origin.y > 0.0 && ray.direction.y < 0.0)
-  {
-    float3 up = float3(0.0, 1.0, 0.0);
-    float3 position = ray.origin + ray.direction * (-ray.origin.y / ray.direction.y);
-    float shadow = ShadowFactor(_shadowMap, _shadowSampler, _shadowView, position + up * _lighting.shadowNormalOffset);
-    return ShadeSurface(_lighting.groundAlbedo, 0.0, up, shadow, _lighting);
-  }
-  return _lighting.background;
+  float3 position = ray.origin + ray.direction * (_view.nearPlane / _depth);
+  float shadow = ShadowFactor(_shadowMap, _shadowSampler, _shadowView, position + _normal * _lighting.shadowNormalOffset);
+  return ShadeSurface(_albedo, _emissiveScale, _normal, shadow, _lighting);
 }

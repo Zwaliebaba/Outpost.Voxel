@@ -110,7 +110,8 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   const D3D12_GPU_VIRTUAL_ADDRESS explosionConstants =
     frame.constants->Push(MakeExplosionConstants(m_explosion, _settings.explosionSeconds));
 
-  // At time 0 every rotation is the identity, and the aligned permutation draws; after it, the oriented one (§12).
+  // At time 0 every voxel is intact, and the aligned permutation draws; after it, the oriented one (Design/SpaceScene.md
+  // §5.5).
   const bool exploding = _settings.explosionSeconds > 0.0f;
   const SplatPass& shadowSplat = exploding ? m_shadowSplatOriented : m_shadowSplat;
   // The overdraw view needs the view splat's overdraw variant; otherwise the frame chooses between conservative and plain

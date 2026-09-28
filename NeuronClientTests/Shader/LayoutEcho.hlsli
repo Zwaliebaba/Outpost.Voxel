@@ -74,20 +74,17 @@ void Echo3(inout uint _word, uint3 _value)
   Echo(word, asuint(g_lighting.emissiveGain));
   Echo3(word, asuint(g_lighting.skyColor));
   Echo(word, asuint(g_lighting.skyIntensity));
-  Echo3(word, asuint(g_lighting.groundAlbedo));
-  Echo(word, g_lighting.groundVisible);
+  Echo3(word, asuint(g_lighting.groundColor));
+  Echo(word, g_lighting.padding);
   Echo3(word, asuint(g_lighting.background));
 
   Echo3(word, asuint(g_explosion.blastOrigin));
   Echo(word, asuint(g_explosion.timeSeconds));
-  Echo(word, asuint(g_explosion.gravity));
   Echo(word, asuint(g_explosion.launchSpeed));
   Echo(word, asuint(g_explosion.falloffDistance));
-  Echo(word, asuint(g_explosion.upwardBias));
   Echo(word, asuint(g_explosion.directionJitter));
   Echo(word, asuint(g_explosion.speedJitter));
-  Echo(word, asuint(g_explosion.restitution));
-  Echo(word, asuint(g_explosion.horizontalDamping));
+  Echo(word, asuint(g_explosion.drag));
   Echo(word, g_explosion.maxQuarterTurns);
 
   [unroll] for (uint quad = 0u; quad < 2u; ++quad)

@@ -46,8 +46,8 @@ inline constexpr float ORTHOGRAPHIC_FAR_DEPTH = 1.0f;
   return _depth < _than;
 }
 
-// The sun's view of §10: 4096 texels across a 1,024-unit square, four to a voxel's edge. The explosion's defaults keep
-// its envelope inside the square (§12).
+// The sun's view of §10: 4096 texels across a 1,024-unit square, four to a voxel's edge. The detonation's defaults keep
+// its envelope inside the square (Design/SpaceScene.md §5.5).
 inline constexpr std::uint32_t SHADOW_MAP_PIXELS = 4096;
 inline constexpr float SHADOW_HALF_EXTENT = 512.0f;
 

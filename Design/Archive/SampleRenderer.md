@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built; S-M1 of [`SpaceScene.md`](../SpaceScene.md) then retired the ground and the explosion's gravity, so §11's ground, §12's motion, §13's G key and time scale and §14's pose tests no longer describe the code, and SpaceScene.md §3.1 and §5.5 and [ADR-013](../ADR/ADR-013-zero-gravity-detonation.md) say what replaced them · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 

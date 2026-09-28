@@ -4,9 +4,10 @@
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
 // and in the view splat its index and normal. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is the
 // perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes while the model is intact
-// and oriented ones, posed by the explosion, once it is not (§12). PLAIN_DEPTH and COUNT_OVERDRAW make the view splat's
-// measurement variants (§14): one writes plain SV_Depth instead of conservative depth, so that PSInvocations shows what
-// conservative depth saves, and the other counts its invocations per pixel for the overdraw view.
+// and oriented ones, posed by the detonation, once it is not (Design/SpaceScene.md §5.5). PLAIN_DEPTH and COUNT_OVERDRAW
+// make the view splat's measurement variants (§14): one writes plain SV_Depth instead of conservative depth, so that
+// PSInvocations shows what conservative depth saves, and the other counts its invocations per pixel for the overdraw
+// view.
 
 #ifndef ORIENTED
 #   error "the entry-point file sets ORIENTED"
@@ -122,7 +123,7 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   uint voxel = g_instance.firstRecord + local;
   Box box = VoxelBox(voxel);
 #if ORIENTED
-  // §12: the explosion replaces the center and supplies a rotation.
+  // Design/SpaceScene.md §5.5: the detonation replaces the center and supplies a rotation.
   VoxelPose pose = ExplosionPose(voxel, box.center, g_explosion);
   box = MakeOrientedBox(pose.center, box.radius, pose.axisX, pose.axisY, pose.axisZ);
 #endif

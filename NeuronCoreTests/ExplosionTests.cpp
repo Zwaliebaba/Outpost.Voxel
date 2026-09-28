@@ -23,22 +23,27 @@ namespace
 
 using NeuronCore::Float3;
 
-// How far below the ground a corner may seem to be, to rounding.
-constexpr float GROUND_TOLERANCE = 1.0e-5f;
-
-// Samples along each followed voxel's flights.
+// Samples along each followed voxel's flight, from the detonation to twice its envelope's stop time.
 constexpr std::uint32_t FLIGHT_SAMPLES = 160;
 
-// The lowest point of a posed voxel: its center less the rotated unit cube's half-extent along +Y.
-[[nodiscard]] float LowestPoint(const NeuronCore::VoxelPose& _pose) noexcept
-{
-  return _pose.center.y - 0.5f * (std::abs(_pose.axisX.y) + std::abs(_pose.axisY.y) + std::abs(_pose.axisZ.y));
-}
+// How long after the detonation, in units of 1 / drag, a voxel has made all of its motion that a float can hold:
+// e^-32 is far below the half of 2^-24 at which 1 - e^-32 rounds to 1.
+constexpr float MOTION_DONE = 32.0f;
+
+// Rounding allowed on a position, relative to its distance from the origin: a float holds a coordinate 1,000 voxels
+// out to 6 × 10^-5, and the pose adds a few such roundings.
+constexpr float POSITION_ROUNDING = 1.0e-6f;
 
 [[nodiscard]] bool IsIdentity(const NeuronCore::VoxelPose& _pose) noexcept
 {
   return _pose.axisX.x == 1.0f && _pose.axisX.y == 0.0f && _pose.axisX.z == 0.0f && _pose.axisY.x == 0.0f && _pose.axisY.y == 1.0f &&
          _pose.axisY.z == 0.0f && _pose.axisZ.x == 0.0f && _pose.axisZ.y == 0.0f && _pose.axisZ.z == 1.0f;
+}
+
+[[nodiscard]] bool SamePose(const NeuronCore::VoxelPose& _a, const NeuronCore::VoxelPose& _b) noexcept
+{
+  const auto same = [](Float3 _u, Float3 _v) { return _u.x == _v.x && _u.y == _v.y && _u.z == _v.z; };
+  return same(_a.center, _b.center) && same(_a.axisX, _b.axisX) && same(_a.axisY, _b.axisY) && same(_a.axisZ, _b.axisZ);
 }
 
 // A rotation of the cube onto itself: every entry exactly 0 or ±1, and a rotation rather than a reflection.
@@ -58,6 +63,22 @@ constexpr std::uint32_t FLIGHT_SAMPLES = 160;
   return handed.x == _pose.axisZ.x && handed.y == _pose.axisZ.y && handed.z == _pose.axisZ.z;
 }
 
+// How far the farthest corner of the unit cube posed as _a is from the same corner posed as _b.
+[[nodiscard]] float CornerDistance(const NeuronCore::VoxelPose& _a, const NeuronCore::VoxelPose& _b) noexcept
+{
+  float farthest = 0.0f;
+  for (std::uint32_t corner = 0; corner < 8; ++corner)
+  {
+    const float x = (corner & 1u) != 0u ? 0.5f : -0.5f;
+    const float y = (corner & 2u) != 0u ? 0.5f : -0.5f;
+    const float z = (corner & 4u) != 0u ? 0.5f : -0.5f;
+    const Float3 a = _a.center + _a.axisX * x + _a.axisY * y + _a.axisZ * z;
+    const Float3 b = _b.center + _b.axisX * x + _b.axisY * y + _b.axisZ * z;
+    farthest = std::max(farthest, NeuronCore::Length(a - b));
+  }
+  return farthest;
+}
+
 // A model of the given voxels, all in one instance at the origin.
 [[nodiscard]] NeuronCore::VoxModel ModelOf(const std::vector<NeuronCore::VoxelRecord>& _voxels)
 {
@@ -71,10 +92,46 @@ constexpr std::uint32_t FLIGHT_SAMPLES = 160;
   return model;
 }
 
+// A parameter block well beyond the defaults, around a blast origin in _lower-_upper.
+[[nodiscard]] NeuronCore::ExplosionParameters RandomParameters(SeededRandom& _random, Float3 _lower, Float3 _upper)
+{
+  return {.blastOrigin = _random.InBox(_lower, _upper),
+          .launchSpeed = _random.Uniform(0.0f, 400.0f),
+          .falloffDistance = _random.Uniform(5.0f, 300.0f),
+          .directionJitter = _random.Uniform(0.0f, 1.5f),
+          .speedJitter = _random.Uniform(0.0f, 0.9f),
+          .drag = _random.Uniform(0.2f, 5.0f),
+          .maxQuarterTurns = _random.Below(9)};
+}
+
+// A random voxel's center in integer cells of a 60-voxel box, and the box around them all.
+struct RandomVoxels
+{
+  std::vector<Float3> centers;
+  Float3 lower{1.0e9f, 1.0e9f, 1.0e9f};
+  Float3 upper{-1.0e9f, -1.0e9f, -1.0e9f};
+};
+
+[[nodiscard]] RandomVoxels MakeRandomVoxels(SeededRandom& _random, std::uint32_t _count)
+{
+  RandomVoxels voxels;
+  for (std::uint32_t voxel = 0; voxel < _count; ++voxel)
+  {
+    const Float3 center{std::floor(_random.Uniform(-30.0f, 30.0f)) + 0.5f, std::floor(_random.Uniform(-30.0f, 30.0f)) + 0.5f,
+                        std::floor(_random.Uniform(-30.0f, 30.0f)) + 0.5f};
+    voxels.centers.push_back(center);
+    voxels.lower = {std::min(voxels.lower.x, center.x - 0.5f), std::min(voxels.lower.y, center.y - 0.5f),
+                    std::min(voxels.lower.z, center.z - 0.5f)};
+    voxels.upper = {std::max(voxels.upper.x, center.x + 0.5f), std::max(voxels.upper.y, center.y + 0.5f),
+                    std::max(voxels.upper.z, center.z + 0.5f)};
+  }
+  return voxels;
+}
+
 } // namespace
 
-// The explosion's motion model (Design/Archive/SampleRenderer.md §12, §14) on synthetic voxels and random parameter blocks; the
-// station under the defaults is MilitaryStationTests'.
+// The detonation's motion (Design/SpaceScene.md §5.5, Design/ADR/ADR-013) on synthetic voxels and random parameter
+// blocks; the station under the defaults is MilitaryStationTests'.
 TEST_CLASS(ExplosionTests)
 {
 public:
@@ -90,52 +147,44 @@ public:
     Assert::IsTrue(none.x == 0.0f && none.y == 0.0f && none.z == 0.0f, L"an empty model's blast comes from the origin");
   }
 
-  // A voxel on the ground may not turn while it stands on it: it is lifted, and its spin starts only once its center has
-  // risen a bounding radius above the ground (Design/ADR/ADR-009). This one is launched down, from right under the blast.
-  TEST_METHOD(GroundLayerRisesBeforeItTurns)
+  // A voxel at the blast origin has no direction away from it and flies along its jitter, at the launch speed, which
+  // falls off with no distance: it ends the launch speed over the drag away, in some direction.
+  TEST_METHOD(VoxelAtTheOriginFliesAlongItsJitter)
   {
-    const Float3 restCenter{0.5f, 0.5f, 0.5f};
-    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.5f, 10.5f, 0.5f});
-    parameters.maxQuarterTurns = 8;
+    const Float3 origin{3.5f, -2.5f, 7.5f};
+    NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(origin);
+    parameters.directionJitter = 0.0f;
+    parameters.speedJitter = 0.0f;
+    const float reach = parameters.launchSpeed / parameters.drag;
     for (std::uint32_t voxel = 0; voxel < 64; ++voxel)
     {
-      const float rest = NeuronCore::ExplosionRestTime(voxel, restCenter, parameters);
-      float highestUnturned = 0.0f;
-      bool turned = false;
-      for (std::uint32_t sample = 0; sample <= 4 * FLIGHT_SAMPLES; ++sample)
-      {
-        const float time = rest * static_cast<float>(sample) / static_cast<float>(4 * FLIGHT_SAMPLES);
-        const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, parameters, time);
-        Assert::IsTrue(LowestPoint(pose) >= -GROUND_TOLERANCE, std::format(L"voxel {} at {} s", voxel, time).c_str());
-        if (!turned && IsIdentity(pose))
-        {
-          highestUnturned = pose.center.y;
-        }
-        turned = turned || !IsIdentity(pose);
-      }
-      Assert::IsTrue(turned, std::format(L"voxel {} spins", voxel).c_str());
-      Assert::IsTrue(highestUnturned <= NeuronCore::VOXEL_BOUNDING_RADIUS + 1.0e-3f,
-                     std::format(L"voxel {} starts turning as it passes the bounding radius", voxel).c_str());
+      const NeuronCore::VoxelPose end = NeuronCore::ExplosionPose(voxel, origin, parameters, MOTION_DONE / parameters.drag);
+      const float travelled = NeuronCore::Length(end.center - origin);
+      Assert::AreEqual(reach, travelled, 1.0e-4f * reach, std::format(L"voxel {} travels the launch speed over the drag", voxel).c_str());
     }
   }
 
-  // §12: the spin is done by the time the voxel falls through the bounding radius for the last time, so it lands square.
-  TEST_METHOD(LandsAlreadySquare)
+  // Once its motion is done to the float's last bit, a voxel no longer moves, and it is square to the axes: each of its
+  // spins has turned a whole number of quarter turns.
+  TEST_METHOD(EndsStillAndSquare)
   {
-    const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 20.0f, 0.0f});
-    for (std::uint32_t voxel = 0; voxel < 256; ++voxel)
+    SeededRandom random(20260928u);
+    for (std::uint32_t block = 0; block < 8; ++block)
     {
-      const std::uint32_t column = voxel % 16u;
-      const std::uint32_t row = voxel / 16u;
-      const Float3 restCenter{static_cast<float>(column) - 7.5f, 0.5f + static_cast<float>(voxel % 5u), static_cast<float>(row) - 7.5f};
-      const float rest = NeuronCore::ExplosionRestTime(voxel, restCenter, parameters);
-      for (std::uint32_t step = 0; step <= 16; ++step)
+      const NeuronCore::ExplosionParameters parameters = RandomParameters(random, {-8.0f, -8.0f, -8.0f}, {8.0f, 8.0f, 8.0f});
+      const float done = MOTION_DONE / parameters.drag;
+      for (std::uint32_t voxel = 0; voxel < 64; ++voxel)
       {
-        const float time = rest * (1.0f - 0.0005f * static_cast<float>(step));
-        const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, parameters, time);
-        if (pose.center.y < NeuronCore::VOXEL_BOUNDING_RADIUS)
+        const std::uint32_t column = voxel % 4u;
+        const std::uint32_t row = voxel / 4u % 4u;
+        const std::uint32_t layer = voxel / 16u;
+        const Float3 restCenter{static_cast<float>(column) - 1.5f, static_cast<float>(row) - 1.5f, static_cast<float>(layer) - 1.5f};
+        const NeuronCore::VoxelPose end = NeuronCore::ExplosionPose(voxel, restCenter, parameters, done);
+        const std::wstring what = std::format(L"block {}, voxel {}", block, voxel);
+        Assert::IsTrue(IsCubeRotation(end), what.c_str());
+        for (const float later : {2.0f * done, 10.0f * done})
         {
-          Assert::IsTrue(IsCubeRotation(pose), std::format(L"voxel {} below the bounding radius at {} s", voxel, time).c_str());
+          Assert::IsTrue(SamePose(end, NeuronCore::ExplosionPose(voxel, restCenter, parameters, later)), what.c_str());
         }
       }
     }
@@ -145,71 +194,85 @@ public:
   {
     NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters({0.0f, 5.0f, 0.0f});
     parameters.maxQuarterTurns = 0;
+    const float stop = NeuronCore::BoundExplosion(parameters, {-16.0f, 0.0f, 0.0f}, {16.0f, 4.0f, 1.0f}).stopSeconds;
     for (std::uint32_t voxel = 0; voxel < 32; ++voxel)
     {
       const Float3 restCenter{static_cast<float>(voxel) - 15.5f, 3.5f, 0.5f};
-      const float rest = NeuronCore::ExplosionRestTime(voxel, restCenter, parameters);
-      for (const float fraction : {0.1f, 0.5f, 0.9f, 1.0f, 2.0f})
+      for (const float fraction : {0.01f, 0.1f, 0.5f, 1.0f, 2.0f})
       {
-        Assert::IsTrue(IsIdentity(NeuronCore::ExplosionPose(voxel, restCenter, parameters, rest * fraction)));
+        Assert::IsTrue(IsIdentity(NeuronCore::ExplosionPose(voxel, restCenter, parameters, stop * fraction)));
       }
     }
   }
 
-  // The closed-form envelope of §12 against the trajectories themselves, for parameter blocks well beyond the defaults:
-  // every sampled box inside it, every voxel at rest by its time, and no corner ever below the ground.
+  // The closed-form envelope of §5.5 against the motion itself, for parameter blocks well beyond the defaults, with one
+  // voxel at the blast origin in each: every voxel exactly intact at time 0, every sampled box inside the sphere, and,
+  // from the stop time on, every corner within EXPLOSION_STOP_DISTANCE of where it ends.
   TEST_METHOD(RandomExplosionsStayInsideTheirEnvelope)
   {
     SeededRandom random(20260927u);
     std::uint32_t followed = 0;
     for (std::uint32_t block = 0; block < 24; ++block)
     {
-      std::vector<Float3> centers;
-      Float3 lower{1.0e9f, 1.0e9f, 1.0e9f};
-      Float3 upper{-1.0e9f, -1.0e9f, -1.0e9f};
-      for (std::uint32_t voxel = 0; voxel < 48; ++voxel)
+      RandomVoxels voxels = MakeRandomVoxels(random, 48);
+      const NeuronCore::ExplosionParameters parameters = RandomParameters(random, voxels.lower, voxels.upper);
+      voxels.centers.back() = parameters.blastOrigin;
+      const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, voxels.lower, voxels.upper);
+      Assert::IsTrue(envelope.stopSeconds >= 0.0f, std::format(L"block {} stops", block).c_str());
+      const float done = MOTION_DONE / parameters.drag;
+      for (std::uint32_t voxel = 0; voxel < voxels.centers.size(); ++voxel)
       {
-        // Integer cells, a quarter of them on the ground.
-        const float y = voxel % 4u == 0u ? 0.0f : std::floor(random.Uniform(0.0f, 40.0f));
-        const Float3 center{std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f, y + 0.5f, std::floor(random.Uniform(-30.0f, 30.0f)) + 0.5f};
-        centers.push_back(center);
-        lower = {std::min(lower.x, center.x - 0.5f), std::min(lower.y, center.y - 0.5f), std::min(lower.z, center.z - 0.5f)};
-        upper = {std::max(upper.x, center.x + 0.5f), std::max(upper.y, center.y + 0.5f), std::max(upper.z, center.z + 0.5f)};
-      }
-      const NeuronCore::ExplosionParameters parameters{.blastOrigin = random.InBox(lower, upper),
-                                                       .gravity = random.Uniform(5.0f, 60.0f),
-                                                       .launchSpeed = random.Uniform(0.0f, 80.0f),
-                                                       .falloffDistance = random.Uniform(5.0f, 300.0f),
-                                                       .upwardBias = random.Uniform(-1.0f, 2.0f),
-                                                       .directionJitter = random.Uniform(0.0f, 1.5f),
-                                                       .speedJitter = random.Uniform(0.0f, 0.9f),
-                                                       .restitution = random.Uniform(0.0f, 0.95f),
-                                                       .horizontalDamping = random.Uniform(0.0f, 1.0f),
-                                                       .maxQuarterTurns = random.Below(9)};
-      const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, lower, upper);
-      for (std::uint32_t voxel = 0; voxel < centers.size(); ++voxel)
-      {
-        const float rest = NeuronCore::ExplosionRestTime(voxel, centers[voxel], parameters);
-        Assert::IsTrue(rest <= envelope.restTimeSeconds * 1.0001f,
-                       std::format(L"block {}, voxel {} rests by the bound", block, voxel).c_str());
+        const Float3 restCenter = voxels.centers[voxel];
+        const NeuronCore::VoxelPose intact = NeuronCore::ExplosionPose(voxel, restCenter, parameters, 0.0f);
+        Assert::IsTrue(IsIdentity(intact) && intact.center.x == restCenter.x && intact.center.y == restCenter.y &&
+                         intact.center.z == restCenter.z,
+                       std::format(L"block {}, voxel {} is intact at time 0", block, voxel).c_str());
+        const NeuronCore::VoxelPose end = NeuronCore::ExplosionPose(voxel, restCenter, parameters, done);
         for (std::uint32_t sample = 0; sample <= FLIGHT_SAMPLES; ++sample)
         {
-          const float time = rest * static_cast<float>(sample) / static_cast<float>(FLIGHT_SAMPLES);
-          const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
+          const float time = 2.0f * envelope.stopSeconds * static_cast<float>(sample) / static_cast<float>(FLIGHT_SAMPLES);
+          const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, restCenter, parameters, time);
           const std::wstring where = std::format(L"block {}, voxel {}, {} s", block, voxel, time);
-          const float slack = 1.0e-3f + 1.0e-5f * Length(pose.center);
-          const float radius = NeuronCore::VOXEL_BOUNDING_RADIUS;
-          Assert::IsTrue(pose.center.x - radius >= envelope.lower.x - slack && pose.center.x + radius <= envelope.upper.x + slack,
-                         where.c_str());
-          Assert::IsTrue(pose.center.z - radius >= envelope.lower.z - slack && pose.center.z + radius <= envelope.upper.z + slack,
-                         where.c_str());
-          Assert::IsTrue(pose.center.y + radius <= envelope.upper.y + slack, where.c_str());
-          Assert::IsTrue(LowestPoint(pose) >= std::min(envelope.lower.y, 0.0f) - GROUND_TOLERANCE, where.c_str());
+          const float reached = NeuronCore::Length(pose.center - envelope.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
+          Assert::IsTrue(reached <= envelope.radius * (1.0f + POSITION_ROUNDING) + 1.0e-3f, where.c_str());
+          if (time >= envelope.stopSeconds)
+          {
+            const float left = CornerDistance(pose, end);
+            Assert::IsTrue(left <= NeuronCore::EXPLOSION_STOP_DISTANCE + POSITION_ROUNDING * NeuronCore::Length(end.center),
+                           std::format(L"{}: {} left to go after the stop", where, left).c_str());
+          }
         }
         ++followed;
       }
     }
     Logger::WriteMessage(std::format(L"{} voxels followed under 24 random parameter blocks\n", followed).c_str());
+  }
+
+  // A center moves no faster than its launch, which is at most the launch speed at the origin with all the variation:
+  // the drag only slows it.
+  TEST_METHOD(RandomExplosionsMoveNoFasterThanTheirLaunch)
+  {
+    constexpr float STEP_SECONDS = 1.0e-3f;
+    SeededRandom random(20260929u);
+    for (std::uint32_t block = 0; block < 16; ++block)
+    {
+      const RandomVoxels voxels = MakeRandomVoxels(random, 32);
+      const NeuronCore::ExplosionParameters parameters = RandomParameters(random, voxels.lower, voxels.upper);
+      const float fastest = parameters.launchSpeed * (1.0f + parameters.speedJitter);
+      const float stop = NeuronCore::BoundExplosion(parameters, voxels.lower, voxels.upper).stopSeconds;
+      for (std::uint32_t voxel = 0; voxel < voxels.centers.size(); ++voxel)
+      {
+        for (std::uint32_t sample = 0; sample < 32; ++sample)
+        {
+          const float time = stop * static_cast<float>(sample) / 32.0f;
+          const Float3 before = NeuronCore::ExplosionPose(voxel, voxels.centers[voxel], parameters, time).center;
+          const Float3 after = NeuronCore::ExplosionPose(voxel, voxels.centers[voxel], parameters, time + STEP_SECONDS).center;
+          const float moved = NeuronCore::Length(after - before);
+          Assert::IsTrue(moved <= fastest * STEP_SECONDS * 1.001f + POSITION_ROUNDING * (NeuronCore::Length(after) + 1.0f) * 4.0f,
+                         std::format(L"block {}, voxel {} moves {} in {} s at {} s", block, voxel, moved, STEP_SECONDS, time).c_str());
+        }
+      }
+    }
   }
 };
 

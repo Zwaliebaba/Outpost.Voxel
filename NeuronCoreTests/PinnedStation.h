@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Explosion.h"
 #include "Float3.h"
 
 #include <array>
@@ -10,11 +9,12 @@
 namespace NeuronCoreTests
 {
 
-// The station as NeuronCore drew, lit and exploded it before the engine moved to Direct3D's axes
-// (Design/NeuronVoxelFormat.md §12.4): pinned once, and compared ever after. Everything here is in MagicaVoxel's axes,
-// right-handed with +Z up, as the engine used them then; the tests swap it into the engine's. A throwaway program
-// generated it from the tree at 3c7dc2b with NeuronCore's tracer, explosion and lighting, compiled by GCC 13.3 at -O2
-// for x86-64.
+// The station as NeuronCore drew and lit it before the engine moved to Direct3D's axes (Design/NeuronVoxelFormat.md
+// §12.4): pinned once, and compared ever after. Everything here is in MagicaVoxel's axes, right-handed with +Z up, as
+// the engine used them then; the tests swap it into the engine's. A throwaway program generated it from the tree at
+// 3c7dc2b with NeuronCore's tracer, explosion and lighting, compiled by GCC 13.3 at -O2 for x86-64. The explosion's
+// flights and the ground's half of the lighting's column were pinned too; they retired with the gravity and the ground
+// they pinned (Design/ADR/ADR-013), and what is left is as it was generated.
 
 // The cameras of the view splat tests: the application's field of view and near plane (SampleRenderer §3, §7.5), and
 // an odd-sized image, so that a level camera has a whole row and column of rays with exactly-zero components.
@@ -557,100 +557,6 @@ inline constexpr std::array<PinnedCamera, 3> PINNED_CAMERAS{{
   {L"from above", {40.5f, -30.5f, 690.0f}, PINNED_FROM_ABOVE},
 }};
 
-// The times the flights are pinned at, in seconds after the detonation.
-inline constexpr std::array<float, 4> PINNED_FLIGHT_SECONDS{0.25f, 1.0f, 3.0f, 6.0f};
-
-// A voxel of the station's explosion under the default parameters: when it meets the ground, at its bounces and then
-// its landing, and where its center is at each of PINNED_FLIGHT_SECONDS. Voxels 0 and 1 lie on the ground and are
-// lifted (Design/ADR/ADR-009); the rest are every 20,000th.
-struct PinnedFlight
-{
-  std::uint32_t voxel;
-  std::array<float, NeuronCore::EXPLOSION_BOUNCES + 1> contactSeconds;
-  std::array<NeuronCore::Float3, PINNED_FLIGHT_SECONDS.size()> centers;
-};
-
-inline constexpr std::array<PinnedFlight, 13> PINNED_FLIGHTS{{
-  {0,
-   {0.422855318f, 0.532399833f, 0.565263212f, 0.726480901f},
-   {{{-2.2670033f, -13.6098337f, 1.36460853f},
-     {-2.97954679f, -14.6408653f, 0.5f},
-     {-2.97954679f, -14.6408653f, 0.5f},
-     {-2.97954679f, -14.6408653f, 0.5f}}}},
-  {1,
-   {0.422855318f, 0.532399833f, 0.565263212f, 0.726480901f},
-   {{{-1.25107718f, -10.7828255f, 1.36460853f},
-     {-1.94882536f, -9.18757534f, 0.5f},
-     {-1.94882536f, -9.18757534f, 0.5f},
-     {-1.94882536f, -9.18757534f, 0.5f}}}},
-  {20000,
-   {1.68590188f, 2.69744301f, 3.00090528f, 3.20913196f},
-   {{{22.433836f, -24.6154823f, 42.5625f},
-     {46.2353439f, -30.9619331f, 28.5f},
-     {82.3795929f, -40.5994606f, 0.870134115f},
-     {82.8071136f, -40.7134552f, 0.5f}}}},
-  {40000,
-   {1.89092529f, 3.02548075f, 3.36584735f, 3.58124447f},
-   {{{88.4291306f, -11.3985081f, 53.5625f},
-     {115.216515f, -17.0940342f, 39.5f},
-     {162.882172f, -27.2286911f, 1.28992462f},
-     {165.68364f, -27.8243389f, 0.5f}}}},
-  {60000,
-   {2.05967593f, 3.29548168f, 3.66622353f, 3.88764882f},
-   {{{-24.3325481f, -48.7018166f, 63.5625f},
-     {-29.8301964f, -70.3072662f, 49.5f},
-     {-40.3549309f, -111.6689f, 5.03375149f},
-     {-41.7600021f, -117.19075f, 0.5f}}}},
-  {80000,
-   {2.10766816f, 3.37226915f, 3.75164938f, 3.97480965f},
-   {{{48.9441605f, -55.8546181f, 66.5625f},
-     {71.2766418f, -71.9184723f, 52.5f},
-     {114.887535f, -103.287971f, 5.84884167f},
-     {121.554245f, -108.083366f, 0.5f}}}},
-  {100000,
-   {2.74995589f, 4.20501804f, 4.64153671f, 4.87639284f},
-   {{{-62.0845261f, 28.9156857f, 88.9988937f},
-     {-87.8381042f, 36.1627388f, 82.245575f},
-     {-151.362686f, 54.0385513f, 5.38564014f},
-     {-170.828293f, 59.5161705f, 0.5f}}}},
-  {120000,
-   {2.83180857f, 4.33559036f, 4.78672504f, 5.02463293f},
-   {{{-75.0388794f, 83.1524734f, 95.0037918f},
-     {-82.6555252f, 100.109879f, 88.2651825f},
-     {-101.941727f, 143.047974f, 4.23554754f},
-     {-108.254845f, 157.103256f, 0.5f}}}},
-  {140000,
-   {4.17026377f, 5.92315292f, 6.44901943f, 6.70289564f},
-   {{{14.6866627f, -33.9179077f, 113.928368f},
-     {30.2466507f, -53.1716309f, 127.96347f},
-     {71.7399521f, -104.514885f, 82.8903961f},
-     {110.820724f, -152.87291f, 1.38361311f}}}},
-  {160000,
-   {4.30587959f, 6.11151743f, 6.65320873f, 6.91054153f},
-   {{{5.50188875f, 13.4985085f, 120.286125f},
-     {5.50755501f, 28.4940357f, 135.394501f},
-     {5.5226655f, 68.4821091f, 93.1835022f},
-     {5.53765154f, 108.140831f, 3.69988251f}}}},
-  {180000,
-   {4.2423358f, 6.07903671f, 6.63004684f, 6.88942671f},
-   {{{-12.7908726f, 8.22388077f, 128.421249f},
-     {-13.6634912f, 16.3955231f, 140.935028f},
-     {-15.9904728f, 38.1865692f, 91.805069f},
-     {-18.253931f, 59.3827362f, 2.9498291f}}}},
-  {200000,
-   {4.64209127f, 6.70525265f, 7.32420111f, 7.59876108f},
-   {{{30.620306f, 3.20823312f, 164.588669f},
-     {42.9812241f, 2.33293247f, 177.604675f},
-     {75.9436798f, -0.00120210648f, 129.814026f},
-     {111.959358f, -2.55154204f, 15.2310543f}}}},
-  {220000,
-   {4.72986269f, 6.94222307f, 7.60593128f, 7.89072561f},
-   {{{11.9229927f, -11.0517626f, 195.381973f},
-     {10.1919708f, -9.70704937f, 204.777863f},
-     {5.57591343f, -6.12114859f, 147.333588f},
-     {0.410734177f, -2.1086731f, 18.8173141f}}}},
-}};
-
 // What a white surface with no emission shows, wholly lit, under the station's sun and sky, for a normal.
 struct PinnedShade
 {
@@ -669,100 +575,17 @@ inline constexpr std::array<PinnedShade, 8> PINNED_SHADES{{
   {{-0.577350259f, 0.577350259f, -0.577350259f}, {0.192214578f, 0.192214578f, 0.192214578f}},
 }};
 
-// The level camera's centre column where no voxel is, under a shadow map that shadows nothing: the background above
-// the horizon, and the ground below it.
-inline constexpr std::array<NeuronCore::Float3, 91> PINNED_GROUND_AND_SKY{{
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0f, 0.0f, 0.0f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
-  {0.0991702378f, 0.0991702378f, 0.0991702378f},
+// The level camera's centre column where no voxel is, under a shadow map that shadows nothing, from the top row down to
+// the horizon, the middle row: the background. The rows below the horizon showed the ground, and retired with it.
+inline constexpr std::array<NeuronCore::Float3, 46> PINNED_SKY{{
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
 }};
 
 } // namespace NeuronCoreTests

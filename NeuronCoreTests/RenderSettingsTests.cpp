@@ -35,7 +35,6 @@ void AreEqualSettings(const RenderSettings& _expected, const RenderSettings& _ac
   Assert::AreEqual(_expected.sunIntensity, _actual.sunIntensity, L"sun intensity");
   AreEqualFloat3(_expected.skyColor, _actual.skyColor, L"sky color");
   Assert::AreEqual(_expected.skyIntensity, _actual.skyIntensity, L"sky intensity");
-  Assert::AreEqual(_expected.groundVisible, _actual.groundVisible, L"ground visible");
   AreEqualFloat3(_expected.groundColor, _actual.groundColor, L"ground color");
   AreEqualFloat3(_expected.backgroundColor, _actual.backgroundColor, L"background color");
   Assert::AreEqual(_expected.exposure, _actual.exposure, L"exposure");
@@ -57,7 +56,6 @@ public:
     Assert::AreEqual(0.7f, settings.sunIntensity);
     AreEqualFloat3({1.0f, 1.0f, 1.0f}, settings.skyColor, L"a white sky");
     Assert::AreEqual(0.7f, settings.skyIntensity);
-    Assert::IsTrue(settings.groundVisible);
     const float ground = NeuronCore::SrgbToLinear(80);
     AreEqualFloat3({ground, ground, ground}, settings.groundColor, L"ground 80 80 80");
     AreEqualFloat3({0.0f, 0.0f, 0.0f}, settings.backgroundColor, L"a black background");
@@ -73,7 +71,6 @@ public:
       {{"_type", "_film"}, {"_expo", "2"}, {"_aces", "1"}},
       {{"_type", "_ground"}, {"_color", "10 20 30"}},
       {{"_type", "_bg"}, {"_color", "255 255 255"}},
-      {{"_type", "_setting"}, {"_ground", "0"}},
     };
     const RenderSettings settings = NeuronCore::ReadRenderSettings(objects);
     Assert::AreEqual(30.0f * RADIANS_PER_DEGREE, settings.sunElevationRadians, L"the first angle is the elevation");
@@ -84,9 +81,8 @@ public:
     Assert::AreEqual(0.25f, settings.skyIntensity);
     Assert::AreEqual(2.0f, settings.exposure);
     AreEqualFloat3({NeuronCore::SrgbToLinear(10), NeuronCore::SrgbToLinear(20), NeuronCore::SrgbToLinear(30)}, settings.groundColor,
-                   L"the ground's color");
+                   L"the ground's color, the ambient's lower one");
     AreEqualFloat3({1.0f, 1.0f, 1.0f}, settings.backgroundColor, L"the background");
-    Assert::IsFalse(settings.groundVisible, L"_setting _ground 0 hides the ground");
   }
 
   // A value in a form the reader does not take keeps the station's value: the scene still renders, as the station.
@@ -98,7 +94,6 @@ public:
       {{"_type", "_film"}, {"_expo", "1 2"}},
       {{"_type", "_ground"}, {"_color", "1.5 2 3"}},
       {{"_type", "_bg"}, {"_color", "0 0 0 0"}},
-      {{"_type", "_setting"}, {"_ground", ""}},
     };
     AreEqualSettings(NeuronCore::DefaultRenderSettings(), NeuronCore::ReadRenderSettings(objects));
   }

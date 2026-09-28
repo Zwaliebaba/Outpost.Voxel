@@ -10,7 +10,7 @@ struct LightingConstants
   float emissiveGain;
   float3 skyColor;
   float skyIntensity;
-  float3 groundAlbedo;
-  uint groundVisible; // 0 or 1
+  float3 groundColor;
+  uint padding; // 0: the background starts the next 16 bytes
   float3 background;
 };

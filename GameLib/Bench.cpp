@@ -35,10 +35,10 @@ constexpr std::uint32_t FRAMES_PER_SECOND = 60;
 // Frames of the timeline's start, in both variants, before the measured ones, while pipelines, caches and clocks settle.
 constexpr std::uint32_t WARMUP_FRAMES = 120;
 
-// The timeline in fractions of the run: intact until the detonation, the explosion running to rest until REST_FRACTION,
-// then at rest. The camera turns once around the model over the whole run.
+// The timeline in fractions of the run: intact until the detonation, the detonation running to its stop time until
+// STOP_FRACTION, then drifted to a stop. The camera turns once around the model over the whole run.
 constexpr double DETONATION_FRACTION = 0.25;
-constexpr double REST_FRACTION = 0.75;
+constexpr double STOP_FRACTION = 0.75;
 
 // The run's progress on screen, which the canvas draws and times as a pass of its own.
 constexpr NeuronClient::TextStyle PROGRESS_STYLE{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
@@ -58,10 +58,10 @@ enum class Phase : std::uint8_t
 {
   Intact,
   Flight,
-  Rest
+  Stopped
 };
 
-constexpr std::array<const char*, 3> PHASE_NAMES{"intact", "in flight", "at rest"};
+constexpr std::array<const char*, 3> PHASE_NAMES{"intact", "in flight", "drifted to a stop"};
 
 // One measured frame: where on the timeline it was, how it was drawn, and what was measured of it.
 struct Shot
@@ -88,21 +88,21 @@ struct Spread
   {
     return Phase::Intact;
   }
-  return _fraction < REST_FRACTION ? Phase::Flight : Phase::Rest;
+  return _fraction < STOP_FRACTION ? Phase::Flight : Phase::Stopped;
 }
 
-[[nodiscard]] float ExplosionSeconds(double _fraction, float _restSeconds) noexcept
+[[nodiscard]] float ExplosionSeconds(double _fraction, float _stopSeconds) noexcept
 {
   switch (PhaseOf(_fraction))
   {
   case Phase::Intact:
     return 0.0f;
   case Phase::Flight:
-    return static_cast<float>((_fraction - DETONATION_FRACTION) / (REST_FRACTION - DETONATION_FRACTION)) * _restSeconds;
-  case Phase::Rest:
+    return static_cast<float>((_fraction - DETONATION_FRACTION) / (STOP_FRACTION - DETONATION_FRACTION)) * _stopSeconds;
+  case Phase::Stopped:
     break;
   }
-  return _restSeconds;
+  return _stopSeconds;
 }
 
 [[nodiscard]] Spread SpreadOf(std::vector<double> _values)
@@ -238,7 +238,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   const auto covered = [](const Shot& _shot) { return static_cast<double>(_shot.statistics->coveredPixels.value_or(0)) / 1.0e6; };
 
   std::string summary =
-    std::format("Outpost --bench {}: {} frames of a fixed camera path and explosion timeline at {} x {}, vsync off, each "
+    std::format("Outpost --bench {}: {} frames of a fixed camera path and detonation timeline at {} x {}, vsync off, each "
                 "drawn with conservative and with plain depth, after {} warm-up frames.\n",
                 _seconds, _frames, BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, WARMUP_FRAMES);
   summary += std::format("Adapter: {}\n\n", _adapter);
@@ -263,7 +263,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   summary += std::format("view splat PSInvocations: {}\n", Describe(RatioSpread(_shots, invocations), 3));
   summary += std::format("view splat time: {}\n", Describe(RatioSpread(_shots, pass(NeuronClient::GpuPass::ViewSplat)), 3));
   summary += "\nView splat by phase, conservative depth, median / mean / 95th percentile:\n";
-  for (const Phase phase : {Phase::Intact, Phase::Flight, Phase::Rest})
+  for (const Phase phase : {Phase::Intact, Phase::Flight, Phase::Stopped})
   {
     summary += std::format("{}: {} ms, PSInvocations per covered pixel {}\n", PHASE_NAMES[static_cast<std::size_t>(phase)],
                            Describe(SpreadOver(_shots, Depth::Conservative, phase, pass(NeuronClient::GpuPass::ViewSplat)), 3),
@@ -276,7 +276,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
 } // namespace
 
 std::optional<std::wstring> RunBench(NeuronClient::Window& _window, NeuronClient::Renderer& _renderer, const Scene& _scene,
-                                     const NeuronCore::RenderSettings& _settings, float _restSeconds, std::uint32_t _seconds)
+                                     const NeuronCore::RenderSettings& _settings, float _stopSeconds, std::uint32_t _seconds)
 {
   const std::uint32_t frames = std::max(_seconds * FRAMES_PER_SECOND, 1u);
   OrbitCamera camera(_scene.center, _scene.radius);
@@ -295,7 +295,7 @@ std::optional<std::wstring> RunBench(NeuronClient::Window& _window, NeuronClient
     _window.Input().EndFrame();
     const double fraction = static_cast<double>(_index) / static_cast<double>(frames);
     const float yawRadians = startYawRadians + static_cast<float>(2.0 * std::numbers::pi * fraction);
-    const float explosionSeconds = ExplosionSeconds(fraction, _restSeconds);
+    const float explosionSeconds = ExplosionSeconds(fraction, _stopSeconds);
     camera.SetYawRadians(yawRadians);
     if (_measured)
     {

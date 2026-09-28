@@ -57,11 +57,6 @@ constexpr float EMISSIVE_STEP = 1.1f;
 constexpr float EMISSIVE_GAIN_MINIMUM = 0.01f;
 constexpr float EMISSIVE_GAIN_MAXIMUM = 100.0f;
 
-// + and - scale the explosion's time by this much, within these bounds (§13).
-constexpr float TIME_SCALE_STEP = 2.0f;
-constexpr float TIME_SCALE_MINIMUM = 1.0f / 16.0f;
-constexpr float TIME_SCALE_MAXIMUM = 8.0f;
-
 // Keys 2 to 6 choose these debug views; key 1 returns to the lit image.
 constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NAMES{L"albedo", L"normal", L"voxel index", L"shadow map",
                                                                                     L"overdraw"};
@@ -73,16 +68,14 @@ constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAME
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
                                    L"Wheel\tdolly\n"
-                                   L"F\tframe the model, or the explosion's reach once it has started\n"
+                                   L"F\tframe the model, or the detonation's reach once it has started\n"
                                    L"Tab\tfly mode: W A S D move, Page Down and Page Up sink and rise, Shift faster\n"
                                    L"E\tdetonate\n"
                                    L"R\treassemble\n"
                                    L"Space\tpause\n"
-                                   L"+ -\ttime faster, slower\n"
                                    L"1\tthe lit image\n"
                                    L"2 - 6\talbedo, normal, voxel index, shadow map, overdraw\n"
                                    L"[ ]\temissive glow down, up\n"
-                                   L"G\tground\n"
                                    L"V\tvsync\n"
                                    L"F1\tthis key map\n"
                                    L"F2\tthe figures on screen\n"
@@ -91,24 +84,22 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
 struct Controls
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
-  bool ground = true;
   bool vsync = true;
   bool figures = true; // on screen; the title always carries them
   float emissiveGain = 1.0f;
 };
 
-// The explosion's time (§12, §13): E runs it forward from wherever it is, R runs it back to the intact model, Space
-// pauses it, and + and - scale it. It stops at the time by which every voxel rests, so that reassembly never takes
-// longer than the explosion did.
+// The detonation's time (§13, Design/SpaceScene.md §5.5): E runs it forward from wherever it is, R runs it back to the
+// intact model, and Space pauses it. It stops at the envelope's stop time, by which every voxel has drifted to a stop, so
+// that reassembly never takes longer than the detonation did.
 struct ExplosionClock
 {
   float seconds = 0.0f;   // since the detonation; 0 is the intact model
   float direction = 0.0f; // 1 forward, -1 back, 0 still
-  float scale = 1.0f;
   bool paused = false;
 };
 
-void RunClock(ExplosionClock& _clock, const InputState& _input, float _restSeconds, float _elapsedSeconds)
+void RunClock(ExplosionClock& _clock, const InputState& _input, float _stopSeconds, float _elapsedSeconds)
 {
   if (_input.WasKeyPressed('E'))
   {
@@ -124,17 +115,9 @@ void RunClock(ExplosionClock& _clock, const InputState& _input, float _restSecon
   {
     _clock.paused = !_clock.paused;
   }
-  if (_input.WasKeyPressed(VK_OEM_PLUS) || _input.WasKeyPressed(VK_ADD))
-  {
-    _clock.scale = std::min(_clock.scale * TIME_SCALE_STEP, TIME_SCALE_MAXIMUM);
-  }
-  if (_input.WasKeyPressed(VK_OEM_MINUS) || _input.WasKeyPressed(VK_SUBTRACT))
-  {
-    _clock.scale = std::max(_clock.scale / TIME_SCALE_STEP, TIME_SCALE_MINIMUM);
-  }
   if (!_clock.paused)
   {
-    _clock.seconds = std::clamp(_clock.seconds + _clock.direction * _clock.scale * _elapsedSeconds, 0.0f, _restSeconds);
+    _clock.seconds = std::clamp(_clock.seconds + _clock.direction * _elapsedSeconds, 0.0f, _stopSeconds);
   }
   if (_clock.seconds == 0.0f && _clock.direction < 0.0f)
   {
@@ -225,10 +208,6 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   {
     _controls.emissiveGain = std::min(_controls.emissiveGain * EMISSIVE_STEP, EMISSIVE_GAIN_MAXIMUM);
   }
-  if (_input.WasKeyPressed('G'))
-  {
-    _controls.ground = !_controls.ground;
-  }
   if (_input.WasKeyPressed('V'))
   {
     _controls.vsync = !_controls.vsync;
@@ -286,10 +265,6 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   {
     figures.push_back(std::format(L"t {:.2f} s", _clock.seconds));
   }
-  if (_clock.scale != 1.0f)
-  {
-    figures.push_back(std::format(L"time x{}", _clock.scale));
-  }
   if (_clock.paused)
   {
     figures.emplace_back(L"paused");
@@ -335,20 +310,15 @@ void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>&
   _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
-// The sun's view (§10): fitted once to the explosion's envelope, which holds the model's box and reaches the ground, so
-// that it never moves and shadows do not swim.
+// The sun's view (§10): fitted once around the detonation's envelope, which holds the model and all of its debris
+// (Design/SpaceScene.md §5.5), so that it never moves and shadows do not swim.
 [[nodiscard]] NeuronCore::OrthographicView FitShadowView(const Scene& _scene, const NeuronCore::RenderSettings& _settings,
                                                          const NeuronCore::ExplosionEnvelope& _envelope) noexcept
 {
   const NeuronCore::Float3 toSun = NeuronCore::SunDirection(_settings.sunElevationRadians, _settings.sunAzimuthRadians);
-  return NeuronCore::MakeShadowView(toSun, _scene.center, NeuronCore::SHADOW_HALF_EXTENT, _envelope.lower, _envelope.upper,
-                                    NeuronCore::SHADOW_MAP_PIXELS);
-}
-
-[[nodiscard]] Sphere SphereAround(NeuronCore::Float3 _lower, NeuronCore::Float3 _upper) noexcept
-{
-  const NeuronCore::Float3 center = (_lower + _upper) * 0.5f;
-  return {center, NeuronCore::Length(_upper - center)};
+  const NeuronCore::Float3 reach{_envelope.radius, _envelope.radius, _envelope.radius};
+  return NeuronCore::MakeShadowView(toSun, _scene.center, NeuronCore::SHADOW_HALF_EXTENT, _envelope.center - reach,
+                                    _envelope.center + reach, NeuronCore::SHADOW_MAP_PIXELS);
 }
 
 } // namespace
@@ -377,7 +347,7 @@ void RunGame(const GameOptions& _options)
     if (_options.benchSeconds)
     {
       if (const std::optional<std::wstring> summary =
-            RunBench(window, renderer, scene, settings, envelope.restTimeSeconds, *_options.benchSeconds))
+            RunBench(window, renderer, scene, settings, envelope.stopSeconds, *_options.benchSeconds))
       {
         OutputDebugStringW(summary->c_str());
         MessageBoxW(window.Handle(), summary->c_str(), L"Outpost --bench", MB_OK | MB_ICONINFORMATION);
@@ -386,10 +356,9 @@ void RunGame(const GameOptions& _options)
     }
     OrbitCamera camera(scene.center, scene.radius);
     Controls controls;
-    controls.ground = settings.groundVisible;
     ExplosionClock explosionClock;
     const Sphere intact{scene.center, scene.radius};
-    const Sphere exploded = SphereAround(envelope.lower, envelope.upper);
+    const Sphere exploded{envelope.center, envelope.radius};
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
@@ -403,7 +372,7 @@ void RunGame(const GameOptions& _options)
       NeuronClient::InputState& input = window.Input();
       Steer(camera, explosionClock.seconds > 0.0f ? exploded : intact, input, current.heightPixels, static_cast<float>(seconds));
       Choose(controls, input, window.Handle());
-      RunClock(explosionClock, input, envelope.restTimeSeconds, static_cast<float>(seconds));
+      RunClock(explosionClock, input, envelope.stopSeconds, static_cast<float>(seconds));
       input.EndFrame();
       if (current.widthPixels == 0 || current.heightPixels == 0)
       {
@@ -436,8 +405,7 @@ void RunGame(const GameOptions& _options)
       {
         DrawFigures(renderer.Overlay(), figures, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
       }
-      NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
-      lighting.groundVisible = controls.ground;
+      const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
       renderer.Render(camera.View(current.widthPixels, current.heightPixels),
                       {controls.debugView, lighting, settings.exposure, explosionClock.seconds, controls.vsync, false, false});
     }
