@@ -262,7 +262,7 @@ So the load moves from voxels to placements and events. The renderer was built f
 
 **`SpaceScene.md`.** S-M4 is merged and waits for the owner's check (SpaceScene §16). S-M5, S-M6 and S-M7 (the sky, bloom, temporal anti-aliasing and the cascades) are the look, and the slice plays without them, so they wait until after it (G22). S-M8's bench and S-M9's levers are what a strategic camera needs most, since a view of a sector puts most of its voxels under a pixel (SpaceScene §17). So they move into G-M3, revised: the bench measures a battle, and the levers hold on damaged placements (§11.1).
 
-**`NeuronVoxelFormat.md`.** Designs and modules are `.nvf` files, so N-M1, the format, and N-M2, the importer and the converted assets, open G-M1, with the follow-up that has `Outpost.exe` load `.nvf` instead of `.vox` (NVF §10). N-M3 and N-M4, the Python twin and the Blender extension, wait: mounts on the grid are what MagicaVoxel's markers already express (§5.2).
+**`NeuronVoxelFormat.md`.** Designs and modules are `.nvf` files, so N-M1, the format, and N-M2, the importer and the converted assets, open G-M1, with the follow-up that has `Outpost.exe` load `.nvf` instead of `.vox` (NVF §10). N-M3 and N-M4, the Python twin and the Blender extension, were to wait, since mounts on the grid are what MagicaVoxel's markers already express (§5.2); they were built alongside this concept, and the owner kept them with N-M1 and N-M2 (NeuronVoxelFormat.md §11, question 12).
 
 **Question 25** of SpaceScene §17, how N and B find the flights' leaders, is answered by the concept rather than by a flag: selection replaces the cycling, and an entity's side crosses the wire in protocol version 2 (§11.1).
 

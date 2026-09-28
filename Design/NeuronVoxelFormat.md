@@ -274,7 +274,7 @@ It lists every problem at once, as the importer does. A `FromVox` hardpoint keep
 | N-M4 | The Blender extension | The §9 checklist passed by hand on the frigate and the capital ship | Built on 2026-09-28 ([ADR-020](ADR/ADR-020-nvf-import.md)): its tests pass headless on Blender 4.2.23 and 4.5.14, and green in CI, run 36472236316; the checklist passed headless on the frigate, and by hand it is the owner's |
 | later | `Outpost.exe` loads `.nvf` instead of `.vox` | A separate design change to SampleRenderer §7 | Not started |
 
-**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, in which ship and station designs and their modules are `.nvf` files (its §5 and §12.1). N-M1, N-M2 and the follow-up that has `Outpost.exe` load `.nvf` therefore open its G-M1. N-M3 and N-M4 wait until after its slice: the mounts it needs sit on the grid, turned by the cube's 24 rotations, which MagicaVoxel's markers already express (§5). N-M3 and N-M4 were built alongside the concept, on the branch that carried N-M1 and N-M2 (PR #16), before its plan reached that branch. Whether they land before the slice is the owner's to say.
+**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, in which ship and station designs and their modules are `.nvf` files (its §5 and §12.1). N-M1, N-M2 and the follow-up that has `Outpost.exe` load `.nvf` therefore open its G-M1. N-M3 and N-M4 wait until after its slice: the mounts it needs sit on the grid, turned by the cube's 24 rotations, which MagicaVoxel's markers already express (§5). N-M3 and N-M4 were built alongside the concept, on the branch that carried N-M1 and N-M2 (PR #16), before its plan reached that branch, and the owner kept them there: they land with N-M1 and N-M2 rather than after the slice (§11, question 12).
 
 ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M3, M4 and the canvas, so the axes ADR is [ADR-011](ADR/ADR-011-engine-axes.md), and SampleRenderer §17's list names it. The space scene takes ADRs in parallel, and S-M4 took ADR-018, so on 2026-09-28 the owner reserved ADR-019 for N-M1's format ([ADR-019](ADR/ADR-019-nvf-format.md)) and ADR-020 for N-M2's importer and layout; the space scene and the game concept continue from ADR-021.
 
@@ -299,6 +299,10 @@ ADR numbers are taken in order when each ADR lands. ADR-008 to ADR-010 went to M
 9. **Snapping to an edge means the edge's midpoint (§7),** rather than the nearest point on the edge, so that snaps repeat and land on the half-voxel grid.
 10. **The extension's tests that need Blender run locally and skip in CI (§9).** What can be decided without Blender is kept apart from it, so that CI tests it.
 11. **Export refuses to write over voxels NvfImport has changed since the import (§7).** Export works from the bytes the `.blend` stores, so writing from an older `.blend` would put the older voxels back.
+
+**Answered by the owner on 2026-09-28, after the game concept:**
+
+12. **N-M3 and N-M4 land with N-M1 and N-M2 (§10).** The game concept would have them wait until after its slice, but they were built by then, and the owner kept them in the same pull request.
 
 **Risks:**
 
