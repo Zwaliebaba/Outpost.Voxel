@@ -263,7 +263,7 @@ In the orthographic shadow permutation, step 3 collapses to an exact expression:
 
 The ray starts at the camera. Its direction combines the camera's axes with the pixel's normalised device coordinates, scaled by the field of view and aspect ratio, and has a view-space depth component of exactly one. The ray parameter *t* is therefore the view depth, and depth is *n* / *t* with no further division. The intersection is Listing 5, with `canStartInBox` false and `oriented` set per permutation. On a miss, or when *t* < *n*, the pixel is discarded. Otherwise the shader writes `SV_DepthLessEqual` = min(*n* / *t*, `SV_Position.z`) and `SV_Target0` = (voxel index, octahedral normal). The normal is *R* × sign vector in the oriented permutation, and the sign vector itself otherwise.
 
-Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed.
+Conservative depth lets a GPU keep hierarchical and early depth rejection even though the shader writes depth. Whether a given GPU actually does, with `discard` also present, is implementation behaviour. M5 measures it by comparing `PSInvocations` against a variant that writes plain `SV_Depth`, `PLAIN_DEPTH`, which makes no promise and so lets no depth test run early; `--bench` draws every frame with both (§13). It is not assumed. On the one GPU measured so far, an Adreno X1-85, early rejection works once the voxels separate and hardly at all on the intact station, and the invocations it saves cost no measurable time ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)).
 
 ### 9.4 Listing 5 in HLSL
 
@@ -444,7 +444,7 @@ Comparison rule: CPU and GPU agree to rounding, not bit for bit. MSVC contracts 
 
 Manual acceptance covers what CI cannot. From M2 on, the owner runs the sample on hardware at every milestone, and at M3 judges the lighting by eye; there is no comparison against MagicaVoxel renders (D12).
 
-Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pixels, which is the tightness of the bounds in one number; the overdraw view; and `--bench`. Figures quoted in ADRs say how they were measured.
+Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pixels; the overdraw view; and `--bench`. Figures quoted in ADRs say how they were measured. `PSInvocations` against covered pixels is what the GPU shaded per visible pixel, in whatever unit that GPU counts. The Adreno X1-85 counts every lane of every 2×2 quad a triangle touches, helper lanes included, so it is not the tightness of the bounds. The tightness is the twin's figure: the share of a rectangle's pixels whose ray hits its box ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)).
 
 ## 15. Milestones
 
@@ -455,7 +455,7 @@ Measurement (M5) covers per-pass timestamps; `PSInvocations` against covered pix
 | M2 | The engine and game layout; window, device (hardware and WARP), aligned view splat, visibility buffer, debug views; ADR-003 to ADR-006 | `NeuronClientTests` green on WARP in CI; the owner sees the station on hardware |
 | M3 | Shadow splat, lighting, ground, emissive, tone mapping; ADR-008 | Shadow tests green; the owner accepts the look |
 | M4 | Pose in HLSL and C++, oriented permutations, time controls; ADR-009 | Explosion tests green; the owner has detonated and reassembled the station |
-| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note, and an ADR for any decision it drives |
+| M5 | Timings, pipeline statistics, overdraw view, `--bench` | A measured performance note ([`SampleRendererPerformance.md`](SampleRendererPerformance.md)), and an ADR for any decision it drives |
 
 M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed here because nothing after it can be verified without it.
 
