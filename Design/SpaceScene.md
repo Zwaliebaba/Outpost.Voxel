@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** draft for the owner's acceptance. The owner answered six questions on 2026-09-28 (§17, 1–6); the rest of §17 is open · **Date:** 2026-09-28
+**Status:** draft for the owner's acceptance. The owner answered seven questions on 2026-09-28 (§17, 1–7), and revised D4 of `SampleRenderer.md` with the seventh; the rest of §17 is open · **Date:** 2026-09-28
 **Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this retires from `SampleRenderer.md` and what it amends there.
@@ -11,7 +11,7 @@ The single station on a floor gives way to a scene in space: several stations, s
 
 The world is built from a seed and a small parameter block, so the same arguments build the same world and simulate it the same way, tick for tick. `--bench` steps the simulation in lockstep with its own frames, so every run draws the same frames. That is what makes the scene a test bed for performance: the workload is set on the command line, and whatever it is, it repeats.
 
-The renderer keeps its technique, its depth conventions and its twins. What it gains is placement: one model drawn many times, each time under a rigid transform and with its own palette. Stations draw through the aligned splat and ships through the oriented one. Shadows come from cascades fitted to the camera, and the sky is drawn at the far plane of the reversed-Z view.
+The renderer keeps its technique, its depth conventions and its twins. What it gains is placement: one model drawn many times, each time under a rigid transform and with its own palette. Stations draw through the aligned splat and ships through the oriented one. Shadows come from cascades fitted to the camera, the sky is drawn at the far plane of the reversed-Z view, and bloom spreads the brightest light before the tone map.
 
 | # | Decision | Source |
 |---|---|---|
@@ -28,10 +28,11 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 | S11 | The world comes from a seed and a parameter block. The same arguments give the same world and the same simulation, tick for tick, within one build. | §5.2 |
 | S12 | The world lies within ±16,384 units of the origin, where a coordinate's spacing is at most 2⁻¹⁰ of a voxel. Camera-relative rendering waits until the world outgrows that. | §7.5 |
 | S13 | Models reach the client by name and content hash, in the server's welcome. No game-specific type crosses the wire, so no shared game library is created yet (ADR-003). | §6.2 |
+| S14 | Bloom: a share of the HDR image's light, spread over a wide kernel before the tone map, with no threshold. D4 is revised to match, so that nothing in the look is ruled out. | Owner, 2026-09-28; §12.2 |
 
 ## 2. Scope
 
-**In scope:** the retirement (§3); placements in the renderer (§7); the world, its layout and its flight (§5); the messages, the transport, the server's host and the client's session (§6); reversed-Z carried through the new passes (§9); cascaded shadows (§10); the sky (§11); lighting in space (§12); the camera, keys, figures and command line (§13); `--bench` on the space scene (§14); and the tests for all of it (§15).
+**In scope:** the retirement (§3); placements in the renderer (§7); the world, its layout and its flight (§5); the messages, the transport, the server's host and the client's session (§6); reversed-Z carried through the new passes (§9); cascaded shadows (§10); the sky (§11); lighting in space and bloom (§12); the camera, keys, figures and command line (§13); `--bench` on the space scene (§14); and the tests for all of it (§15).
 
 **Out of scope, and why:**
 
@@ -40,7 +41,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 - **Loading `.nvf`.** Models load from `.vox` by name (§6.2). The loader changes when NVF's follow-up lands, and nothing else does.
 - **Less work for distant voxels:** the paper's stochastic pruning (Listing 3, which SampleRenderer §4.2 item 9 left out) or a level of detail. This scene is what will show whether either pays (§14), and each is an ADR on measured numbers.
 - **Stations that turn.** A station stays where it is placed, turned through one of the cube's symmetries, which keeps its 225,048 voxels on the aligned splat (§7.2). A spinning station moves to the oriented splat; that is a parameter away once the bench has said what it costs.
-- **Anti-aliasing, bloom and HDR output**, as in SampleRenderer §2 and D4; §17 asks how D4 reads against the stars' halos.
+- **Anti-aliasing and HDR output.** Neither is in this plan, and since D4's revision nothing rules either out. §17 asks about anti-aliasing, which bloom makes more visible.
 
 ## 3. What the owner's answers change
 
@@ -48,7 +49,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 
 **The explosion goes whole:** its twin (`NeuronCore/Explosion.h` and `.cpp`) and `ExplosionTests`; its HLSL (`Explosion.hlsli`, `ExplosionConstants.hlsli`); `NeuronClient/ExplosionConstants.h` and `.cpp` and their layout echo; the oriented splat's entry points and pipelines; `ExplosionSplatTests`; the oriented cases of `MeasurementTests`; the six `Explosion…` tests of `MilitaryStationTests`; the clock; and the keys E, R, Space, + and −. The oriented ray-box twin and its CPU tests stay. The oriented permutation returns in S-M2 with a rigid pose and tests of its own (§7.2). Between the two milestones nothing draws an oriented box, so nothing untested runs.
 
-**The ground goes from the lighting:** `LightPixel`'s ground branch in both twins, `groundVisible`, the G key, and the reading of `_setting _ground`. The hemisphere ambient keeps its lower color, which the ground's color also supplied, until S-M5 gives it a new source (§12). The shadow view is fitted to the station's box, no longer grown down to a floor.
+**The ground goes from the lighting:** `LightPixel`'s ground branch in both twins, `groundVisible`, the G key, and the reading of `_setting _ground`. The hemisphere ambient keeps its lower color, which the ground's color also supplied, until S-M5 gives it a new source (§12.1). The shadow view is fitted to the station's box, no longer grown down to a floor.
 
 **`--bench` keeps its machinery:** the warm-up, both depth variants of every frame, the coverage count, the CSV and the summary. It loses the explosion's timeline, and until S-M7 it runs the intact station under a circling camera.
 
@@ -216,7 +217,8 @@ A voxel's box is intersected in world coordinates. Within ±16,384 units, a coor
 | View splat | Graphics | Records, placements | Depth, visibility | Reversed-Z, `GREATER` |
 | Lighting | Compute | Depth, visibility, cascades, records, placements, palettes | HDR color | — |
 | Sky | Graphics: one full-screen triangle, then one quad per star | View depth (read-only), star records | HDR color | Reversed-Z far plane, `EQUAL` |
-| Tone map | Graphics, as today | HDR color | Back buffer | — |
+| Bloom | Compute: six halvings at 1080p, then six steps back up | HDR color | The bloom chain | — |
+| Tone map | Graphics, as today, mixing the bloom in first | HDR color, the bloom chain | Back buffer | — |
 | Canvas | Graphics, as today | Quads, glyph atlas | Back buffer | — |
 
 ## 9. Depth: reversed-Z, kept and carried (S5)
@@ -266,7 +268,7 @@ At 1920 × 1080 and a 45° field of view, a pixel spans about 0.04°, and a texe
 
 `StarRecord` holds a star's direction, flux and color. It is the element of a structured buffer, so its layout is shared with HLSL under R16.
 
-**Drawing.** One quad per star. The vertex shader projects the star's direction, a point at infinity, so the camera's position never enters. It sizes the quad to where the star's point-spread function falls below the darkest step the tone map shows. The pixel shader integrates a Gaussian point-spread function (σ = 0.7 pixels) over the pixel's square exactly, through the error function, so a star that moves by a fraction of a pixel neither flickers nor changes brightness. A second Gaussian, wider (σ = 2.5 pixels) and much fainter (2 % of the energy), makes a bright star look larger than a faint one, and that is where the natural look's different sizes come from. Both add into the HDR color before the tone map, and the depth test of §9 keeps every star behind every voxel.
+**Drawing.** One quad per star. The vertex shader projects the star's direction, a point at infinity, so the camera's position never enters. It sizes the quad to where the star's point-spread function falls below the darkest step the tone map shows. The pixel shader integrates a Gaussian point-spread function (σ = 0.7 pixels) over the pixel's square exactly, through the error function, so a star that moves by a fraction of a pixel neither flickers nor changes brightness. A bright star looks larger than a faint one, which is where the natural look's different sizes come from: its Gaussian stays visible further from its center, and bloom (§12.2) spreads a share of its light wider still. Stars add into the HDR color before bloom and the tone map, and the depth test of §9 keeps every star behind every voxel.
 
 **Twins.** `StarPixel` gives one star's radiance in one pixel, and the error function is one polynomial (Abramowitz and Stegun 7.1.26) in both languages. The catalog runs only on the CPU.
 
@@ -283,13 +285,15 @@ A gain, tuned by eye, keeps it faint: a spread in the background, not a source o
 
 ### 11.4 The sun
 
-The sun is a disc at the welcome's sun direction and angular radius (0.27° by default), at the sun's radiance, which the tone map clips to white. It has limb darkening and a faint corona that falls off over a few degrees, and its edge is antialiased over one pixel's angle. It is the same sun the lighting uses (§12).
+The sun is a disc at the welcome's sun direction and angular radius (0.27° by default), at the sun's radiance, which the tone map clips to white. It has limb darkening, and its edge is antialiased over one pixel's angle; its glare is bloom's (§12.2). It is the same sun the lighting uses (§12.1).
 
 ### 11.5 The pass
 
 The sky pass runs after the lighting and before the tone map. The HDR color gets a render-target view, and the view's depth is bound read-only. First a full-screen triangle at the far plane writes galaxy and sun into every pixel still at the far plane; then the stars add. The lighting still writes its background into those pixels first, and the sky overwrites them. Because the sky's pixel shader writes no depth, the early depth test keeps the galaxy's noise off every pixel a voxel covers. The sky is timed as a pass of its own.
 
-## 12. Lighting in space (supersedes ADR-008)
+## 12. The look: lighting in space and bloom
+
+### 12.1 Lighting (supersedes ADR-008)
 
 SampleRenderer §11's formula stays. What changes is where its values come from: the welcome's world settings, not a `.vox` file's `rOBJ` chunks, which no longer drive anything. `ReadRenderSettings` and its tests go, and the reader still stores the chunks verbatim.
 
@@ -300,7 +304,21 @@ The defaults:
 - **The background** black, under the sky.
 - **The emissive mapping** of ADR-008 (`_emit` × 2^`_flux` × the gain) unchanged, read from each model's own palette.
 
-The look is the owner's to judge by eye in S-M5, and the values accepted become the defaults.
+The look is the owner's to judge by eye in S-M5, and the values accepted become the defaults. D4, as revised, puts no ceiling on it: more lights, emissive light that reaches other surfaces, ambient occlusion or global illumination can each join later, with an ADR and a twin.
+
+### 12.2 Bloom (S14)
+
+On 2026-09-28 the owner asked for bloom, and revised D4 so that nothing in the look is ruled out. Bloom runs on the HDR color after the sky and before the tone map, so that the sun, the stars, the engines and every brightly lit hull spread their light the way a lens or an eye spreads it.
+
+**No threshold.** A fixed share of every pixel's light, 4 % by default and tuned by eye, is spread over a wide, smooth kernel, and the rest stays where it was. Bright light spreads visibly, dim light's spread stays below what the display shows, and nothing pops on or off as it crosses a threshold.
+
+**The kernel** is built as Jimenez built it for *Call of Duty: Advanced Warfare* (2014). The HDR image is halved, six times at 1080p, each halving a 13-tap filter; the levels are then added back up the chain, each step a 3 × 3 tent filter, and the tone map mixes the result into the image by the share. The first halving weights its taps by 1 / (1 + luminance), Karis's average, so that one brilliant texel, a sub-pixel engine glow or a star, cannot flare and flicker as it crosses pixels. That matters here, because the image has no anti-aliasing yet (§17).
+
+**The twin.** Every tap lands on a texel corner or a quarter of the way between texel centers, where bilinear weights are exact in the sampler's eight bits of subtexel precision. A CPU twin filtering the same image (R15) therefore agrees with the GPU to rounding, and a WARP test compares the two, texel by texel, at every level.
+
+**The cost.** The chain is `R16G16B16A16_FLOAT` from half the view's size down, about 5.5 MB at 1080p by arithmetic. Bloom is timed as a pass of its own (§13, §14).
+
+Bloom is the frame's only glow. The stars and the sun draw none of their own (§11.2, §11.4), so every bright thing glows the same way.
 
 ## 13. Application
 
@@ -310,7 +328,7 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 
 **Keys.** Space pauses the server, the first command (§6.2). 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view. [ and ] set the emissive gain, V vsync, F1 the key map and F2 the figures; Alt+F4 quits.
 
-**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities; the placements drawn and culled and the voxels drawn, per view and per cascade; the sky's GPU time and each cascade's; and "paused" when the server is.
+**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom and of each cascade; and "paused" when the server is.
 
 ## 14. `--bench`
 
@@ -318,7 +336,7 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 
 **The camera's path** is a closed path through the layout, derived from the seed. It passes close to a station (large rectangles, near-plane crossings), takes a wide view of the whole cluster (most voxels under a pixel), and chases a capital ship for a stretch (rigid placements filling the screen). Each stretch is a phase in the summary, as intact, in flight and at rest were.
 
-**What it measures:** everything it measures today (per-pass GPU times, pipeline statistics, covered pixels, both depth variants). To that it adds the sky and each cascade, the placements and voxels each view drew, and CPU times: the server's tick, a snapshot's encoding and decoding, the interpolation, and the client's culling and recording. The summary names the seed and the parameters, so any run can be repeated exactly.
+**What it measures:** everything it measures today (per-pass GPU times, pipeline statistics, covered pixels, both depth variants). To that it adds the sky, bloom and each cascade, the placements and voxels each view drew, and CPU times: the server's tick, a snapshot's encoding and decoding, the interpolation, and the client's culling and recording. The summary names the seed and the parameters, so any run can be repeated exactly.
 
 **A preset** of one station, no ships and an orbiting camera at the default framing stands nearest to the M5 note's intact phase (§3.3), with the sky and without the ground. It is what shows the placement refactor's cost on the old workload.
 
@@ -334,6 +352,7 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 - `LoopbackTransport`: order, completeness, closing, and two threads;
 - the star catalog: the same seed gives the same bytes; the counts per magnitude follow the target law within bounds; faint stars lie near the plane more often than bright ones do; and every color is in gamut at unit luminance;
 - the sky's twins: finite everywhere, including at the galactic poles, along the axes and at the exact sun direction; no seam where longitude wraps; and a star's energy, summed over its pixels, equals its flux wherever in its pixel it falls;
+- the bloom twin: a constant image comes back from the chain unchanged, and one bright texel spreads symmetrically about itself;
 - the cascade fit: turning the camera about its eye leaves every cascade's extent unchanged; moving it by less than a texel leaves every texel center where it was; and every point of every slice lies inside its cascade.
 
 **`NeuronClientTests`, on WARP,** per pixel, with SampleRenderer §14's edge rule and bounds set from the first measured run:
@@ -345,6 +364,7 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 - the measurement variants and the overdraw count on rigid placements, as the oriented ones were tested;
 - the cascades against their twin, and the lighting's choice among them;
 - the sky: galaxy and sun per pixel, and stars per pixel, including a star a voxel hides, against the twins;
+- bloom against its twin, texel by texel at every level of the chain, and the tone map's mix of it;
 - `SnapshotBuffer`, on the CPU: bracketing, appearing and disappearing, holding past the newest snapshot, and a stall shorter than the interpolation delay passing unseen.
 
 **`NeuronServerTests` (new):** the handshake, and a refused version; stepping *N* ticks sends *N* snapshots with consecutive ticks; two clients receive the same bytes; pause freezes the world while its ticks go on, and resume moves it again; and the thread starts and stops cleanly. No test times the thread, because a CI runner's timing is not a measurement.
@@ -356,7 +376,7 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 - over ten simulated minutes, no ship enters a keep-out sphere, every tick respects its class's speed, acceleration and turn rate, every route closes, and wingmen hold their slots within a bound;
 - a parameter block that does not fit is refused by name.
 
-**By hand,** the owner runs the scene at S-M4 (the ships fly, and face the right way), at S-M5 (the sky's look and the lighting in space), at S-M6 (the shadows, and no swimming) and at S-M7 (the bench).
+**By hand,** the owner runs the scene at S-M4 (the ships fly, and face the right way), at S-M5 (the sky's look, bloom and the lighting in space), at S-M6 (the shadows, and no swimming) and at S-M7 (the bench).
 
 ## 16. Milestones
 
@@ -368,11 +388,11 @@ The look is the owner's to judge by eye in S-M5, and the values accepted become 
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, ids, culling and order, the scene tracer; the placements ADR | §15's placement tests green; the station renders as before, through one placement |
 | S-M3 | The messages, the transports, `ServerHost`, `SpaceWorld` and its flight; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green |
 | S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots, the camera, keys, figures and command line; the space scene replaces the station sample | The owner has flown among the ships and confirmed their facing |
-| S-M5 | The sky and the lighting in space; the sky ADR; ADR-008 superseded | The sky tests green; the owner accepts the look |
+| S-M5 | The sky, bloom and the lighting in space; the sky ADR and the bloom ADR; ADR-008 superseded | The sky and bloom tests green; the owner accepts the look |
 | S-M6 | Cascades; the cascades ADR | The cascade tests green; no swimming on hardware |
 | S-M7 | The space bench; a measured performance note; an ADR for every decision its numbers drive | The note is committed |
 
-S-M5 and S-M6 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S-M4.
+S-M5 and S-M6 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S-M4. Bloom depends on nothing this plan adds, so it may land earlier still, even before S-M1, if the owner wants to see it sooner.
 
 ## 17. Risks and open questions
 
@@ -384,15 +404,16 @@ S-M5 and S-M6 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S
 4. **The galaxy is a band across the sky, seen from inside (S4).**
 5. **Reversed-Z throughout (S5).** The view has had it since M2; §9 says how the new passes keep it.
 6. **The frigate's front is the end with the two pins on its sides (§4).**
+7. **Bloom is in, and D4 is revised so that nothing in the look is ruled out (S14, §12.2).**
 
 **Open, each with this design's default:**
 
-7. The order of §3.2: retire before N-M0 (the default), or keep the explosion through N-M0 until S-M2 takes the oriented splat over.
-8. The cascades' depth: standard Z (the default, §9), or reversed-Z too, for one convention.
-9. Bloom. A star's halo and the sun's corona are each object's own light, not a post-process, so this design reads D4's "no bloom" as untouched. If the owner reads them as bloom, they go, and bright stars differ from faint ones by the core alone.
-10. The defaults: 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; three cascades of 2048² out to 3,000 units.
-11. Stations turned through all 24 symmetries (the default, which stands some of them on their sides), or only through the four about the vertical.
-12. The names: this document, the two suites (`NeuronServerTests`, `GameLogicTests`), and whether S3 becomes a conformance rule (§18).
+8. The order of §3.2: retire before N-M0 (the default), or keep the explosion through N-M0 until S-M2 takes the oriented splat over.
+9. The cascades' depth: standard Z (the default, §9), or reversed-Z too, for one convention.
+10. Anti-aliasing. Bloom spreads whatever the image holds, so the crawl of an edge without anti-aliasing, and the flicker of an emissive voxel smaller than a pixel, show more through it. Karis's average keeps single texels from flaring (§12.2), but it cannot remove aliasing. SampleRenderer §16 names the options, a ray per MSAA sample or temporal anti-aliasing, and either is an ADR. The default is to leave it out of this plan.
+11. The defaults: 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units.
+12. Stations turned through all 24 symmetries (the default, which stands some of them on their sides), or only through the four about the vertical.
+13. The names: this document, the two suites (`NeuronServerTests`, `GameLogicTests`), and whether S3 becomes a conformance rule (§18).
 
 **Risks:**
 
@@ -411,14 +432,14 @@ ADRs are numbered in order as they land. The next free number is ADR-011, and N-
 - **S-M1, the retirement:** supersedes ADR-009, and amends ADR-008's ground and NVF §12.2.
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
 - **S-M3, the client/server boundary:** the messages and their validation, `Transport`, the host's tick, threads and stepping, and the client's time. Also the two new suites, amending ADR-003's table.
-- **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
+- **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
 - **S-M6, cascades:** amending SampleRenderer §10 and ADR-006's shadow section.
 - **S-M7:** whatever the numbers decide.
 
 `AGENTS.md`:
 
 - **§2's table:** `NeuronServer` and `GameLogic` say what they hold, and `NeuronServerTests` and `GameLogicTests` join the table. `.clang-tidy`'s `HeaderFilterRegex` already matches every `*Tests` folder, and CI finds suites by name, so neither changes.
-- **R15's list of twins:** the placement's pose replaces the explosion's, and the sky's functions, the star's point-spread function and the choice of cascade join it.
+- **R15's list of twins:** the placement's pose replaces the explosion's, and the sky's functions, the star's point-spread function, bloom's filters and the choice of cascade join it.
 - **A new rule,** under the next free number (R18 unless NVF's has taken it): *Client and server share bytes, never objects: what the server knows reaches the client only as messages through a `Transport`, in one process as in two.* Its source is S3. Project references already keep `GameLib` away from `GameLogic`; the rule covers `Outpost`, the one project that links both.
 - **The paragraph that names the design document** names this one beside `SampleRenderer.md`.
 
@@ -430,6 +451,7 @@ ADRs are numbered in order as they land. The next free number is ADR-011, and N-
 - F. Zhang, H. Sun, L. Xu, L. K. Lun. *Parallel-Split Shadow Maps for Large-Scale Virtual Environments.* VRCIA 2006.
 - C. Wyman, P.-P. Sloan, P. Shirley. *Simple Analytic Approximations to the CIE XYZ Color Matching Functions.* JCGT 2(2), 2013.
 - M. Abramowitz, I. A. Stegun. *Handbook of Mathematical Functions*, formula 7.1.26.
+- J. Jimenez. *Next Generation Post Processing in Call of Duty: Advanced Warfare.* SIGGRAPH 2014, Advances in Real-Time Rendering in Games.
 - M. Jarzynski, M. Olano. *Hash Functions for GPU Rendering.* JCGT 9(3), 2020.
 - G. Fiedler. *Snapshot Interpolation*, 2014: https://gafferongames.com/post/snapshot_interpolation/
 - Y. Bernier. *Latency Compensating Methods in Client/Server In-game Protocol Design and Optimization.* Valve, 2001.

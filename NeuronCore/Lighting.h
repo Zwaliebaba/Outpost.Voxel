@@ -53,7 +53,7 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 [[nodiscard]] Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept;
 
 // §11: C = albedo × (E_sun × max(0, N·S) × shadow + ambient(N)) + albedo × emissive, with the emissive scale times the
-// gain. Emissive light reaches nothing else, and nothing blooms (D4).
+// gain. Emissive light reaches no other surface.
 [[nodiscard]] Float3 ShadeSurface(Float3 _albedo, float _emissiveScale, Float3 _normal, float _shadow,
                                   const LightingParameters& _lighting) noexcept;
 
