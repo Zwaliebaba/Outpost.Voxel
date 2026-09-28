@@ -1,6 +1,6 @@
 # Outpost.Voxel — Game Concept
 
-**Status:** draft for the owner's review, 2026-09-28; G1 to G11 are the owner's answers of 2026-09-28, G12 to G19 are derived from them here, and the questions of §14 are open · **Date:** 2026-09-28
+**Status:** draft, 2026-09-28, awaiting the owner's acceptance (G-M0); G1 to G11 are the owner's answers of 2026-09-28 and G20 to G26 the proposals of §14 the owner took the same day, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14) · **Date:** 2026-09-28
 **Builds on:** [`SpaceScene.md`](SpaceScene.md), the world, the client/server boundary and the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md), parts and hardpoints; [ADR-003](ADR/ADR-003-engine-and-game-layout.md), [ADR-014](ADR/ADR-014-placements.md), [ADR-015](ADR/ADR-015-client-server-boundary.md), [ADR-017](ADR/ADR-017-sector.md) and [ADR-018](ADR/ADR-018-client.md) · **Reference game:** Warzone 2100
 
 This document says what the game is: the player's role, the match, construction, stations, the economy, combat, command and the opponent, and in what order the next phase builds them (§12). It is the parent of the technical designs that follow, one for each of its milestones; each of those says how its part is built, and `AGENTS.md` says how the code is written. It changes no code. Where it departs from `SpaceScene.md` or `NeuronVoxelFormat.md` it says so (§13), and those documents change only once the owner accepts this one.
@@ -9,7 +9,7 @@ This document says what the game is: the player's role, the match, construction,
 
 Outpost is a real-time strategy game in space, in the mold of Warzone 2100. The player commands a station and the ships it builds, from a strategic camera, in a sector shared with one opponent and a few neutral traders. What sets it apart is construction. Outside the match, the player sculpts the hulls of ships and station structures voxel by voxel, places the mounts that will hold their modules, and keeps the results in a library of designs. In the match, the player mines ore, grows the station structure by structure, researches, fields designs from the library, refits their modules as the match demands, and fights. Research unlocks modules and armor materials; traders sell modules not yet researched, at a premium. Damage is per voxel: a shot removes the voxels it hits, a module fails as its voxels go, and a ship whose command module fails is lost.
 
-The engine keeps what `SpaceScene.md` built: the authoritative server on a thread of its own, the transport, the snapshots, the placements and the splat. The game changes it in four places (§11). Designs travel as data, not as files both sides already hold. Snapshots carry shots and damage and, with fog of war, differ by side. The renderer's record buffer grows during a match, and its placements mask the voxels shot away. And the levers of SpaceScene §7.6 must survive damage, because in a battle every ship is damaged. The load also moves: a battle's voxels stay within what the space scene draws today, but its placements grow about nineteenfold (§11.2).
+The engine keeps what `SpaceScene.md` built: the authoritative server on a thread of its own, the transport, the snapshots, the placements and the splat. The game changes it in four places (§11). Designs travel as data, not as files both sides already hold. Snapshots carry shots and damage, and differ by side for fog of war. The renderer's record buffer grows during a match, and its placements mask the voxels shot away. And the levers of SpaceScene §7.6 must survive damage, because in a battle every ship is damaged. The load also moves: a battle's voxels stay within what the space scene draws today, but its placements grow about nineteenfold (§11.2).
 
 | # | Decision | Source |
 |---|---|---|
@@ -25,15 +25,22 @@ The engine keeps what `SpaceScene.md` built: the authoritative server on a threa
 | G10 | The economy runs on one resource: ore from asteroid fields, refined into one currency that pays for research, production, armor and trade. | Owner, 2026-09-28 |
 | G11 | A battle is dozens of ships a side, up to about fifty. | Owner, 2026-09-28 |
 | G12 | A design is a hull and its mounts; a fit is the module at each mount. The hull and its mounts are made in the library, the fit in the match. | §5.1 |
-| G13 | Each of a design's sixteen palette entries pairs a color with a material, so R14's record and palette stay as they are. | §5.3 |
+| G13 | Each of a design's sixteen palette entries pairs a color with a material, so R14's record and palette stay as they are. | §5.3; owner, 2026-09-28 |
 | G14 | A ship lives while its command module works. What damage cuts off from the command module becomes a wreck. | §8.3 |
 | G15 | A shot is a world event, as a detonation is. Every client draws the same shot, and the server alone decides what it hits. | §8.2 |
 | G16 | The opponent plays through a session, as a client does: it sees what its side sees and does what commands allow. | §10 |
 | G17 | Each structure of a station is an entity of its own, standing still and upright, turned by quarter turns about the vertical (S18). | §6 |
 | G18 | A design's performance follows from its geometry: mass and inertia from its voxels, thrust from its thrusters, and weapon arcs that its own hull can block. | §5.4 |
 | G19 | Ore is the voxels of asteroids: mining removes them as damage removes a hull's, so fields are finite and shrink as they are mined. | §7.1 |
+| G20 | A side loses when its station core is destroyed. | Owner, 2026-09-28; §3 |
+| G21 | Fog of war is in the slice: each side's snapshots hold only what its sensors reach, which amends ADR-015. | Owner, 2026-09-28; §9 |
+| G22 | SpaceScene's S-M5, S-M6 and S-M7 wait until after the slice; S-M8 and S-M9 move into G-M3, revised for a battle and for damage. | Owner, 2026-09-28; §12.1 |
+| G23 | The in-game designer is the phase's last milestone; until it lands, designs are authored in MagicaVoxel and imported. | Owner, 2026-09-28; §12.2 |
+| G24 | One palette entry of every design and every module shows the side's color. | Owner, 2026-09-28; §5.3 |
+| G25 | Traders cannot be attacked in the slice, and deal with a side only while it alone has a ship within their trade radius. | Owner, 2026-09-28; §7.3 |
+| G26 | A station's structures share power through their connectors, and a structure cut off from the core is unpowered. | Owner, 2026-09-28; §6 |
 
-G12 to G19 are this document's own, each derived from the owner's answers in the section it names; accepting the document accepts them.
+G12 to G19 are this document's own, each derived from the owner's answers in the section it names; accepting the document accepts them. G20 to G26 began as this document's proposals, and the owner took them on 2026-09-28.
 
 ## 2. Scope
 
@@ -58,7 +65,7 @@ G12 to G19 are this document's own, each derived from the owner's answers in the
 
 **A skirmish (G8)** is one sector built from a seed, as `Sector` is today (ADR-017): two starting positions far apart, asteroid fields near each and richer ones between them, and one or two trader stations on the ground between. Each side starts with a station core, two constructor ships, a small escort and no research. The world runs at 30 ticks a second, as now.
 
-**Victory.** A side loses when its station core is destroyed (§14, question 13). The core can be defended, repaired and surrounded by structures, but not rebuilt, so every match has an end.
+**Victory.** A side loses when its station core is destroyed (G20). The core can be defended, repaired and surrounded by structures, but not rebuilt, so every match has an end.
 
 **Scale (G11).** Dozens of ships a side, up to about fifty, and perhaps fifteen structures. Ships are the size of the two ship assets and between them: from the frigate's 1,181 voxels to the capital ship's 10,747 (SpaceScene §4). A match is meant to last twenty to forty minutes. That is a target for tuning the economy and the tree, not a figure anyone has measured.
 
@@ -99,9 +106,9 @@ Until the in-game designer (G-M6), designs are authored in MagicaVoxel and conve
 
 The hull is built from armor materials (G3), which research unlocks (§7.2). Each has a density, a toughness (the damage a voxel of it takes before it goes) and a price per voxel. R14 fixes a voxel's record at 32 bits with a four-bit color, and the owner fixed the palette at sixteen entries. This concept keeps both: each of a design's sixteen palette entries pairs a color with a material, a design has at most sixteen color–material pairs, and a voxel's material is its entry's. The pairing is gameplay data, kept in the design's game data rather than its `.nvf` (N8), so neither the record nor the renderer changes.
 
-Sixteen pairs is room for four materials in four colors each, or one material in every color. If that proves too tight, the alternative is the record's four zero bits, 28 to 31, as a material of its own. That is a format change to R14 and to NVF's voxel record, and it costs least before N-M1 lands (§14, question 17).
+Sixteen pairs is room for four materials in four colors each, or one material in every color. The owner chose the pairing over the alternative, the record's four zero bits, 28 to 31, as a material of its own (G13), so N-M1 builds NVF's voxel record as NVF §4 has it. If sixteen pairs prove too tight, those bits remain the way out, but once N-M1 has landed they are a major version of NVF (NVF §4.6) as well as a change to R14.
 
-**The side's color.** One entry of every design's and every module's palette shows the side's color, and the renderer gives each side its own variant of each palette. Placements already name their palette (ADR-014), so a side's color costs a palette per model and side, and nothing per voxel. It also costs the player one of the sixteen entries (§14, question 18).
+**The side's color.** One entry of every design's and every module's palette shows the side's color, and the renderer gives each side its own variant of each palette. Placements already name their palette (ADR-014), so a side's color costs a palette per model and side, and nothing per voxel. It also costs the player one of the sixteen entries (G24).
 
 ### 5.4 Performance follows from geometry (G18)
 
@@ -138,7 +145,7 @@ A station is a graph of **structures**, each a design like a ship's: a hull with
 | Turret | Weapon | Defends: the ships' weapon modules, on a structure |
 | Sensor array | Sensor | Sees far (§9) |
 
-**Power.** A ship's reactors power its own modules (§5.4); a station's structures share theirs. Every reactor module in a structure connected to the core supplies the whole station, and every structure draws from it (§14, question 21).
+**Power.** A ship's reactors power its own modules (§5.4); a station's structures share theirs. Every reactor module in a structure connected to the core supplies the whole station, and every structure draws from it (G26).
 
 **Growth.** A constructor ship builds a structure from the library at a free connector of the station, paying as it builds, and the structure appears voxel by voxel as a ship does (§5.6). Connectors are hardpoints of the structures' hulls, with a type of their own. A structure stands upright, turned by quarter turns about the vertical, as S18 has every station stand, so every structure draws with the aligned splat and every voxel center is exact (SpaceScene §7.2).
 
@@ -168,7 +175,7 @@ Warzone 2100's tree has over four hundred technologies. The slice's has about tw
 
 A trader is a neutral station that the sector's seed places on the ground between the starts. It sells modules one step beyond what the side's research has reached, from a fixed catalogue, at a premium, with a stock that runs down as it sells and refills slowly; it is not a simulated market. A module bought joins the side's stock and is consumed when a ship fitted with it is built or refitted. Buying never teaches the side the module. So buying is the shortcut to a few strong ships early, and research the way to field many.
 
-A trader deals with a side only while that side has a ship within its trade radius and the other has none, which makes its ground worth holding. In the slice traders cannot be attacked (§14, question 19).
+A trader deals with a side only while that side has a ship within its trade radius and the other has none, which makes its ground worth holding. In the slice traders cannot be attacked (G25).
 
 ## 8. Combat and damage
 
@@ -205,7 +212,7 @@ Per-voxel damage at fifty ships a side is the concept's largest cost, in three p
 
 **Paths.** The plane is open but not empty: stations, structures and asteroid fields are obstacles, each within its keep-out sphere, as the sector's routes already avoid them (ADR-017). Ships find paths around the keep-outs, steer along them with ADR-017's flight model (pure pursuit, bank and slot), and keep apart from one another by steering, not by collision. They no longer pass through one another, but they still pass through wrecks and debris.
 
-**Fog of war.** Each side sees what its ships' and structures' sensors reach, and its snapshots hold only that (§14, question 14). The server already decides what reaches each client, so a side cannot see past its sensors however its client is changed. This is the one place the concept asks the snapshots to differ by session, which ADR-015 forecloses today (§11.1).
+**Fog of war.** Each side sees what its ships' and structures' sensors reach, and its snapshots hold only that (G21). The server already decides what reaches each client, so a side cannot see past its sensors however its client is changed. This is the one place the concept asks the snapshots to differ by session, which ADR-015 forecloses today (§11.1).
 
 **The HUD:** the side's credits, the selection, the queues of production and research, the minimap, and the refit screen. The canvas draws text and quads (ADR-010); the HUD needs a layer of panels, lists and buttons over it, and D9's "no third-party code" means that layer is the tree's own.
 
@@ -226,7 +233,7 @@ It is game code that reads snapshots and writes commands, so it belongs neither 
 | Designs on the wire: a design, its game data and its fit, sent once and known by its content hash; an entity names its design, its side and its state; protocol version 2 | G3, G5 | S13, and ADR-015's messages |
 | Designs from the client: the server receives a side's designs, validates them (§5.5) and gives them ids | G5 | ADR-015's commands |
 | Events for shots, damage and mining; wrecks as entities | G6, G15, G19 | SpaceScene §5.5, ADR-015 |
-| Snapshots that differ by side, for fog of war | §9 | ADR-015, which sends the same bytes to every session |
+| Snapshots that differ by side, for fog of war | G21 | ADR-015, which sends the same bytes to every session |
 | A shared game library: the module catalogue, the materials, the designs' game data and the asteroids' generator, which both sides read | G3, G19 | ADR-003, which creates it when the first such type appears |
 | A record buffer that grows as designs arrive, instead of one static buffer | G3 | SpaceScene §7.1 |
 | A mask per placement, one bit per voxel, which the splat skips | G6 | SpaceScene §5.5, ADR-014 |
@@ -252,7 +259,7 @@ So the load moves from voxels to placements and events. The renderer was built f
 
 ### 12.1 What happens to the plans that run
 
-**`SpaceScene.md`.** S-M4 is merged and waits for the owner's check (SpaceScene §16). S-M5, S-M6 and S-M7 (the sky, bloom, temporal anti-aliasing and the cascades) are the look, and the slice plays without them; this concept proposes that they wait until after it (§14, question 15). S-M8's bench and S-M9's levers are what a strategic camera needs most, since a view of a sector puts most of its voxels under a pixel (SpaceScene §17). So they move into G-M3, revised: the bench measures a battle, and the levers hold on damaged placements (§11.1).
+**`SpaceScene.md`.** S-M4 is merged and waits for the owner's check (SpaceScene §16). S-M5, S-M6 and S-M7 (the sky, bloom, temporal anti-aliasing and the cascades) are the look, and the slice plays without them, so they wait until after it (G22). S-M8's bench and S-M9's levers are what a strategic camera needs most, since a view of a sector puts most of its voxels under a pixel (SpaceScene §17). So they move into G-M3, revised: the bench measures a battle, and the levers hold on damaged placements (§11.1).
 
 **`NeuronVoxelFormat.md`.** Designs and modules are `.nvf` files, so N-M1, the format, and N-M2, the importer and the converted assets, open G-M1, with the follow-up that has `Outpost.exe` load `.nvf` instead of `.vox` (NVF §10). N-M3 and N-M4, the Python twin and the Blender extension, wait: mounts on the grid are what MagicaVoxel's markers already express (§5.2).
 
@@ -264,7 +271,7 @@ Each milestone gets a technical design before its code, as `AGENTS.md` asks, and
 
 | | Delivers | Done when |
 |---|---|---|
-| G-M0 | This concept accepted; the running plans re-planned as §12.1 says | The owner accepts it and answers §14's open questions |
+| G-M0 | This concept accepted; the running plans re-planned as §12.1 says | The owner accepts it, with §14's questions answered or deferred |
 | G-M1 | **Designs as data.** N-M1, N-M2 and loading `.nvf`; designs, mounts, fits, materials and the module catalogue in the shared game library; protocol version 2, with designs on the wire; the growing record buffer; the sector's ships rebuilt as fitted designs authored in MagicaVoxel | The sector flies and draws fitted designs; each design crosses the loopback once; the design and protocol tests green |
 | G-M2 | **Command.** The strategic camera, picking and selection, orders, paths on the plane and its bands, separation and formations; the HUD's first panels | The owner commands fleets around the sector |
 | G-M3 | **Combat.** Weapons, shots and damage as events, masks, module failure, the command module's loss, wrecks and repair; the bench revised to a battle (S-M8), and the levers held on damaged placements (S-M9) | Two fleets fight to the end; in the tests, the client's missing voxels are the server's, bit for bit; the battle's performance note is committed |
@@ -272,15 +279,15 @@ Each milestone gets a technical design before its code, as `AGENTS.md` asks, and
 | G-M5 | **The skirmish.** The opponent through its session, fog of war, victory, and the skirmish's layout from a seed | The owner plays a skirmish against the opponent to its end |
 | G-M6 | **The designer.** Sculpting a hull voxel by voxel in the game; mounts, materials and colors; validation; the library | The owner builds a design in the game and fields it in a skirmish |
 
-G-M6 comes last so that its rules, the size classes, the materials and what makes a design strong, are the ones the skirmish has tested; until then designs are authored in MagicaVoxel (§5.2). It can move ahead of G-M5 if the owner wants to build in the game sooner (§14, question 16).
+G-M6 comes last so that its rules, the size classes, the materials and what makes a design strong, are the ones the skirmish has tested; until then designs are authored in MagicaVoxel (§5.2). The owner chose that order (G23), and §14 says what it risks.
 
 ## 13. What changes in the other documents
 
 When the owner accepts this concept:
 
-- **`SpaceScene.md`:** its status line and §16 record §12.1's plan. S13 is superseded in part by designs on the wire. §7.1's static buffer and §7.6's rule for damaged placements are amended by the ADRs of G-M1 and G-M3. Question 25 is answered.
-- **`NeuronVoxelFormat.md`:** its milestones as §12.1 says. Mounts and connectors are hardpoint types, and what they mean stays out of the file (N8), so the format does not change unless question 17 of §14 takes the record's spare bits.
-- **ADR-015** is amended by protocol version 2 and, with fog of war, by snapshots that differ by side. **ADR-003** is amended by the shared game library and the opponent's project, each with an ADR of its own.
+- **`SpaceScene.md`:** its status line and §16 record §12.1's plan (G22). S13 is superseded in part by designs on the wire. §7.1's static buffer and §7.6's rule for damaged placements are amended by the ADRs of G-M1 and G-M3. Question 25 is answered.
+- **`NeuronVoxelFormat.md`:** its milestones as §12.1 says. Mounts and connectors are hardpoint types, and what they mean stays out of the file (N8), so the format does not change (G13).
+- **ADR-015** is amended by protocol version 2 and by snapshots that differ by side (G21). **ADR-003** is amended by the shared game library and the opponent's project, each with an ADR of its own.
 - **`AGENTS.md`:** §2's table gains the new projects, and the paragraph that names the designs names this one. G16 may become a rule beside R18, that the opponent plays through a session and nowhere else, if the owner wants review to hold it to that.
 
 ## 14. Risks and open questions
@@ -299,22 +306,20 @@ When the owner accepts this concept:
 10. **Stations grow by designed structures (G9).**
 11. **The economy runs on one resource (G10).**
 12. **A battle is dozens of ships a side (G11).**
-
-**Open, proposed by this document:**
-
-13. **Victory** comes when a side's station core is destroyed (§3). The alternative is a harder end: every structure and every ship.
-14. **Fog of war is in the slice,** through snapshots that differ by side, amending ADR-015 (§9). Without it, the sensors do nothing and the opponent's attacks are never a surprise.
-15. **S-M5, S-M6 and S-M7 wait until after the slice,** and S-M8 and S-M9 move into G-M3 (§12.1).
-16. **The designer comes last in the phase** (G-M6), with designs authored in MagicaVoxel until then (§12.2).
-17. **Materials pair with palette entries,** sixteen pairs a design (G13, §5.3), rather than taking the record's spare bits. It is best settled before N-M1 lands, since the alternative is cheapest then.
-18. **The side's color takes one of a design's sixteen palette entries** (§5.3).
-19. **Traders cannot be attacked in the slice,** and deal with a side only while it alone holds their radius (§7.3).
-20. **The setting and the names.** Ore, credits, station core, constructor and the modules' names are working names; "Outpost" suggests a frontier. This blocks nothing before G-M4's HUD.
-21. **A station's structures share power through their connectors,** and a structure cut off from the core is unpowered (§6).
+13. **Victory comes when a side's station core is destroyed (G20, §3),** rather than when every structure and every ship is gone.
+14. **Fog of war is in the slice (G21, §9),** through snapshots that differ by side, which amends ADR-015.
+15. **S-M5, S-M6 and S-M7 wait until after the slice, and S-M8 and S-M9 move into G-M3 (G22, §12.1).**
+16. **The designer comes last in the phase (G23, §12.2),** with designs authored in MagicaVoxel until then.
+17. **Materials pair with palette entries (G13, §5.3),** sixteen pairs a design, and the record's spare bits stay zero.
+18. **The side's color takes one of a design's sixteen palette entries (G24, §5.3).**
+19. **Traders cannot be attacked in the slice (G25, §7.3),** and deal with a side only while it alone holds their radius.
+20. **The setting waits for G-M4 (§4).** Ore, credits, station core, constructor and the modules' names stay working names until G-M4's HUD needs the setting's own; "Outpost" suggests a frontier.
+21. **A station's structures share power through their connectors (G26, §6),** and a structure cut off from the core is unpowered.
 
 **Risks:**
 
 - **Sculpting inside a strategy game.** The library keeps the clock away from the sculpting (G5), which works only if a refit is enough to answer what happens in a match. If players want to reshape hulls mid-match, the split fails, and G-M5 and G-M6 are where that shows.
+- **The designer lands last** (G23). What sets the game apart is the last thing the phase builds, so if the phase runs long, it is the feature at risk. MagicaVoxel keeps designs coming until then, but sculpting in MagicaVoxel is not the game's construction.
 - **The brick and the needle.** §5.4's principles stay principles until tuned, and balance is iteration, not design. The test is whether authored designs of different shapes win in different situations, which G-M3 and G-M4 can run before G-M6 opens design to the player.
 - **Per-voxel damage at scale** is the largest technical cost (§8.4). If G-M3's bench finds it too dear at fifty a side, the fallbacks are fewer, larger hits, or damage in coarser cells; module hit points are not one, since G6 rules them out.
 - **Placements, not voxels** (§11.2): nineteen times the placements, and up to 3,960 draws a frame. `ExecuteIndirect` is the expected answer, and the bench decides.
