@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** draft for the owner's acceptance. The owner answered eleven questions on 2026-09-28 (§17, 1–11), revising D4 of `SampleRenderer.md` with the seventh and adding D14 with the eighth; the rest of §17 is open · **Date:** 2026-09-28
+**Status:** draft for the owner's acceptance. The owner answered every question of §17 on 2026-09-28, revising D4 of `SampleRenderer.md` with the seventh and adding D14 with the eighth; none is open · **Date:** 2026-09-28
 **Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this changes in `SampleRenderer.md`.
@@ -23,7 +23,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 | S6 | Models are drawn through placements: a rigid transform, the model's records and the model's palette. A whole placement whose rotation is one of the cube's 24 symmetries draws with the aligned splat; any other rotation, and any detonated placement, draws with the oriented one. | §7.2 |
 | S7 | The first word of the visibility buffer becomes a scene-wide voxel id: the placement's base plus the record's index within its part. | §7.3 |
 | S8 | Each model keeps its own 16-entry palette. | §4, measured; §7.1 |
-| S9 | Shadows come from cascaded orthographic maps, fitted to the camera every frame and moved in whole texels. | §10 |
+| S9 | Shadows come from cascaded orthographic maps, fitted to the camera every frame and moved in whole texels. Their depth stays standard Z, as ADR-006 has the shadow map. | §10; owner, 2026-09-28 |
 | S10 | Stars are point sources: sprites whose Gaussian point-spread function is integrated over each pixel, in HDR. The galaxy and the sun are functions of direction, evaluated per background pixel. There is no cube map. | §11 |
 | S11 | The world comes from a seed and a parameter block. The same arguments give the same world and the same simulation, tick for tick, within one build. | §5.2 |
 | S12 | The world lies within ±16,384 units of the origin, where a coordinate's spacing is at most 2⁻¹⁰ of a voxel. Camera-relative rendering waits until the world outgrows that. | §7.5 |
@@ -32,6 +32,9 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 | S15 | Temporal anti-aliasing: one jittered ray per pixel, accumulated into a history that the placements' own motion reprojects and the voxel ids reject exactly. It is a milestone of its own after S-M5, and the look is judged once it is in. | Owner, 2026-09-28; §12.3 |
 | S16 | Splats stay: stations and ships must be able to explode or break down, which the splat draws without rebuilding anything. Before any other path is considered, S-M9 takes two levers for whole placements: drawing only the voxels an outside ray can reach, and coarser models for distance. | Owner, 2026-09-28; §7.6 |
 | S17 | Nothing assumes a placement stays whole. A detonation is a world event, from which every client computes the same debris; breaking down under fire is the fighting's to design, and this design keeps it possible. | Owner, 2026-09-28; §5.5 |
+| S18 | Stations stand upright, each turned about the vertical by a whole number of quarter turns, and so stay on the aligned splat. | Owner, 2026-09-28; §5.2 |
+| S19 | A detonation's debris stays until it is restored or its lifetime runs out: a world setting, with no limit by default. | Owner, 2026-09-28; §5.5 |
+| S20 | S3 becomes a conformance rule in `AGENTS.md`: client and server share bytes, never objects. | Owner, 2026-09-28; §18 |
 
 ## 2. Scope
 
@@ -43,7 +46,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 - **A network transport and `Server.exe`.** The boundary built here is the one they need, and §6.1 writes down what a UDP transport must add. Sockets need Windows headers in `NeuronServer`, and ADR-003 left that decision to the day it is needed.
 - **Loading `.nvf`.** Models load from `.vox` by name (§6.2). The loader changes when NVF's follow-up lands, and nothing else does.
 - **The paper's stochastic pruning** (Listing 3, which SampleRenderer §4.2 item 9 left out). The coarser models of §7.6 do its job without its randomness; pruning stays out unless S-M9's numbers say they fall short.
-- **Stations that turn.** A whole station stays where it is placed, turned through one of the cube's symmetries, which keeps its 225,048 voxels on the aligned splat (§7.2). A spinning station moves to the oriented splat; that is a parameter away once the bench has said what it costs.
+- **Stations that turn.** A whole station stays where it is placed, upright and turned by quarter turns about the vertical (S18), which keeps its 225,048 voxels on the aligned splat (§7.2). A spinning station moves to the oriented splat; that is a parameter away once the bench has said what it costs.
 - **HDR output.** Allowed (D4), and not scheduled here.
 
 ## 3. What the owner's answers change
@@ -97,15 +100,15 @@ One palette for all three would light the capital ship's 148 white voxels, or pu
 
 An entity has four things: an id, never reused within a session; a model, by its index in the welcome's manifest (§6.2); a position; and a rotation, a unit quaternion from model space to world space. The position is where the center of the model's occupied box lies, so a ship turns about its middle and not about the corner where the `.vox` translation leaves its origin. Stations and ships are both entities. The world knows which is which; the protocol does not.
 
-A station stands still until it detonates (§5.5). Its position is whole, and its rotation is one of the cube's 24 proper symmetries, so every one of its voxel centers is exact, as the intact station's are today (§7.2).
+A station stands still until it detonates (§5.5). Its position is whole, and it stands upright, turned about the vertical by a whole number of quarter turns: four of the cube's 24 proper symmetries (S18). So every one of its voxel centers is exact, as the intact station's are today (§7.2).
 
 A ship carries what its flight needs (§5.3): its speed, its route and how far along it is, its bank, and a wingman's leader. None of that is sent. The client sees transforms and velocities.
 
 ### 5.2 The layout, from a seed
 
-The parameters, with their defaults: the seed (1); stations (4); frigates (40); capital ships (8); and the least distance between two stations' centers (1,000 units). All randomness is `PcgHash` of the seed and a stream number, the scheme the explosion uses per voxel (ADR-009), used here per world.
+The parameters, with their defaults: the seed (1); stations (4); frigates (40); capital ships (8); the least distance between two stations' centers (1,000 units); and debris's lifetime (none, §5.5). All randomness is `PcgHash` of the seed and a stream number, the scheme the explosion uses per voxel (ADR-009), used here per world.
 
-**Stations** are placed by seeded rejection sampling in a flattened region that grows with their number, each at least the spacing from every other. Each is turned through one of the 24 symmetries (§17 asks whether all 24 or only the four about the vertical).
+**Stations** are placed by seeded rejection sampling in a flattened region that grows with their number, each at least the spacing from every other. Each stands upright, turned about the vertical by a whole number of quarter turns, so that the cluster reads as one installation, with the same up the flight and the camera use (S18).
 
 **Ships fly in flights:** frigates in flights of two to four, a leader and its wingmen; capital ships alone. Each flight gets a closed route through two to four stations. At each station the route orbits it: a circle about the station's center, in a plane tilted up to 45° from the horizontal, one or two laps, at between 1.3 and 2 times the keep-out radius. That radius is the station's sphere (199.1), plus the ship's, plus a margin of 50. Between stations the route is a straight transit from one orbit's exit to the next orbit's entry. A transit that would cross another station's keep-out sphere gets a waypoint pushed outside it. At the default spacing no orbit comes near another station: the widest one, 590 units about its center, stays 410 units from the next station's center, outside its keep-out radius.
 
@@ -138,7 +141,7 @@ Stations are not static for good: the owner wants them, and ships, able to explo
 
 The motion is the retired explosion's without its floor. Each voxel leaves the blast point with hashed jitter and a speed that falls off with distance, and spins about hashed coordinate axes, all under a drag. The field therefore slows to a stop within a radius the parameters bound in closed form (the fastest speed over the drag), which culling and the shadow cascades rely on. There is no gravity, no bounce and no rest on a floor.
 
-For now, commands detonate the camera's target and restore it, for testing and for the bench (§13, §14); what makes a station explode in a game is the fighting's to decide. A detonated entity stays in the world as its debris field, and ships fly through it, as they fly through one another.
+For now, commands detonate the camera's target and restore it, for testing and for the bench (§13, §14); what makes a station explode in a game is the fighting's to decide. A detonated entity stays in the world as its debris field until it is restored or its lifetime runs out. The lifetime is a world setting with no limit by default (S19), so that the bench keeps its heaviest workload and a game can clear wrecks without a redesign. Ships fly through debris, as they fly through one another.
 
 **Breaking down,** piece by piece under fire, is the fighting's to design, but nothing here stands in its way. A placement can draw any subset of its model's records, so voxels shot away simply stop being drawn. A chunk that breaks off becomes an entity with a transform of its own, flying as a ship does. And the levers of §7.6 apply only while a placement is whole.
 
@@ -262,7 +265,7 @@ The view has used reversed-Z with an infinite far plane since M2 (D8, ADR-006). 
 - **The lighting keeps rebuilding position from depth**, as the ray at *n* / depth (SampleRenderer §9.3). At 10,000 units that position is good to about a thousandth of a voxel, well inside the smallest cascade's normal offset.
 - **A WARP test pins it.** It draws placements 10,000 units from the camera, less than a voxel apart, and compares every pixel with the tracer (§15).
 
-**The cascades stay on standard Z**, as ADR-006 has the shadow map. Orthographic depth is linear in distance, so reversing it only moves where a float's precision is finest. At the far end of an 8,000-unit range, standard Z still spaces depths 0.0005 units apart, two thousand to a voxel, and shadow acne comes from texel size and normal offset, not from depth precision. Reversing the maps would buy one convention for both kinds of depth. ADR-006 chose to name the two instead, each with its helpers; §17 asks whether to keep that choice.
+**The cascades stay on standard Z**, as ADR-006 has the shadow map. Orthographic depth is linear in distance, so reversing it only moves where a float's precision is finest. At the far end of an 8,000-unit range, standard Z still spaces depths 0.0005 units apart, two thousand to a voxel, and shadow acne comes from texel size and normal offset, not from depth precision. Reversing the maps would buy one convention for both kinds of depth. ADR-006 chose to name the two instead, each with its helpers, and the owner kept that choice (S9).
 
 ## 10. Shadows: cascades (amends SampleRenderer §10)
 
@@ -364,7 +367,7 @@ What it takes from the look is some softness where history is rejected or clampe
 
 ## 13. Application
 
-**Command line.** `--seed <n>`, `--stations <n>`, `--frigates <n>` and `--capitals <n>` set the world's parameters (§5.2) and are handed to the in-process server. `--size`, `--warp`, `--adapter`, `--d3d-debug` and `--gbv` are unchanged. `--bench <seconds>` is §14's. `--vox` is retired: models come from the welcome.
+**Command line.** `--seed <n>`, `--stations <n>`, `--frigates <n>`, `--capitals <n>` and `--debris-lifetime <seconds>` set the world's parameters (§5.2) and are handed to the in-process server. `--size`, `--warp`, `--adapter`, `--d3d-debug` and `--gbv` are unchanged. `--bench <seconds>` is §14's. `--vox` is retired: models come from the welcome.
 
 **Camera.** The orbit camera orbits a target entity and follows it as it moves. N and B cycle the target forward and back through the stations and the flights' leaders. C switches to a chase camera behind and above a ship, in the ship's frame, sprung so that the ship's banking reads without the view shaking. Tab still flies free, now with +Y as up, and F frames the target.
 
@@ -420,9 +423,10 @@ What it takes from the look is some softness where history is rejected or clampe
 **`GameLogicTests` (new):**
 
 - the same seed and parameters give byte-identical welcomes, and byte-identical snapshot streams over a long run;
-- stations are spaced, whole and cube-rotated;
+- stations are spaced, whole and upright, each turned by quarter turns about the vertical;
 - over ten simulated minutes, no ship enters a keep-out sphere, every tick respects its class's speed, acceleration and turn rate, every route closes, and wingmen hold their slots within a bound;
 - a detonation reaches every client as one event, and a client that connects after it computes the same debris;
+- a debris lifetime removes its entity on the tick it runs out, and without one the debris stays;
 - a parameter block that does not fit is refused by name.
 
 **By hand,** the owner runs the scene at S-M1 (the station detonates and is restored in zero gravity), at S-M4 (the ships fly and face the right way, and a station detonates on command), at S-M5 (the sky, bloom and the lighting in space), at S-M6 (the look, with anti-aliasing), at S-M7 (the shadows, and no swimming) and at S-M8 (the bench).
@@ -460,14 +464,13 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 9. **Temporal anti-aliasing, as a milestone of its own after S-M5, before the look is judged (S15, §12.3).**
 10. **Splats stay, and the two levers come before any other path (S16, §7.6).**
 11. **Stations and ships can explode or break down during fighting (S17, §5.5).** So the explosion stays, without gravity, and nothing assumes a placement stays whole. That also settles the order of §3.2: nothing is converted and then deleted, and the oriented splat is never left untested.
+12. **The cascades stay on standard Z (S9, §9).**
+13. **The defaults stand:** 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units; and the detonation's drag, tuned by eye in S-M1.
+14. **Stations stand upright, turned by quarter turns about the vertical (S18, §5.2).**
+15. **Debris stays until it is restored or its lifetime, a world setting with no limit by default, runs out (S19, §5.5).**
+16. **The names stand** (this document, `NeuronServerTests` and `GameLogicTests`), **and S3 becomes a conformance rule (S20, §18).**
 
-**Open, each with this design's default:**
-
-12. The cascades' depth: standard Z (the default, §9), or reversed-Z too, for one convention.
-13. The defaults: 4 stations, 40 frigates and 8 capital ships; 30 ticks a second and 100 ms of interpolation delay; 20,000 stars; bloom's share of 4 %; three cascades of 2048² out to 3,000 units; and the detonation's drag, tuned by eye in S-M1.
-14. Stations turned through all 24 symmetries (the default, which stands some of them on their sides), or only through the four about the vertical.
-15. Whether debris lasts. The default: a detonated entity stays as its debris field, drifted to a stop, which keeps the bench's workload honest; a game will want wrecks to clear, and when is the fighting's call.
-16. The names: this document, the two suites (`NeuronServerTests`, `GameLogicTests`), and whether S3 becomes a conformance rule (§18).
+No question is open.
 
 **Risks:**
 
@@ -497,7 +500,7 @@ ADRs are numbered in order as they land. The next free number is ADR-011, and N-
 
 - **§2's table:** `NeuronServer` and `GameLogic` say what they hold, and `NeuronServerTests` and `GameLogicTests` join the table. `.clang-tidy`'s `HeaderFilterRegex` already matches every `*Tests` folder, and CI finds suites by name, so neither changes.
 - **R15's list of twins:** the placement's pose joins the explosion's, now without gravity, and the sky's functions, the star's point-spread function, bloom's filters, the temporal resolve and the choice of cascade join them.
-- **A new rule,** under the next free number (R18 unless NVF's has taken it): *Client and server share bytes, never objects: what the server knows reaches the client only as messages through a `Transport`, in one process as in two.* Its source is S3. Project references already keep `GameLib` away from `GameLogic`; the rule covers `Outpost`, the one project that links both.
+- **A new rule,** accepted by the owner on 2026-09-28 (S20), added in S-M3's commit under the next free number (R18 unless NVF's has taken it): *Client and server share bytes, never objects: what the server knows reaches the client only as messages through a `Transport`, in one process as in two.* Its source is S3. Project references already keep `GameLib` away from `GameLogic`; the rule covers `Outpost`, the one project that links both.
 - **The paragraph that names the design document** names this one beside `SampleRenderer.md`.
 
 ## 19. References
