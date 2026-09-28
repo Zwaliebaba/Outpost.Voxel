@@ -70,6 +70,10 @@ The owner answered three questions on 2026-09-28 (§11). A part's default pivot 
 
 **Measured, natively.** `NeuronCoreTests`, built by GCC 13.3 at `-O1` for x86-64 against a throwaway stand-in for the test framework: all 169 tests pass, the 143 before N-M1 and its 26.
 
+**In CI.** MSVC 14.51.36231's Debug|x64 build:
+- run 36460843922, on N-M1's commit: all 218 tests of the four suites pass, and clang-tidy is clean over the tree's 103 translation units;
+- run 36462201748, after main's S-M4 was merged in: all 242 pass, and clang-tidy is clean over 110.
+
 **Mutations.** Seven faults were put into the reader and writer by hand, one at a time, and each failed at least one test before it was taken out:
 - padding left unchecked;
 - hardpoints left unsorted;
