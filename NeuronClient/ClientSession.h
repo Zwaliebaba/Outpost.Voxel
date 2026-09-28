@@ -36,6 +36,9 @@ struct SessionError
   std::string detail; // which message or model, and why
 };
 
+// The refusal's name and its detail, as a message says them.
+[[nodiscard]] std::string DescribeSessionError(const SessionError& _error);
+
 // The client's end of a session with a server (§6.1, §6.2). It says Hello, loads every model the welcome names from its
 // own copy of the model's file, refusing one whose hash differs, and then feeds each snapshot into its buffer. What the
 // server knows reaches it only as these messages, through its transport (AGENTS.md R18).
@@ -54,18 +57,18 @@ public:
 
   [[nodiscard]] bool IsWelcomed() const noexcept
   {
-    return m_welcome.has_value();
+    return m_welcomed;
   }
 
   // What the welcome said, once it has come: the world's settings and the models' names and hashes.
   [[nodiscard]] const NeuronCore::WorldSettings& Settings() const noexcept
   {
-    return m_welcome->settings;
+    return m_settings;
   }
 
   [[nodiscard]] std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept
   {
-    return m_welcome->manifest;
+    return m_manifest;
   }
 
   // The models the welcome names, in its order, which the snapshots' model indices name; empty until it has come.
@@ -74,15 +77,15 @@ public:
     return m_models;
   }
 
-  // The snapshots, once the welcome has come.
+  // The snapshots, at the welcome's tick rate once it has come; empty until then.
   [[nodiscard]] SnapshotBuffer& Buffer() noexcept
   {
-    return *m_buffer;
+    return m_buffer;
   }
 
   [[nodiscard]] const SnapshotBuffer& Buffer() const noexcept
   {
-    return *m_buffer;
+    return m_buffer;
   }
 
 private:
@@ -90,10 +93,12 @@ private:
 
   std::unique_ptr<NeuronCore::Transport> m_transport;
   std::filesystem::path m_modelDirectory;
-  std::optional<NeuronCore::Welcome> m_welcome;
+  bool m_welcomed = false;
+  NeuronCore::WorldSettings m_settings{};
+  std::vector<NeuronCore::ManifestEntry> m_manifest;
   std::vector<NeuronCore::VoxModel> m_models;
-  std::optional<SnapshotBuffer> m_buffer;
-  std::optional<SessionError> m_error;
+  SnapshotBuffer m_buffer{1};
+  std::optional<SessionError> m_error; // the refusal, once the session has ended
 };
 
 } // namespace NeuronClient

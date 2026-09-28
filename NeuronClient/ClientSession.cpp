@@ -29,6 +29,11 @@ const char* SessionRefusalName(SessionRefusal _refusal) noexcept
   return "Unknown";
 }
 
+std::string DescribeSessionError(const SessionError& _error)
+{
+  return std::string(SessionRefusalName(_error.refusal)) + ": " + _error.detail;
+}
+
 ClientSession::ClientSession(std::unique_ptr<NeuronCore::Transport> _transport, std::filesystem::path _modelDirectory)
   : m_transport(std::move(_transport)),
     m_modelDirectory(std::move(_modelDirectory))
@@ -50,13 +55,13 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
     {
       return Refuse(SessionRefusal::BadMessage, NeuronCore::ProtocolErrorName(message.error()));
     }
-    if (auto* snapshot = std::get_if<NeuronCore::Snapshot>(&*message); snapshot != nullptr && m_buffer)
+    if (auto* snapshot = std::get_if<NeuronCore::Snapshot>(&*message); snapshot != nullptr && m_welcomed)
     {
-      m_buffer->Add(std::move(*snapshot), _arrivalSeconds);
+      m_buffer.Add(std::move(*snapshot), _arrivalSeconds);
       continue;
     }
     const auto* welcome = std::get_if<NeuronCore::Welcome>(&*message);
-    if (welcome == nullptr || m_welcome)
+    if (welcome == nullptr || m_welcomed)
     {
       return Refuse(SessionRefusal::BadMessage, welcome != nullptr ? "a second Welcome"
                                                 : std::holds_alternative<NeuronCore::Snapshot>(*message)
@@ -93,8 +98,10 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
       models.push_back(std::move(*model));
     }
     m_models = std::move(models);
-    m_buffer.emplace(welcome->tickRate);
-    m_welcome = *welcome;
+    m_settings = welcome->settings;
+    m_manifest = welcome->manifest;
+    m_buffer = SnapshotBuffer(welcome->tickRate);
+    m_welcomed = true;
   }
   if (!m_transport->IsOpen())
   {
@@ -110,9 +117,10 @@ bool ClientSession::Send(const NeuronCore::Command& _command)
 
 std::unexpected<SessionError> ClientSession::Refuse(SessionRefusal _refusal, std::string _detail)
 {
-  m_error = SessionError{_refusal, std::move(_detail)};
+  SessionError error{_refusal, std::move(_detail)};
+  m_error = error;
   m_transport->Close();
-  return std::unexpected(*m_error);
+  return std::unexpected(std::move(error));
 }
 
 } // namespace NeuronClient

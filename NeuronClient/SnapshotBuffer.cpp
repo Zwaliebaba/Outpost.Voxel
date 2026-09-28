@@ -62,7 +62,7 @@ constexpr std::size_t MIN_SNAPSHOTS = 2;
 
 } // namespace
 
-SnapshotBuffer::SnapshotBuffer(std::uint32_t _tickRate) noexcept
+SnapshotBuffer::SnapshotBuffer(std::uint32_t _tickRate)
   : m_tickRate(_tickRate)
 {
 }

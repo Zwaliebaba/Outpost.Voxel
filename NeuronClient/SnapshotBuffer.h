@@ -60,7 +60,7 @@ struct WorldSample
 class SnapshotBuffer
 {
 public:
-  explicit SnapshotBuffer(std::uint32_t _tickRate) noexcept;
+  explicit SnapshotBuffer(std::uint32_t _tickRate);
 
   // Takes _snapshot, which arrived at _arrivalSeconds on the client's clock. A tick the buffer already holds is ignored.
   void Add(NeuronCore::Snapshot _snapshot, double _arrivalSeconds);

@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14; S-M0, N-M0, S-M1, S-M2 and S-M3 are done (§16) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered but its last, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14; S-M0, N-M0, S-M1, S-M2 and S-M3 are done (§16) · **Date:** 2026-09-28
 **Builds on:** [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md), the renderer, and [`Archive/SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md), its measured performance (§3.3); [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout; [ADR-012](ADR/ADR-012-arm64-platform.md), ARM64 beside x64 · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). `SampleRenderer.md` is archived as the record of what M0 to M5 built, so it is not rewritten: what this design changes there is said here (§3), and the archive's status line points to it.
@@ -400,6 +400,8 @@ What it takes from the look is some softness where history is rejected or clampe
 
 **A preset** of one station, no ships and an orbiting camera at the default framing stands nearest to the M5 note's intact phase (§3.3), with the sky and without the ground. It is what shows the placement refactor's cost on the old workload. S-M9 draws every frame of the timeline with a lever off and on, back to back as the depth variants are, so that the comparison does not depend on the clock.
 
+**Until S-M8,** `--bench` runs the preset, in lockstep, and the server detonates its station a quarter of the way through; the station sample's phases, CSV and summary carry on (the owner, 2026-09-28; ADR-018).
+
 ## 15. Verification
 
 **`NeuronCoreTests`:**
@@ -488,11 +490,16 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 18. **The changes after M5's note stand (§3.3):** S-M9 draws each lever off and on within a frame, `--stable-power` is off by default (§14), the loopback's queues are guarded by a mutex and S-M3 is done on ARM64 as well as x64 (§6.3, §16), and S-M1 leaves the archived `SampleRenderer.md` as it stands but for a status line that points here (§3.1).
 19. **D4, D13 and D14 as revised on 2026-09-28 stay in the archived `SampleRenderer.md`,** where the owner made them before it was archived.
 20. **A detonated entity's velocity slows under the drag with the rest of the motion (§7.7).** So its debris carries on the way it was going and comes to rest the velocity over the drag further on. The owner answered this while S-M2 was built, and ADR-014 records it.
-21. **When a flight's leader detonates, its first wingman leads, and the rest of the flight re-slots on it (§5.3).** The owner answered this while S-M3 was built, and ADR-017 records it, with what happens when the leader is restored.
+21. **When a flight's leader detonates, its first wingman leads, and the rest of the flight re-slots on it (§5.3).** The owner answered this while S-M3 was built, and ADR-017 records it, with what happens when the leader is restored: it rejoins as a wingman, which the owner confirmed while S-M4 was built.
 22. **A restored ship resumes where it blew up (§5.5):** whole again at its frozen transform, with its flight state as at the event, and pure pursuit picks its route up from there. ADR-017 records it.
 23. **The world is a `Sector`.** It is one bounded region, and `Universe` stays free for whatever holds several. The owner named it while S-M3 was built.
+24. **`--bench` runs the one-station preset until S-M8 (§14):** in lockstep, with the server detonating the station. The owner answered this while S-M4 was built, and ADR-018 records it.
 
-No question is open.
+**Open, asked while S-M4 was built:**
+
+25. **How N and B find the flights' leaders (§13).** No flight crosses the wire (§5.1), so the client cannot tell a leader from a wingman. A flag in the entity record's reserved half-word would say it, at the price of a new protocol version and a game concept on the wire (S13). Until the owner answers, N and B cycle every entity in the order of their ids (ADR-018).
+
+One question is open.
 
 **Risks:**
 
@@ -506,12 +513,12 @@ No question is open.
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation, ADR-014 to S-M2's placements, and ADR-015 to ADR-017 to S-M3's boundary, suites and sector, so the next free number is ADR-018.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation, ADR-014 to S-M2's placements, ADR-015 to ADR-017 to S-M3's boundary, suites and sector, and ADR-018 to S-M4's client, so the next free number is ADR-019.
 
 - **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
 - **S-M3, the client/server boundary** (ADR-015): the messages, the events and their validation, `Transport`, and the host's tick, threads and stepping. **The two new suites** (ADR-016), amending ADR-003's table; each has Debug and Release on x64 and ARM64, as ADR-012 requires of every project. **The sector** (ADR-017): its layout, routes, flight, formation and destruction, and their defaults.
-- **S-M4, the client's time:** `ClientSession` and `SnapshotBuffer`, amending ADR-015 (§6.4).
+- **S-M4, the client's time** (ADR-018): `ClientSession` and `SnapshotBuffer`, amending ADR-015 (§6.4); with it the client's placements, the sun's view until S-M7, the camera and keys, the command line and the bench until S-M8.
 - **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
 - **S-M6, temporal anti-aliasing:** the jitter, the reprojection, the rejection, the resolve and its twin.
 - **S-M7, cascades:** amending SampleRenderer §10 and ADR-006's shadow section.

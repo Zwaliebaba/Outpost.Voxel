@@ -1,12 +1,12 @@
 # ADR-015 — The client/server boundary
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick · **Amended by:** [ADR-018](ADR-018-client.md), with the client's time
 
 ## Context
 
 The owner chose the full boundary, with the server on a thread of its own (SpaceScene S3, §6). Nothing the server knows reaches the client except as bytes. `NeuronCore` encodes those bytes as messages, and a `Transport` carries them. Inside one process the transport is a `LoopbackTransport`. The owner also asked that the loopback's queues sit behind a mutex, with no atomics, and that S-M3 count as done only once its suites pass on ARM64 too (§6.3, §17 question 18).
 
-S-M3 builds the server's side of the boundary: the messages, the transports, `ServerHost`, and the `World` it simulates. The world itself is the sector, which [ADR-017](ADR-017-sector.md) records. The client's side, `ClientSession` and `SnapshotBuffer`, lands with S-M4, whose ADR will amend this one with the client's time (§6.4).
+S-M3 builds the server's side of the boundary: the messages, the transports, `ServerHost`, and the `World` it simulates. The world itself is the sector, which [ADR-017](ADR-017-sector.md) records. The client's side, `ClientSession` and `SnapshotBuffer`, lands with S-M4, whose ADR amends this one with the client's time (§6.4): [ADR-018](ADR-018-client.md).
 
 The figures below were measured in three ways:
 - **The suites, built natively** by GCC 13.3 for x86-64 against a throwaway stand-in for the test framework:
@@ -107,7 +107,7 @@ A detonation's tick is a world tick. So debris, whose pose is a function of the 
 
 The host's thread and its clients share nothing but the loopback's queues.
 
-**Stepping.** The tests call `Step` themselves, one tick at a time, and run no thread but the one test that starts and stops it. S-M4's `--bench` will do the same (§14). No test times the thread, because a CI runner's timing is not a measurement.
+**Stepping.** The tests call `Step` themselves, one tick at a time, and run no thread but the one test that starts and stops it. S-M4's `--bench` steps it too, from `Outpost`, whenever its next frame needs a tick (§14, ADR-018). No test times the thread, because a CI runner's timing is not a measurement.
 
 **Tests.**
 - **`NeuronCoreTests`:**

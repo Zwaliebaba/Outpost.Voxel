@@ -93,6 +93,8 @@ void ExpectRefusal(Link& _link, NeuronClient::SessionRefusal _refusal, const cha
   const SessionError error = polled.error_or(SessionError{});
   Assert::AreEqual(NeuronClient::SessionRefusalName(_refusal), NeuronClient::SessionRefusalName(error.refusal));
   Assert::AreEqual(_detail, error.detail.c_str());
+  Assert::AreEqual((std::string(NeuronClient::SessionRefusalName(_refusal)) + ": " + _detail).c_str(),
+                   NeuronClient::DescribeSessionError(error).c_str(), false, L"described as a message says it");
   const std::expected<void, SessionError> again = _link.session->Poll(2.0);
   Assert::IsFalse(again.has_value(), L"and stays refused");
   Assert::AreEqual(NeuronClient::SessionRefusalName(_refusal), NeuronClient::SessionRefusalName(again.error_or(SessionError{}).refusal),
