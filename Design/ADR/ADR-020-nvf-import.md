@@ -69,6 +69,11 @@ A new project needs an ADR of its own (`AGENTS.md` §2). So does `Tools/`, the f
 
 **Measured, natively.** GCC 13.3 at `-O1` against a throwaway stand-in for the test framework: all 186 tests of `NeuronCoreTests` pass, with `NeuronServerTests`' 8 and `GameLogicTests`' 16.
 
+**In CI.** MSVC 14.51.36231's Debug|x64 build, run 36464724053 on N-M2's commit:
+- all 258 tests of the four suites pass, `RefusesTurnedModels` among them on WARP;
+- `--check` finds the three assets up to date with their `.vox`;
+- clang-tidy is clean over the tree's 116 translation units, `NvfImport`'s among them.
+
 **Mutations,** one at a time, each failing at least one test before it was taken out:
 - in the reader: a reflection accepted; the swap left out; a turned group accepted; the parity of each axis in turn left unchecked. The first test missed the z axis, and was strengthened to try a model even in each dimension alone;
 - in the importer: a marker's position without its half; the authored pivot's flag not carried; a clash not refused; hardpoints from markers carried over; Blender's pivot preferred to a marker's; translations not taken in the parent's space; a table entry spelled with the other sign, which the test of the table's spelling was added to catch.
