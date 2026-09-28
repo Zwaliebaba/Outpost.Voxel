@@ -12,7 +12,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
 3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
 
-The design documents sit alongside rather than above: each says what is built and this file says how. A design lives in `Design/` while its plan runs, as [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) does. It moves to `Design/Archive/` when the plan is done, as [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) has. There it stays the record of what it built, and the code keeps citing it. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in a design before the code is.
+The design documents sit alongside rather than above: each says what is built and this file says how. A design lives in `Design/` while its plan runs, as [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) and [`Design/SpaceScene.md`](Design/SpaceScene.md) do. It moves to `Design/Archive/` when the plan is done, as [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) has. There it stays the record of what it built, and the code keeps citing it. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in a design before the code is.
 
 If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
 

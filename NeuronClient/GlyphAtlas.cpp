@@ -136,7 +136,7 @@ std::optional<GlyphAtlas::Glyph> GlyphAtlas::Rasterize(const Key& _key)
   run.glyphAdvances = &advance;
   run.glyphOffsets = &offset;
   run.isSideways = _key.sideways ? TRUE : FALSE;
-  // Grayscale, because ClearType's three coverages per pixel cannot be laid over a 3D image with one alpha (ADR-010).
+  // Grayscale for now: ClearType's three coverages per pixel need an alpha each, which dual-source blending gives (ADR-010).
   winrt::com_ptr<IDWriteGlyphRunAnalysis> analysis;
   winrt::check_hresult(m_factory->CreateGlyphRunAnalysis(&run, nullptr, RENDERING_MODE, MEASURING_MODE, DWRITE_GRID_FIT_MODE_ENABLED,
                                                          DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE, 0.0f, 0.0f, analysis.put()));

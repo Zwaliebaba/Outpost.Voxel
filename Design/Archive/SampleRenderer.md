@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 
@@ -15,7 +15,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D1 | Direct3D 12, device created at feature level 12_1. DXR and mesh shaders are not used, even where the hardware offers them. | Owner, 2026-09-27 |
 | D2 | The explosion breaks the station into its own voxels: 225,048 pieces, each an independently moving and rotating box. | Owner, 2026-09-27 |
 | D3 | Explosion motion is analytic and stateless: a pure function of voxel index and time. | Owner, 2026-09-27 |
-| D4 | Deferred shading: a sun with a shadow map rendered by the same splat technique, hemispheric ambient, emissive palette entries, ACES tone mapping. No ambient occlusion, no bloom. | Owner, 2026-09-27 |
+| D4 | Deferred shading into HDR: the view splat writes a visibility buffer (D7), and one compute pass lights each pixel. Today it lights with a sun whose shadow map is rendered by the same splat technique, a hemispheric ambient and emissive palette entries, and it tone maps with ACES. Bloom joins before the tone map (`SpaceScene.md` §12.2). Nothing in the look is ruled out: more lights, ambient occlusion, global illumination, image-based light and other post-processing join when the look calls for them, each with its ADR and, like every GPU algorithm, its twin (R15). | Owner, 2026-09-27; revised by the owner, 2026-09-28: bloom is in, and the look has no ceiling |
 | D5 | The palette has exactly 16 entries and will stay that way; a voxel's colour is a 4-bit index. | Owner, 2026-09-27 |
 | D6 | Voxels become rectangles by vertex pulling, four vertices per voxel — the paper's own Direct3D path. | §9.1 |
 | D7 | The view pass writes a visibility buffer (voxel index and normal), not a G-buffer. | §7.3 |
@@ -24,13 +24,14 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
 | D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
-| D13 | A canvas draws text and the HUD over the frame: DirectWrite lays text out and rasterizes its glyphs, and Direct3D 12 draws them. Direct2D is not used. | §13; owner, 2026-09-28 (ADR-010) |
+| D13 | A canvas draws text and the HUD over the frame: DirectWrite lays text out and rasterizes its glyphs, and Direct3D 12 draws them. Direct2D is not used. Nothing in the text's look is ruled out: ClearType, text scaled, rotated or placed between pixels, and color glyphs join when a HUD needs them, each with its ADR (ADR-010, as amended). | §13; owner, 2026-09-28 (ADR-010); revised by the owner, 2026-09-28 |
+| D14 | Anti-aliasing is allowed. The first version casts one ray per pixel; the paper's route (a ray per MSAA sample), temporal anti-aliasing or another method joins when the look calls for it, with its ADR and its twin (R15). | Owner, 2026-09-28 |
 
 ## 2. Scope
 
 The sample exists to show the paper's rendering method working completely and verifiably on this asset under this API contract: the splat-and-intersect pipeline of the paper's §3–§5, with its hybrid screen-space bounds and conservative depth; the same pipeline rendering the shadow map; the dynamism claim, demonstrated by an explosion that moves every voxel without rebuilding anything; and an automated per-pixel check of what the GPU produces.
 
-Out of scope: DXR and mesh shaders (D1); MagicaVoxel's path-traced look — global illumination, ambient occlusion, bloom, image-based light (D4); transparency (the file has no glass); anti-aliasing in the first version (§16); the paper's stochastic pruning (§4.2); splitting voxels into smaller pieces (D2); collision between voxels (D3); editing; `.vox` features this file does not use (§7.1); HDR display output.
+Out of scope: DXR and mesh shaders (D1); transparency (the file has no glass); the paper's stochastic pruning (§4.2); splitting voxels into smaller pieces (D2); collision between voxels (D3); editing; `.vox` features this file does not use (§7.1); HDR display output. MagicaVoxel's path-traced look (global illumination, ambient occlusion, image-based light) and anti-aliasing are not built, but since D4's revision and D14 nothing rules them out, and bloom is planned (`SpaceScene.md` §12.2).
 
 ### What this sample cannot tell you
 
@@ -91,7 +92,7 @@ The intersection (Listing 5) moves the ray into the box's frame and picks the th
 5. **The near-plane singularity** ("some care has to be taken", paper §6.3). A voxel whose bounding sphere crosses the near plane takes the clipped-edge path whatever its size, and the pixel shader discards hits nearer than the near plane. A voxel that contains the eye is therefore not drawn — which is what near-plane clipping does to a mesh — and the "outside" form of Listing 5 is correct for every ray we cast.
 6. **Porting Listing 5 to HLSL.** There are three traps. HLSL's `sign` returns an integer vector. GLSL's `v * M` idiom is a multiply by the transpose, and translating it literally is where a silent transpose hides, so the port spells the change of frame out as dot products (§9.4). Finally, the paper's "a check for zeros in `ray.dir` is not needed" relies on IEEE division by zero and on comparisons with NaN being false, behaviour HLSL compilers do not promise by default. Exactly-zero components are not exotic here: a sun straight overhead makes every shadow ray axis-parallel, and a level camera at an odd resolution produces a whole row and column of them. Both twins are tested on exactly those cases (§14). If the GPU fails them, the fix is an explicit guard in the shader and an ADR, not a global strictness switch.
 7. **Shadow projection.** The paper's claim covers "any pinhole perspective projection", but a sun is orthographic. That case is simpler — the rectangle follows exactly from the box's extents, and there is no singularity — and it gets its own permutation (§10).
-8. **MSAA.** Listing 2 casts "through the current pixel or MSAA sample". The first version casts one ray per pixel and has no MSAA (§16).
+8. **MSAA.** Listing 2 casts "through the current pixel or MSAA sample". The first version casts one ray per pixel and has no MSAA; D14 allows anti-aliasing, by this route or another (§16).
 9. **Stochastic pruning** (Listing 3) is left out. It gained 1.2× at 53 million voxels; at 225,048 there is nothing to gain, and it trades temporal stability for throughput.
 10. **Host-side frustum culling** of voxel objects is moot when there is a single object.
 11. **Output.** The paper shaded forward or into a G-buffer. We write a visibility buffer of voxel index and normal, the least that lets lighting run once per pixel — the paper's bandwidth argument applied to our own output.
@@ -351,7 +352,7 @@ For each pixel, the lighting pass first checks the visibility buffer. Where no v
 
 *C* = albedo × (*E*sun × max(0, *N*·*S*) × shadow + ambient(*N*)) + albedo × emissive
 
-where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*y) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: nothing blooms, and nothing receives their light (D4). Without ambient occlusion the result will look flatter than MagicaVoxel's path tracer; D4 accepted that.
+where *S* is the direction towards the sun, *E*sun its intensity (`_i` 0.7), and ambient(*N*) = 0.7 × lerp(ground colour, white, ½ + ½ *N*y) from `_uni`'s intensity and colour. ADR-008 records how each value is read, and what a file that says something else gets. Emissive voxels light only themselves: no other surface receives their light, and until bloom lands (`SpaceScene.md` §12.2) nothing glows beyond its own voxels. Without ambient occlusion the result looks flatter than MagicaVoxel's path tracer. Neither is a limit: D4, as the owner revised it on 2026-09-28, leaves the look open.
 
 Tone mapping applies the exposure (`_film` `_expo` 1), then Stephen Hill's fit of the ACES reference and output transforms, and writes through an sRGB render-target view. The sRGB curve stands in for the file's gamma 2.2.
 
@@ -381,7 +382,7 @@ The application, `Outpost.exe`, is a Win32 window, Unicode and per-monitor DPI a
 
 Rendering is 1:1 at the window's client size, in physical pixels; there is no internal render scale, because the technique's product is an exact edge per pixel and its cost is linear in pixels (paper Fig. 8). The window is borderless fullscreen on the monitor it starts on, at that monitor's resolution, which on the owner's 1920 × 1080 display is exactly the benchmark resolution; the owner asked for this on 2026-09-27, with no key to leave it. A larger monitor therefore costs proportionally more per frame. `--size WxH` opens an ordinary window of that client size instead, for a debugger to sit beside. Alt+F4 closes the application. `--bench` always renders at 1920 × 1080 whatever the window or display, because that is the resolution the paper measured at (§6.3, Table 4) and a benchmark whose resolution depends on the monitor is not a measurement.
 
-At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). With no anti-aliasing (§16), edges will crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
+At 1080 lines and the default framing a voxel spans about 2.5 pixels (§3). Until anti-aliasing lands (D14, §16), edges crawl while orbiting; the size-dependent targets of §8 total about 58 MB at this resolution.
 
 The camera orbits the model (left drag), pans (right drag), dollies (wheel) and re-frames it (F), or the explosion's envelope once it has started (§12). Tab toggles a fly mode (WASD and mouse, Page Up and Page Down to rise and sink) for getting in among the debris. The other keys are:
 
@@ -392,7 +393,7 @@ The camera orbits the model (left drag), pans (right drag), dollies (wheel) and 
 
 The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, the emissive scale that [ and ] tune, and the explosion's time and scale. Borderless fullscreen draws no title bar, so the window shows the same figures itself: one per line, on a translucent panel in the top-left corner, which F2 hides and shows (D13, ADR-010).
 
-They are drawn by the canvas, the 2D overlay the renderer draws last and the surface a HUD will draw on. DirectWrite lays the text out and rasterizes each glyph once into an atlas, and Direct3D 12 draws a quad over each glyph's bitmap, texel for texel; Direct2D takes no part. The text is grayscale antialiased, not ClearType: three coverages per pixel cannot be blended over a 3D image with one alpha.
+They are drawn by the canvas, the 2D overlay the renderer draws last and the surface a HUD will draw on. DirectWrite lays the text out and rasterizes each glyph once into an atlas, and Direct3D 12 draws a quad over each glyph's bitmap, texel for texel; Direct2D takes no part. The text is grayscale antialiased for now. ClearType's three coverages per pixel need an alpha each, which dual-source blending gives, and since 2026-09-28 nothing rules it out (D13).
 
 Command line:
 
@@ -469,9 +470,9 @@ M0 is repository groundwork that `AGENTS.md` §6 already asks for. It is listed 
 
 **WARP's shader model.** The WARP guide documents FL 12_1 but says nothing about Shader Model 6.7. On the owner's machine, in-box WARP runs the 6.7 suite (ADR-007); CI's first run after the change answers it for the runner. If WARP lacks it, that is a blocker to raise, not a suite to skip.
 
-**Aliasing.** The first version has no anti-aliasing, so silhouettes and voxels smaller than a pixel will crawl in motion. If that matters, the options are the paper's route (a ray per MSAA sample) or TAA; either is an ADR.
+**Aliasing.** The first version has no anti-aliasing, so silhouettes and voxels smaller than a pixel crawl in motion, and bloom will make that more visible. D14 allows anti-aliasing. The options were the paper's route (a ray per MSAA sample) and TAA; the owner chose TAA for the space scene (`SpaceScene.md` S15, §12.3), and it lands with an ADR of its own.
 
-**Flat lighting and interpenetrating piles** are accepted consequences of D4 and D3.
+**Interpenetrating piles** are an accepted consequence of D3. **Flat lighting** no longer is one of D4's: since its revision on 2026-09-28, it is where the lighting stands, not where it has to stay.
 
 The owner answered the open questions on 2026-09-27:
 

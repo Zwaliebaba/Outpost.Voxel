@@ -1,6 +1,6 @@
 # ADR-008 — Lighting read from the file
 
-**Status:** accepted, 2026-09-27 · **Lands with:** M3 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes
+**Status:** accepted, 2026-09-27 · **Lands with:** M3 of [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md) (§15) · **Amended by:** [ADR-011](ADR-011-engine-axes.md), the engine's axes · **Note:** the owner revised D4 on 2026-09-28, and it no longer leaves bloom, image-based light or anything else out of the look; the file's settings for them are still not read, since bloom's parameters are the renderer's own ([`SpaceScene.md`](../SpaceScene.md) §12.2)
 
 ## Context
 
