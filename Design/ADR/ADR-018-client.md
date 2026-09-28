@@ -168,7 +168,8 @@ Part *j* of an entity at *P*, turned by *R*, is placed at *P* + *R*(*O*ⱼ − m
   - the sun's view is fitted 5,400 units across, grows once to 6,750 within 0.15 s, and then holds for two minutes.
 
   A detonation sent from the client reaches the server and comes back as an event.
-- **Not measured here:** the build under MSVC, `NeuronClientTests` on WARP, and anything on screen. CI builds the first two. The owner checks the rest: that the ships fly and face the right way, and that a station detonates on command. That check is S-M4's "done when" (§16).
+- **In CI,** MSVC's Debug|x64 build of the merge on `main`, on 2026-09-28: all 216 tests of the five suites pass, `NeuronClientTests` on WARP among them, and clang-tidy is clean over the tree's 106 translation units.
+- **On the owner's machine,** on 2026-09-28, the owner ran the scene and reported everything working: the ships fly and face the right way, and a station detonates on command. That is S-M4's "done when" (§16).
 
 ## What this forecloses
 
