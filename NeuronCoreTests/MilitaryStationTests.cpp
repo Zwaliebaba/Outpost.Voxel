@@ -475,6 +475,18 @@ public:
     Assert::AreEqual(0.5, grid.Origin().z + 0.5 * size.z, 0.0, L"centre z");
   }
 
+  TEST_METHOD(IsBoundedByItsOccupiedCells)
+  {
+    // Design/SpaceScene.md §4's occupied box, 205 × 227 × 255 in MagicaVoxel's axes, where the grid finds it: an entity
+    // of this model stands at its middle (§5.1).
+    const NeuronCore::VoxModel model = LoadMilitaryStation();
+    const NeuronCore::VoxelGrid grid(model);
+    const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(model);
+    Assert::IsTrue(bounds.has_value(), L"the station has bounds");
+    AreEqualInt3(grid.Origin(), bounds.value_or(NeuronCore::VoxelBounds{}).lower, L"lower");
+    AreEqualInt3(grid.Origin() + grid.Size(), bounds.value_or(NeuronCore::VoxelBounds{}).upper, L"upper");
+  }
+
   TEST_METHOD(GridHoldsEveryVoxel)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();

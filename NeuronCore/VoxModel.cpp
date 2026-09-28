@@ -731,7 +731,7 @@ std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _b
   return model;
 }
 
-std::expected<VoxModel, VoxError> LoadVoxModel(const std::filesystem::path& _path)
+std::expected<std::vector<std::uint8_t>, VoxError> ReadVoxFile(const std::filesystem::path& _path)
 {
   std::ifstream file(_path, std::ios::binary | std::ios::ate);
   if (!file.is_open())
@@ -749,7 +749,12 @@ std::expected<VoxModel, VoxError> LoadVoxModel(const std::filesystem::path& _pat
   {
     return std::unexpected(VoxError::ReadFailed);
   }
-  return ParseVoxModel(bytes);
+  return bytes;
+}
+
+std::expected<VoxModel, VoxError> LoadVoxModel(const std::filesystem::path& _path)
+{
+  return ReadVoxFile(_path).and_then([](const std::vector<std::uint8_t>& _bytes) { return ParseVoxModel(_bytes); });
 }
 
 Box CellBox(Int3 _minCorner) noexcept
@@ -763,6 +768,28 @@ Box VoxelBox(const ModelInstance& _instance, std::uint32_t _record) noexcept
 {
   const VoxelRecord voxel = UnpackVoxelRecord(_record);
   return CellBox(_instance.origin + Int3{voxel.x, voxel.y, voxel.z});
+}
+
+std::optional<VoxelBounds> OccupiedBounds(const VoxModel& _model) noexcept
+{
+  std::optional<VoxelBounds> bounds;
+  for (const ModelInstance& instance : _model.instances)
+  {
+    for (std::uint32_t i = 0; i < instance.recordCount; ++i)
+    {
+      const VoxelRecord voxel = UnpackVoxelRecord(_model.records[instance.firstRecord + i]);
+      const Int3 corner = instance.origin + Int3{voxel.x, voxel.y, voxel.z};
+      const Int3 beyond = corner + Int3{1, 1, 1};
+      if (!bounds)
+      {
+        bounds = VoxelBounds{corner, beyond};
+        continue;
+      }
+      bounds->lower = {std::min(bounds->lower.x, corner.x), std::min(bounds->lower.y, corner.y), std::min(bounds->lower.z, corner.z)};
+      bounds->upper = {std::max(bounds->upper.x, beyond.x), std::max(bounds->upper.y, beyond.y), std::max(bounds->upper.z, beyond.z)};
+    }
+  }
+  return bounds;
 }
 
 } // namespace NeuronCore

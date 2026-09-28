@@ -16,6 +16,7 @@
 #include "VoxModel.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <span>
 #include <vector>
@@ -29,6 +30,9 @@ namespace NeuronClientTests
 
 // The station, as LoadGameData finds it.
 [[nodiscard]] NeuronCore::VoxModel LoadMilitaryStation();
+
+// The GameData folder LoadGameData finds its files in, where a client session reads the models a welcome names.
+[[nodiscard]] std::filesystem::path GameDataDirectory();
 
 // _model's parts drawn whole, each unturned at its origin, as the application draws its scene (Design/SpaceScene.md §7):
 // the one model of a scene, so that every voxel's id is its record's index, and its box the one RecordBox gives.

@@ -28,6 +28,7 @@
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="CanvasQuad.h" />
     <ClInclude Include="CanvasShading.h" />
+    <ClInclude Include="ClientSession.h" />
     <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FrameQueries.h" />
@@ -39,6 +40,8 @@
     <ClInclude Include="SplatPass.h" />
     <ClInclude Include="ToneMapPass.h" />
     <ClInclude Include="PlacementConstants.h" />
+    <ClInclude Include="SceneModels.h" />
+    <ClInclude Include="SnapshotBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DebugViewPass.cpp" />
@@ -59,6 +62,7 @@
     <ClCompile Include="Window.cpp" />
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="ClientSession.cpp" />
     <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FrameQueries.cpp" />
@@ -69,6 +73,8 @@
     <ClCompile Include="ShadowViewConstants.cpp" />
     <ClCompile Include="SplatPass.cpp" />
     <ClCompile Include="PlacementConstants.cpp" />
+    <ClCompile Include="SceneModels.cpp" />
+    <ClCompile Include="SnapshotBuffer.cpp" />
     <ClCompile Include="ToneMapPass.cpp" />
   </ItemGroup>
   <ItemGroup>
