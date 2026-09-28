@@ -184,7 +184,14 @@ The owner's answer covers a leader that detonates. That a restored leader rejoin
   - The worst slot transient over those seeds is 1.81 widths, in a flight's first two seconds. That is why the bound is 2 widths.
   - 60 seeds with detonations: at least 14.6 units clear.
   - The heavy sector, on 4 seeds: at least 28.1 units clear undisturbed and 15.0 with detonations.
-- **The suite's time.** 1.9 s at `-O1`. An unoptimized build with checked containers, which stands in for CI's Debug build, takes 28.6 s.
+- **In CI,** MSVC's Debug|x64 build under `/arch:AVX2`, on 2026-09-28, the same figures to four places:
+  - 27.7175 units clear;
+  - slots at most 0.9978 widths away, and 0.1238 on average;
+  - 31.1820 units clear through the detonations.
+- **The suite's time.**
+  - 1.9 s at `-O1`;
+  - 28.6 s in an unoptimized build with checked containers, which stood in for CI's Debug build;
+  - 36 s in CI's Debug build itself, of which the two ten-minute runs take 7 s and 6 s.
 - **A tick's cost,** natively at `-O1`:
   - 23 µs for the default sector's 48 ships, and 119 µs for the heavy sector's 240;
   - `Create`, which reads and measures the three models, 6.5 ms.

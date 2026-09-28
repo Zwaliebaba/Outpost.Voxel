@@ -135,6 +135,7 @@ The host's thread and its clients share nothing but the loopback's queues.
 - **Natively,** at `-O1`, all 143 tests of `NeuronCoreTests` and all 8 of `NeuronServerTests` pass.
 - **Under forced contraction,** 142 and 8 pass. The one failure is `TracesThePinnedVoxels`, 9 pixels of the three-quarter image, which fails the same way on `main` (ADR-014).
 - **ThreadSanitizer** reports nothing over `LoopbackTransportTests`' two threads, or over `NeuronServerTests`, whose host runs its own thread.
+- **In CI,** MSVC's Debug|x64 build, on 2026-09-28: all 192 tests of the four suites pass, and clang-tidy is clean over the tree's 99 translation units.
 
 ## What this forecloses
 
