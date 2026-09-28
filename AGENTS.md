@@ -12,7 +12,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
 3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
 
-The design document, [`Design/SampleRenderer.md`](Design/SampleRenderer.md), sits alongside rather than above: it says what is built and this file says how. A task that needs a design answer the document does not give asks the owner, and gets the answer written down there before the code is.
+The design documents, [`Design/SampleRenderer.md`](Design/SampleRenderer.md) for the renderer and [`Design/SpaceScene.md`](Design/SpaceScene.md) for the space scene built on it, sit alongside rather than above: they say what is built and this file says how. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in the right one before the code is.
 
 If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
 

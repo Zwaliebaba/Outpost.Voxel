@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** draft for the owner's acceptance. The owner answered every question of §17 on 2026-09-28, revising D4 of `SampleRenderer.md` with the seventh and adding D14 with the eighth; none is open · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md` and the eighth adding D14 · **Date:** 2026-09-28
 **Builds on:** [`SampleRenderer.md`](SampleRenderer.md), the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). §3 lists what this changes in `SampleRenderer.md`.
@@ -435,7 +435,7 @@ What it takes from the look is some softness where history is rejected or clampe
 
 | | Delivers | Done when |
 |---|---|---|
-| S-M0 | This design accepted; M5's performance note committed from the owner's run of `--bench` | The owner accepts; the note is in `Design/` |
+| S-M0 | This design accepted (2026-09-28); M5's performance note committed from the owner's run of `--bench` | The owner accepts; the note is in `Design/` |
 | S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion; `SampleRenderer.md` amended; ADR-009 superseded by the detonation's ADR, and ADR-008 amended; NVF §12.2's rows for the explosion and the ground struck | Every suite green; the owner has seen the station lit without a floor, detonated in zero gravity and restored |
 | N-M0 | NeuronVoxelFormat.md §12, as amended by S-M1 | As NeuronVoxelFormat.md §10 says |
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, detonated placements, ids, culling and order, the scene tracer; the placements ADR | §15's placement tests green; the station renders, detonates and is restored as before, through one placement |
