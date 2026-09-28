@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <exception>
 #include <optional>
 
 namespace NeuronClient
@@ -27,14 +28,27 @@ enum RootParameter : std::uint8_t
 // A text is laid out in a box this large, so that nothing wraps or clips: lines break only at '\n'.
 constexpr float LAYOUT_LIMIT_PIXELS = 1.0e5f;
 
-// What Print hands DirectWrite as the drawing context, and DirectWrite hands back with every run of the text.
+// What Print hands DirectWrite as the drawing context, and DirectWrite hands back with every run of the text. A callback
+// cannot throw through DirectWrite, which does not pass a failed HRESULT on from it either, so the first exception is
+// kept here and Print rethrows it.
 struct TextRun
 {
   GlyphAtlas* atlas;
   std::vector<CanvasQuad>* quads;
   NeuronCore::Float3 color;
   float alpha;
+  std::exception_ptr failure;
 };
+
+// Keeps the exception being handled, unless an earlier one is kept already, and returns its HRESULT for DirectWrite.
+[[nodiscard]] HRESULT Keep(TextRun& _run) noexcept
+{
+  if (!_run.failure)
+  {
+    _run.failure = std::current_exception();
+  }
+  return winrt::to_hresult();
+}
 
 void AddQuad(std::vector<CanvasQuad>& _quads, const CanvasQuad& _quad)
 {
@@ -83,9 +97,9 @@ struct GlyphRunSink : winrt::implements<GlyphRunSink, IDWriteTextRenderer>
                                  const DWRITE_GLYPH_RUN* _glyphRun, const DWRITE_GLYPH_RUN_DESCRIPTION* /*_description*/,
                                  IUnknown* /*_effect*/) noexcept override
   {
+    TextRun& run = *static_cast<TextRun*>(_context);
     try
     {
-      TextRun& run = *static_cast<TextRun*>(_context);
       const bool rightToLeft = (_glyphRun->bidiLevel & 1u) != 0u;
       float penX = _baselineOriginX;
       for (UINT32 i = 0; i < _glyphRun->glyphCount; ++i)
@@ -113,37 +127,39 @@ struct GlyphRunSink : winrt::implements<GlyphRunSink, IDWriteTextRenderer>
     }
     catch (...)
     {
-      return winrt::to_hresult();
+      return Keep(run);
     }
   }
 
   HRESULT __stdcall DrawUnderline(void* _context, FLOAT _baselineOriginX, FLOAT _baselineOriginY, const DWRITE_UNDERLINE* _underline,
                                   IUnknown* /*_effect*/) noexcept override
   {
+    TextRun& run = *static_cast<TextRun*>(_context);
     try
     {
-      AddLine(*static_cast<TextRun*>(_context), _baselineOriginX, _baselineOriginY, _underline->offset, _underline->width,
-              _underline->thickness, _underline->readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
+      AddLine(run, _baselineOriginX, _baselineOriginY, _underline->offset, _underline->width, _underline->thickness,
+              _underline->readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
       return S_OK;
     }
     catch (...)
     {
-      return winrt::to_hresult();
+      return Keep(run);
     }
   }
 
   HRESULT __stdcall DrawStrikethrough(void* _context, FLOAT _baselineOriginX, FLOAT _baselineOriginY,
                                       const DWRITE_STRIKETHROUGH* _strikethrough, IUnknown* /*_effect*/) noexcept override
   {
+    TextRun& run = *static_cast<TextRun*>(_context);
     try
     {
-      AddLine(*static_cast<TextRun*>(_context), _baselineOriginX, _baselineOriginY, _strikethrough->offset, _strikethrough->width,
-              _strikethrough->thickness, _strikethrough->readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
+      AddLine(run, _baselineOriginX, _baselineOriginY, _strikethrough->offset, _strikethrough->width, _strikethrough->thickness,
+              _strikethrough->readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
       return S_OK;
     }
     catch (...)
     {
-      return winrt::to_hresult();
+      return Keep(run);
     }
   }
 
@@ -233,8 +249,13 @@ TextExtent Canvas::Print(std::wstring_view _text, float _xPixels, float _yPixels
                          float _alpha)
 {
   const winrt::com_ptr<IDWriteTextLayout> layout = Layout(_text, _style);
-  TextRun run{&m_atlas, &m_quads, _color, _alpha};
-  winrt::check_hresult(layout->Draw(&run, m_renderer.get(), _xPixels, _yPixels));
+  TextRun run{&m_atlas, &m_quads, _color, _alpha, nullptr};
+  const HRESULT drawn = layout->Draw(&run, m_renderer.get(), _xPixels, _yPixels);
+  if (run.failure)
+  {
+    std::rethrow_exception(run.failure);
+  }
+  winrt::check_hresult(drawn);
   return ExtentOf(layout.get());
 }
 

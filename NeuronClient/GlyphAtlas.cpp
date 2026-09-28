@@ -124,12 +124,17 @@ std::size_t GlyphAtlas::KeyHash::operator()(const Key& _key) const noexcept
 
 std::optional<GlyphAtlas::Glyph> GlyphAtlas::Rasterize(const Key& _key)
 {
+  // One glyph at the origin. The analysis wants its advance and offset even for a single glyph: none of either.
   const std::uint16_t index = _key.index;
+  const FLOAT advance = 0.0f;
+  const DWRITE_GLYPH_OFFSET offset{0.0f, 0.0f};
   DWRITE_GLYPH_RUN run{};
   run.fontFace = _key.face;
   run.fontEmSize = std::bit_cast<float>(_key.emSizeBits);
   run.glyphCount = 1;
   run.glyphIndices = &index;
+  run.glyphAdvances = &advance;
+  run.glyphOffsets = &offset;
   run.isSideways = _key.sideways ? TRUE : FALSE;
   // Grayscale, because ClearType's three coverages per pixel cannot be laid over a 3D image with one alpha (ADR-010).
   winrt::com_ptr<IDWriteGlyphRunAnalysis> analysis;
