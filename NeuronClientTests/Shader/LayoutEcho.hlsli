@@ -1,9 +1,11 @@
 #pragma once
 
 // The layout echo of Design/SampleRenderer.md §7.4 (R16): every field of every constant-buffer mirror, in declaration
-// order, written back as the 32-bit words the C++ struct holds them in. A mirror that places a field anywhere else reads
-// another field's word, and LayoutEchoTests sees it.
+// order, then of two canvas quads read from a structured buffer, written back as the 32-bit words the C++ structs hold
+// them in. A mirror that places a field anywhere else, or a structured buffer whose stride differs from the struct's
+// size, reads another field's word, and LayoutEchoTests sees it.
 
+#include "CanvasQuad.hlsli"
 #include "ExplosionConstants.hlsli"
 #include "InstanceConstants.hlsli"
 #include "LightingConstants.hlsli"
@@ -17,6 +19,7 @@ ConstantBuffer<PaletteConstants> g_palette : register(b2);
 ConstantBuffer<ShadowViewConstants> g_shadowView : register(b3);
 ConstantBuffer<LightingConstants> g_lighting : register(b4);
 ConstantBuffer<ExplosionConstants> g_explosion : register(b5);
+StructuredBuffer<CanvasQuad> g_canvasQuads : register(t0);
 RWByteAddressBuffer g_echo : register(u0);
 
 void Echo(inout uint _word, uint _value)
@@ -86,4 +89,18 @@ void Echo3(inout uint _word, uint3 _value)
   Echo(word, asuint(g_explosion.restitution));
   Echo(word, asuint(g_explosion.horizontalDamping));
   Echo(word, g_explosion.maxQuarterTurns);
+
+  [unroll] for (uint quad = 0u; quad < 2u; ++quad)
+  {
+    CanvasQuad canvasQuad = g_canvasQuads[quad];
+    Echo(word, asuint(canvasQuad.pixelX));
+    Echo(word, asuint(canvasQuad.pixelY));
+    Echo(word, canvasQuad.widthPixels);
+    Echo(word, canvasQuad.heightPixels);
+    Echo(word, canvasQuad.atlasX);
+    Echo(word, canvasQuad.atlasY);
+    Echo(word, canvasQuad.fill);
+    Echo3(word, asuint(canvasQuad.color));
+    Echo(word, asuint(canvasQuad.alpha));
+  }
 }

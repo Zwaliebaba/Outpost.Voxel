@@ -21,5 +21,7 @@ namespace NeuronClient
 [[nodiscard]] D3D12_SHADER_BYTECODE ToneMapPixelShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE DebugViewVertexShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE DebugViewPixelShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE CanvasVertexShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE CanvasPixelShader() noexcept;
 
 } // namespace NeuronClient

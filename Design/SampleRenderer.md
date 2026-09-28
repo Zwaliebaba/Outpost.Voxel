@@ -24,6 +24,7 @@ The sample renders `MilitaryStation.vox` with the method of Majercik et al. Each
 | D10 | Every GPU algorithm has a CPU twin, and the GPU output is checked per pixel against it on WARP in CI. | §14 |
 | D11 | Rendering is 1:1 at the window's size; the window opens borderless fullscreen, and `--bench` always renders at 1920 × 1080. | §13; owner's display and request, 2026-09-27 |
 | D12 | There is no comparison against MagicaVoxel renders; MagicaVoxel conventions the file cannot settle stay stated defaults. | Owner, 2026-09-27 |
+| D13 | A canvas draws text and the HUD over the frame: DirectWrite lays text out and rasterizes its glyphs, and Direct3D 12 draws them. Direct2D is not used. | §13; owner, 2026-09-28 (ADR-010) |
 
 ## 2. Scope
 
@@ -104,7 +105,7 @@ The two things FL 12_1 adds over 12_0 — conservative rasterization tier 1 and 
 
 In-box WARP implements FL 12_1 on Windows 10 1709 and later, so CI can run the real renderer (§14).
 
-The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp and pipeline-statistics queries; and a flip-model swap chain.
+The design uses graphics and compute pipeline states; root signature 1.0 with root CBVs, root SRVs and a few small, fully populated descriptor tables, within resource binding tier 1's limits; committed resources; `R32_TYPELESS` depth read back as `R32_FLOAT`; an `R32G32_UINT` render target; a typed UAV store to `R16G16B16A16_FLOAT`; comparison sampling; timestamp and pipeline-statistics queries; a flip-model swap chain; and DirectWrite, which lays the canvas's text out and rasterizes its glyphs on the CPU (§13, ADR-010).
 
 It deliberately does not use:
 
@@ -113,7 +114,8 @@ It deliberately does not use:
 - geometry shaders, because vertex pulling does the same job without them;
 - wave intrinsics, which are optional below FL 12_2 and not needed;
 - any vendor extension;
-- the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships.
+- the Agility SDK — the in-box runtime covers everything above, so no `D3D12Core.dll` ships;
+- Direct2D and Direct3D 11On12, because the canvas's glyphs go from DirectWrite straight to Direct3D 12 (ADR-010).
 
 One package comes from outside the SDK: WinPixEventRuntime, with which a program names the regions of a frame for PIX. The owner added it to the client engine, and no code calls it yet (ADR-004).
 
@@ -130,7 +132,7 @@ ADR-001 settled the first layout with the first project. The owner then reshaped
 | Project | Kind | Namespace | Depends on | Holds |
 |---|---|---|---|---|
 | `NeuronCore` | static library | `NeuronCore` | — | The engine core that client and server share: `.vox` reader, voxel model, maths, the CPU twins (ray-box, bounds, pose, packing), reference tracer. No Windows or Direct3D headers. |
-| `NeuronClient` | static library | `NeuronClient` | `NeuronCore` | The client engine: device, resources, passes and their shaders (in `Shader/`), window, input, clock. Owns the single Windows include header of `AGENTS.md` §4. |
+| `NeuronClient` | static library | `NeuronClient` | `NeuronCore` | The client engine: device, resources, passes and their shaders (in `Shader/`), the canvas with its DirectWrite text and its twin (ADR-010), window, input, clock. Owns the single Windows include header of `AGENTS.md` §4. |
 | `NeuronServer` | static library | `NeuronServer` | `NeuronCore` | The server engine; empty until the server has code of its own. |
 | `GameLogic` | static library | `GameLogic` | `NeuronServer`, `NeuronCore` | The game's rules on the server side; empty for now. |
 | `GameLib` | static library | `GameLib` | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
@@ -142,7 +144,7 @@ There is one solution, `Outpost.Voxel.slnx`, at the root, where CI looks for it.
 
 ### 6.2 Shader sources
 
-HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, and the constant-buffer mirrors (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
+HLSL lives in `NeuronClient/Shader/`: shaders belong to the library that uses them, in its `Shader` folder (`AGENTS.md` §2). A `.hlsl` file is one entry point: a few lines that set permutation switches, then an include. Algorithms live in `.hlsli` files shared by the permutations: the ray-box port (§9.4), the screen-space bounds, the explosion pose, the splat vertex and pixel bodies, packing, the canvas's arithmetic, and the mirrors of the layouts shared with C++ (§7.4). The splat shaders come in four permutations — `ORIENTED` 0/1 × `ORTHOGRAPHIC` 0/1 — for each of the vertex and pixel stages. `.hlsli` is registered in `.editorconfig` and `.gitattributes`, and R17 in `AGENTS.md` governs both extensions (§17).
 
 ### 6.3 Data flow
 
@@ -164,6 +166,8 @@ voxel records, 225,048 × u32 · palette, 16 entries · frame constants (cameras
                                               │
                                               ▼
                                  tone map, ACES ──► back buffer, sRGB view
+                                                          ▲
+                           canvas: text and panels ───────┘  (DirectWrite glyphs, R8 atlas)
 ```
 
 ## 7. Data
@@ -192,7 +196,7 @@ The view pass writes `R32G32_UINT`: x is the voxel index (`0xFFFFFFFF` where no 
 
 ### 7.4 Constants shared with HLSL
 
-The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`. A compute shader includes the mirrors and copies every field of every struct into a UAV; a `NeuronClientTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
+The C++ structs in `NeuronClient` are the source of truth, with `static_assert`s on their size and on every member's offset. Each has one hand-written HLSL mirror in a `.hlsli`: the constant buffers, and the canvas's quad, which is the element of a structured buffer (§13). A compute shader includes the mirrors and copies every field of every struct into a UAV, reading two quads so that the buffer's stride is checked too; a `NeuronClientTests` test fills the C++ structs with a sentinel pattern and compares, so layout drift fails CI. A single header shared by both languages was rejected: HLSL's type names (`float4`, `uint2`) are not legal C++ type names under `AGENTS.md` §1, and the macro layer that fakes them would cost more than the test.
 
 ### 7.5 Coordinate conventions
 
@@ -215,6 +219,7 @@ Depth conventions are the classic place for a sign error, so the code names each
 | View splat | Graphics | Voxel records, constants | Depth, visibility |
 | Lighting | Compute, 8 × 8 groups | Depth, visibility, shadow map, voxel records, palette | HDR colour |
 | Tone map | Graphics, one full-screen triangle | HDR colour | Back buffer |
+| Canvas | Graphics, one instanced draw of quads | Quads, glyph atlas | Back buffer |
 
 | Resource | Format | Size at 1920 × 1080 |
 |---|---|---|
@@ -226,8 +231,9 @@ Depth conventions are the classic place for a sign error, so the code names each
 | HDR colour | `R16G16B16A16_FLOAT` | 16.6 MB |
 | Shadow map | `R32_TYPELESS`, 4096² | 67.1 MB |
 | Back buffers | 2 × `R8G8B8A8_UNORM` | 16.6 MB |
+| Glyph atlas | `R8_UNORM`, 1024² | 1.0 MB |
 
-That is about 126 MB in all, just over half of it the shadow map.
+That is about 127 MB in all, just over half of it the shadow map.
 
 Two frames are in flight on one direct queue, with one command list and one fence value per frame. Per-frame constants live in a ring in an upload heap and are bound as root CBVs; static data is uploaded once. Barriers are ordinary resource-state transitions. A resize waits for the GPU to go idle and recreates the size-dependent targets. Each pass is bracketed by timestamp queries, and the view splat also by a pipeline-statistics query (`VSInvocations`, `PSInvocations`, `CPrimitives`); both are read back two frames late.
 
@@ -376,9 +382,11 @@ The camera orbits the model (left drag), pans (right drag), dollies (wheel) and 
 - E detonate, R reassemble, Space pause, +/− time scale;
 - 1 the lit image, 2–6 debug views (§11), G ground, V vsync;
 - [ and ] the emissive gain (ADR-008);
-- F1 key map, Alt+F4 quit.
+- F1 key map, F2 the figures on screen, Alt+F4 quit.
 
-The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, the emissive scale that [ and ] tune, and the explosion's time and scale; borderless fullscreen draws no title bar, so while it has the screen the numbers show only in Alt+Tab or on a taskbar on another monitor, and a window opened with `--size` is the way to watch them. There is no in-window UI: a UI library would be a dependency and an ADR, for no gain here.
+The window's title carries the frame time, GPU milliseconds per pass, `PSInvocations`, the emissive scale that [ and ] tune, and the explosion's time and scale. Borderless fullscreen draws no title bar, so the window shows the same figures itself: one per line, on a translucent panel in the top-left corner, which F2 hides and shows (D13, ADR-010).
+
+They are drawn by the canvas, the 2D overlay the renderer draws last and the surface a HUD will draw on. DirectWrite lays the text out and rasterizes each glyph once into an atlas, and Direct3D 12 draws a quad over each glyph's bitmap, texel for texel; Direct2D takes no part. The text is grayscale antialiased, not ClearType: three coverages per pixel cannot be blended over a 3D image with one alpha.
 
 Command line:
 
@@ -404,6 +412,7 @@ Loader failures are values (§7.1). A Direct3D failure during initialisation, or
 `NeuronClientTests` run on WARP at FL 12_1. If the device cannot be created, the suite fails; it does not skip. They cover:
 
 - the layout echo of §7.4;
+- the canvas: text in two faces and translucent fills, drawn and compared pixel for pixel with its twin's composite of the same quads over the atlas's CPU copy (§13), and a glyph rasterized once per face and size;
 - the intact station from several fixed cameras at 161 × 91, with the visibility buffer read back and compared per pixel with the reference tracer — a 3D DDA through the dense grid that uses the ray-box twin per occupied cell. The odd resolution gives a level camera a whole row and column of rays with exactly-zero components (§4.2, item 6);
 - a shadow map with the sun straight overhead, where every ray is axis-parallel;
 - the aligned and oriented permutations at *t* = 0;
@@ -457,7 +466,7 @@ The owner answered the open questions on 2026-09-27:
 `AGENTS.md` reserves R14 onward for rules with a design source. The owner accepted these four on 2026-09-27, and they are R14–R17 in `AGENTS.md`, which is where they are maintained:
 
 - **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per coordinate and four for colour (D5). Widening either is a format change and needs an ADR.
-- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `NeuronCore`, and a test compares the two.
+- **R15 — No algorithm exists only on the GPU.** Ray-box, bounds, pose and packing each have a C++ twin in `NeuronCore`, and a test compares the two. The canvas's twin is in `NeuronClient`, because only the client draws a canvas (ADR-010).
 - **R16 — Shared layouts have one source.** The C++ struct, with `static_assert`s on size and offsets, is the truth; its HLSL mirror is written once, in a `.hlsli`; the echo test proves they agree.
 - **R17 — HLSL follows §1.** A `.hlsl` file holds one entry point and nothing but switches and an include; algorithms live in `.hlsli` files; the naming table applies; semantics and intrinsics keep the SDK's spelling (`SV_Position`).
 
@@ -471,7 +480,8 @@ Each expected ADR lands in the commit that implements it:
 - ADR-006, depth conventions (M2);
 - ADR-007, Shader Model 6.7 and shader file names (M2), which amends ADR-005;
 - ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
-- ADR-009, explosion motion model and its defaults (M4).
+- ADR-009, explosion motion model and its defaults (M4);
+- ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28).
 
 ## 18. References
 

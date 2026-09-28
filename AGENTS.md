@@ -139,8 +139,8 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 
 | Project | Kind | References | Holds |
 |---|---|---|---|
-| `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of every GPU algorithm (R15), the reference tracer. No Windows or Direct3D header. |
-| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, window, input, clock. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
+| `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
+| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock. Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
 | `NeuronServer` | static library | `NeuronCore` | The server engine. Empty until the server has code of its own. |
 | `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side. Empty until the server has code of its own. |
 | `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: camera controls, scene setup. |
@@ -235,7 +235,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 
-**R15 — No algorithm exists only on the GPU.** Every algorithm a shader runs — the ray-box intersection, the screen-space bounds, the explosion pose, the packing — has a C++ twin in `NeuronCore` under the same name, and a test compares the two (design D10, §14). The twin is the reference; a shader that disagrees with it is the defect until shown otherwise.
+**R15 — No algorithm exists only on the GPU.** Every algorithm a shader runs — the ray-box intersection, the screen-space bounds, the explosion pose, the packing — has a C++ twin in `NeuronCore` under the same name, and a test compares the two (design D10, §14). The twin is the reference; a shader that disagrees with it is the defect until shown otherwise. One exception, the owner's: the canvas's twin lives in `NeuronClient` beside the canvas, because only the client draws one ([ADR-010](Design/ADR/ADR-010-canvas-text-overlay.md)). It includes no Windows or Direct3D header all the same, and it is the only exception; another needs its own ADR.
 
 **R16 — A layout shared with HLSL has one source.** The C++ struct is the truth, with `static_assert`s on its size and on every member's offset; its HLSL mirror is written once, in a `.hlsli`; and the echo test in `NeuronClientTests` proves the two agree (design §7.4). Nothing else redeclares the layout.
 

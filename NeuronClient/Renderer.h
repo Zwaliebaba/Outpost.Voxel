@@ -4,6 +4,7 @@
 
 #include <d3d12.h>
 
+#include "Canvas.h"
 #include "DebugViewPass.h"
 #include "DescriptorHeap.h"
 #include "GraphicsDevice.h"
@@ -53,8 +54,9 @@ struct FrameSettings
 
 // The frame of Design/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
 // visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
-// their place. Both splats draw the aligned permutation while the model is intact and the oriented one once the
-// explosion has started (§12). Two frames are in flight, each with its own allocator, constants and fence value.
+// their place, and last the canvas over it all (§13). Both splats draw the aligned permutation while the model is intact
+// and the oriented one once the explosion has started (§12). Two frames are in flight, each with its own allocator,
+// constants and fence value.
 class Renderer
 {
 public:
@@ -78,6 +80,12 @@ public:
   [[nodiscard]] const GraphicsDevice& Device() const noexcept
   {
     return m_device;
+  }
+
+  // The 2D overlay the next Render draws over the frame, in pixels of the frame: collect into it, then call Render.
+  [[nodiscard]] Canvas& Overlay() noexcept
+  {
+    return m_canvas;
   }
 
   [[nodiscard]] std::uint32_t WidthPixels() const noexcept
@@ -116,6 +124,7 @@ private:
   LightingPass m_lighting;
   ToneMapPass m_toneMap;
   DebugViewPass m_debugView;
+  Canvas m_canvas;
   std::array<Frame, FRAMES_IN_FLIGHT> m_frames;
   winrt::com_ptr<ID3D12GraphicsCommandList> m_list;
   std::uint32_t m_frameIndex = 0;

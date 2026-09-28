@@ -11,6 +11,9 @@
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CanvasTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DebugViewPassTests.cpp" />
     <ClCompile Include="ExplosionSplatTests.cpp">
       <Filter>Source Files</Filter>

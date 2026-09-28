@@ -8,6 +8,8 @@ namespace
 {
 
 // Each header defines one array of bytecode, named by its FxCompile item's VariableName.
+#include "Shaders/CanvasPS.h"
+#include "Shaders/CanvasVS.h"
 #include "Shaders/DebugViewPS.h"
 #include "Shaders/DebugViewVS.h"
 #include "Shaders/LightingCS.h"
@@ -87,6 +89,16 @@ D3D12_SHADER_BYTECODE DebugViewVertexShader() noexcept
 D3D12_SHADER_BYTECODE DebugViewPixelShader() noexcept
 {
   return {DEBUG_VIEW_PS, sizeof(DEBUG_VIEW_PS)};
+}
+
+D3D12_SHADER_BYTECODE CanvasVertexShader() noexcept
+{
+  return {CANVAS_VS, sizeof(CANVAS_VS)};
+}
+
+D3D12_SHADER_BYTECODE CanvasPixelShader() noexcept
+{
+  return {CANVAS_PS, sizeof(CANVAS_PS)};
 }
 
 } // namespace NeuronClient

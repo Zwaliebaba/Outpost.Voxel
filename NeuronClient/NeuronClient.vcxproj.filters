@@ -7,6 +7,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Canvas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CanvasQuad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CanvasShading.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Clock.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
@@ -14,6 +23,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="GlyphAtlas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
@@ -49,12 +61,21 @@
     <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Canvas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CanvasShading.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="ExplosionConstants.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="GlyphAtlas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
@@ -89,6 +110,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\CanvasPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\CanvasQuad.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\CanvasShading.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\DebugView.hlsli">
       <Filter>Shader Files</Filter>
     </None>
@@ -157,6 +187,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\CanvasPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\CanvasVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>

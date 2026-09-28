@@ -14,8 +14,8 @@ namespace
 {
 
 // Descriptors the renderer needs, with room to spare: the visibility RTV and the back buffers; the view's and the
-// shadow map's DSVs; the visibility SRV and UAV, the depth SRV, the HDR color's SRV and UAV and the shadow map's SRV;
-// and the visibility UAV's CPU-only twin for its clear.
+// shadow map's DSVs; the visibility SRV and UAV, the depth SRV, the HDR color's SRV and UAV, the shadow map's SRV and
+// the glyph atlas's SRV; and the visibility UAV's CPU-only twin for its clear.
 constexpr std::uint32_t RTV_CAPACITY = 8;
 constexpr std::uint32_t DSV_CAPACITY = 4;
 constexpr std::uint32_t SHADER_CAPACITY = 16;
@@ -44,7 +44,8 @@ Renderer::Renderer(const RendererDesc& _desc, const NeuronCore::VoxModel& _model
     m_viewSplatOriented(m_device, SplatPass::Kind::View, SplatPass::Permutation::Oriented),
     m_lighting(m_device),
     m_toneMap(m_device, SwapChain::VIEW_FORMAT),
-    m_debugView(m_device, SwapChain::VIEW_FORMAT)
+    m_debugView(m_device, SwapChain::VIEW_FORMAT),
+    m_canvas(m_device, m_shaderHeap, SwapChain::VIEW_FORMAT, FRAMES_IN_FLIGHT)
 {
   m_targets.Resize(m_device, _desc.widthPixels, _desc.heightPixels);
   for (Frame& frame : m_frames)
@@ -131,6 +132,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, const FrameSetti
   {
     m_toneMap.Record(list, m_targets, _settings.exposure);
   }
+  m_canvas.Record(list, m_frameIndex, WidthPixels(), HeightPixels());
   const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
   list->ResourceBarrier(1, &toPresent);
   winrt::check_hresult(list->Close());

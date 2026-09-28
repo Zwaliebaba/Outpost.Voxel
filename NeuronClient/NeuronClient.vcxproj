@@ -100,11 +100,15 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Canvas.h" />
+    <ClInclude Include="CanvasQuad.h" />
+    <ClInclude Include="CanvasShading.h" />
     <ClInclude Include="Clock.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FailureReport.h" />
+    <ClInclude Include="GlyphAtlas.h" />
     <ClInclude Include="GpuResources.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
@@ -128,10 +132,13 @@
     <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Canvas.cpp" />
+    <ClCompile Include="CanvasShading.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FailureReport.cpp" />
+    <ClCompile Include="GlyphAtlas.cpp" />
     <ClCompile Include="GpuResources.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
@@ -155,6 +162,16 @@
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\CanvasPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>CanvasPixel</EntryPointName>
+      <VariableName>CANVAS_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\CanvasVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>CanvasVertex</EntryPointName>
+      <VariableName>CANVAS_VS</VariableName>
+    </FxCompile>
     <FxCompile Include="Shader\DebugViewPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>DebugViewPixel</EntryPointName>
@@ -228,6 +245,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\CanvasPass.hlsli" />
+    <None Include="Shader\CanvasQuad.hlsli" />
+    <None Include="Shader\CanvasShading.hlsli" />
     <None Include="Shader\DebugView.hlsli" />
     <None Include="Shader\DebugViewPass.hlsli" />
     <None Include="Shader\Explosion.hlsli" />

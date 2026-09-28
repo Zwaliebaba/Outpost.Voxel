@@ -2,6 +2,7 @@
 
 #include "Game.h"
 
+#include "Canvas.h"
 #include "Clock.h"
 #include "FailureReport.h"
 #include "InputState.h"
@@ -18,11 +19,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace GameLib
 {
@@ -35,8 +39,15 @@ using NeuronClient::MouseButton;
 // Fly speed in fractions of the framing distance per second; Shift quadruples it.
 constexpr float FLY_SPEED_PER_SECOND = 0.25f;
 constexpr float FLY_BOOST = 4.0f;
-// How often the title's figures are brought up to date; the frame time it shows is the mean over that interval.
+// How often the frame time is brought up to date, in the title and on screen; it is the mean over that interval.
 constexpr double TITLE_INTERVAL_SECONDS = 0.5;
+
+// The figures on screen (§13, ADR-010): one per line on a translucent panel in the top-left corner, at these sizes on a
+// 96 DPI monitor and larger in proportion on a denser one.
+constexpr NeuronClient::TextStyle FIGURES_STYLE{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
+constexpr float FIGURES_MARGIN_PIXELS = 8.0f;
+constexpr float FIGURES_PADDING_PIXELS = 6.0f;
+constexpr float FIGURES_PANEL_ALPHA = 0.55f;
 
 // [ and ] scale the emissive gain by this much, within these bounds (§7.2: the multiplier is tuned by eye).
 constexpr float EMISSIVE_STEP = 1.1f;
@@ -66,6 +77,7 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"G\tground\n"
                                    L"V\tvsync\n"
                                    L"F1\tthis key map\n"
+                                   L"F2\tthe figures on screen\n"
                                    L"Alt+F4\tquit";
 
 struct Controls
@@ -73,6 +85,7 @@ struct Controls
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
   bool ground = true;
   bool vsync = true;
+  bool figures = true; // on screen; the title always carries them
   float emissiveGain = 1.0f;
 };
 
@@ -190,6 +203,10 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   {
     MessageBoxW(_window, KEY_MAP, L"Outpost keys", MB_OK | MB_ICONINFORMATION);
   }
+  if (_input.WasKeyPressed(VK_F2))
+  {
+    _controls.figures = !_controls.figures;
+  }
 }
 
 // The largest emissive scale in the palette: what the title reports, times the gain, as the glow the viewer tunes.
@@ -203,36 +220,72 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   return brightest;
 }
 
-[[nodiscard]] std::wstring Title(const NeuronClient::GraphicsDevice& _device, const Controls& _controls, const ExplosionClock& _clock,
-                                 double _frameSeconds, float _brightestEmissive)
+// What the title and the panel on screen carry (§13): the adapter, the view, the mean frame time once there is one, and
+// whatever else is not at its default.
+[[nodiscard]] std::vector<std::wstring> Figures(const NeuronClient::GraphicsDevice& _device, const Controls& _controls,
+                                                const ExplosionClock& _clock, std::optional<double> _frameSeconds, float _brightestEmissive)
 {
-  const wchar_t* view = _controls.debugView ? DEBUG_VIEW_NAMES[static_cast<std::size_t>(*_controls.debugView)] : L"lit";
-  std::wstring title = std::format(L"Outpost - {} - {} - {:.2f} ms", _device.AdapterName(), view, _frameSeconds * 1000.0);
+  std::vector<std::wstring> figures{_device.AdapterName(),
+                                    _controls.debugView ? DEBUG_VIEW_NAMES[static_cast<std::size_t>(*_controls.debugView)] : L"lit"};
+  if (_frameSeconds)
+  {
+    figures.push_back(std::format(L"frame {:.2f} ms", *_frameSeconds * 1000.0));
+  }
   if (_brightestEmissive > 0.0f)
   {
-    title += std::format(L" - emissive {:.2f}", _brightestEmissive * _controls.emissiveGain);
+    figures.push_back(std::format(L"emissive {:.2f}", _brightestEmissive * _controls.emissiveGain));
   }
   if (_clock.seconds > 0.0f)
   {
-    title += std::format(L" - t {:.2f} s", _clock.seconds);
+    figures.push_back(std::format(L"t {:.2f} s", _clock.seconds));
   }
   if (_clock.scale != 1.0f)
   {
-    title += std::format(L" - time x{}", _clock.scale);
+    figures.push_back(std::format(L"time x{}", _clock.scale));
   }
   if (_clock.paused)
   {
-    title += L" - paused";
+    figures.emplace_back(L"paused");
   }
   if (!_controls.vsync)
   {
-    title += L" - vsync off";
+    figures.emplace_back(L"vsync off");
   }
   if (_device.DebugLayer() == NeuronClient::DebugLayerState::Unavailable)
   {
-    title += L" - debug layer unavailable";
+    figures.emplace_back(L"debug layer unavailable");
   }
-  return title;
+  return figures;
+}
+
+[[nodiscard]] std::wstring Joined(const std::vector<std::wstring>& _figures, std::wstring_view _separator)
+{
+  std::wstring joined;
+  for (std::size_t i = 0; i < _figures.size(); ++i)
+  {
+    if (i > 0)
+    {
+      joined += _separator;
+    }
+    joined += _figures[i];
+  }
+  return joined;
+}
+
+// The figures on the canvas, one per line, white on a translucent black panel in the top-left corner. _scale is the
+// monitor's DPI over 96.
+void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>& _figures, float _scale)
+{
+  const NeuronClient::TextStyle style{FIGURES_STYLE.fontFamily, FIGURES_STYLE.sizePixels * _scale, FIGURES_STYLE.weight};
+  const std::wstring text = Joined(_figures, L"\n");
+  const NeuronClient::TextExtent extent = _canvas.Measure(text, style);
+  const float margin = std::round(FIGURES_MARGIN_PIXELS * _scale);
+  const float padding = std::round(FIGURES_PADDING_PIXELS * _scale);
+  _canvas.FillRectangle(static_cast<std::int32_t>(margin), static_cast<std::int32_t>(margin),
+                        static_cast<std::uint32_t>(std::ceil(extent.widthPixels + 2.0f * padding)),
+                        static_cast<std::uint32_t>(std::ceil(extent.heightPixels + 2.0f * padding)), {0.0f, 0.0f, 0.0f},
+                        FIGURES_PANEL_ALPHA);
+  _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
 // The sun's view (§10): fitted once to the explosion's envelope, which holds the model's box and reaches the ground, so
@@ -281,6 +334,7 @@ void RunGame(const GameOptions& _options)
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
+    std::optional<double> frameSeconds;
     while (window.PumpMessages())
     {
       const double seconds = clock.Tick();
@@ -296,19 +350,29 @@ void RunGame(const GameOptions& _options)
         WaitMessage();
         continue;
       }
+      sinceTitleSeconds += seconds;
+      ++framesSinceTitle;
+      const bool titleDue = sinceTitleSeconds >= TITLE_INTERVAL_SECONDS;
+      if (titleDue)
+      {
+        frameSeconds = sinceTitleSeconds / framesSinceTitle;
+        sinceTitleSeconds = 0.0;
+        framesSinceTitle = 0;
+      }
       renderer.Resize(current.widthPixels, current.heightPixels);
+      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, explosionClock, frameSeconds, brightestEmissive);
+      if (titleDue)
+      {
+        window.SetTitle(L"Outpost - " + Joined(figures, L" - "));
+      }
+      if (controls.figures)
+      {
+        DrawFigures(renderer.Overlay(), figures, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
+      }
       NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
       lighting.groundVisible = controls.ground;
       renderer.Render(camera.View(current.widthPixels, current.heightPixels),
                       {controls.debugView, lighting, settings.exposure, explosionClock.seconds, controls.vsync});
-      sinceTitleSeconds += seconds;
-      ++framesSinceTitle;
-      if (sinceTitleSeconds >= TITLE_INTERVAL_SECONDS)
-      {
-        window.SetTitle(Title(renderer.Device(), controls, explosionClock, sinceTitleSeconds / framesSinceTitle, brightestEmissive));
-        sinceTitleSeconds = 0.0;
-        framesSinceTitle = 0;
-      }
     }
   }
   catch (...)
