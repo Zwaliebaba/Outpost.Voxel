@@ -45,8 +45,8 @@ using NeuronCore::Float2;
 using NeuronCore::Float3;
 
 // The HDR color is stored in half precision, 11 significant bits, truncated as the twin truncates it; but the GPU's exp,
-// log, sqrt and asin differ from the CPU's by a few ulps (Design/SpaceScene.md §17), so a pixel within a float's rounding
-// of a half may be stored one step the other way, and each star it adds may add another. Four steps, and a floor for the
+// log and sqrt differ from the CPU's by a few ulps (Design/SpaceScene.md §17), so a pixel within a float's rounding of a
+// half may be stored one step the other way, and each star it adds may add another. Four steps, and a floor for the
 // faintest galaxy; the test logs the most any pixel strays.
 constexpr float RELATIVE_TOLERANCE = 2.0e-3f;
 constexpr float ABSOLUTE_TOLERANCE = 1.0e-5f;
@@ -54,6 +54,9 @@ constexpr float ABSOLUTE_TOLERANCE = 1.0e-5f;
 // Within this distance of a quad's edge, a pixel's centre may fall either way once the rasterizer has snapped the quad's
 // corners to its 1/256 of a pixel: whatever the star adds there is allowed on top of the tolerance.
 constexpr float EDGE_PIXELS = 1.0f / 128.0f;
+
+// How many of the pixels beyond the bounds a failure names.
+constexpr std::uint32_t STRAYS_NAMED = 8;
 
 // What voxels leave in the HDR color here: the sky pass must not change it.
 constexpr std::array<float, 4> UNDER_THE_SKY{0.25f, 0.5f, 0.75f, 1.0f};
@@ -190,6 +193,9 @@ public:
         std::uint32_t hiddenPixels = 0;
         std::uint32_t exactPixels = 0;
         std::uint32_t worstSteps = 0;
+        // Every pixel beyond the bounds, so that one run shows them all; the first few are named.
+        std::uint32_t strayPixels = 0;
+        std::wstring strays;
         for (std::uint32_t y = 0; y < view.heightPixels; ++y)
         {
           for (std::uint32_t x = 0; x < view.widthPixels; ++x)
@@ -238,10 +244,14 @@ public:
             }
             const auto close = [allowance](float _expected, float _actual)
             { return std::abs(_actual - _expected) <= RELATIVE_TOLERANCE * std::abs(_expected) + ABSOLUTE_TOLERANCE + allowance; };
-            Assert::IsTrue(close(expected.x, actual.x) && close(expected.y, actual.y) && close(expected.z, actual.z),
-                           std::format(L"({}, {}): ({}, {}, {}), the twins' ({}, {}, {})", x, y, actual.x, actual.y, actual.z, expected.x,
-                                       expected.y, expected.z)
-                             .c_str());
+            if (!close(expected.x, actual.x) || !close(expected.y, actual.y) || !close(expected.z, actual.z))
+            {
+              if (++strayPixels <= STRAYS_NAMED)
+              {
+                strays += std::format(L"; ({}, {}): ({}, {}, {}), the twins' ({}, {}, {})", x, y, actual.x, actual.y, actual.z, expected.x,
+                                      expected.y, expected.z);
+              }
+            }
           }
         }
         Logger::WriteMessage(std::format(L"{} sky pixels, {} of them lit by stars and {} by the sun; {} pixels hide the bright star\n",
@@ -251,6 +261,7 @@ public:
           std::format(L"away from a quad's edge, {} sky pixels match the twins to the bit, and none strays more than {} halves\n",
                       exactPixels, worstSteps)
             .c_str());
+        Assert::AreEqual(0u, strayPixels, std::format(L"pixels beyond the bounds{}", strays).c_str());
         Assert::IsTrue(skyPixels > 0 && starPixels > 0 && sunPixels > 0, L"the view shows the sky, stars and the sun");
         Assert::IsTrue(hiddenPixels > 0, L"a voxel hides the bright star");
         const std::size_t seenPixel = static_cast<std::size_t>(80) * view.widthPixels + 150;

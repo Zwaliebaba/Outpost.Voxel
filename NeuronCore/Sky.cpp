@@ -147,9 +147,10 @@ Float3 GalaxyRadiance(Float3 _direction, std::uint32_t _seed) noexcept
 
 Float3 SunRadiance(Float3 _direction, const SkyParameters& _sky, float _pixelRadians) noexcept
 {
-  // The angle from the disc's middle, through the chord between the two unit vectors, which keeps its precision where
-  // the cosine's would not.
-  const float angle = 2.0f * std::asin(std::min(0.5f * Length(_direction - _sky.toSun), 1.0f));
+  // The angle from the disc's middle, taken as the chord between the two unit vectors. Within a pixel of the disc the
+  // two differ by less than a millionth of the angle, its square over 24; the chord keeps its precision where an angle
+  // from the cosine would not, and it needs no arcsine, which a GPU may evaluate coarsely (Design/ADR/ADR-021).
+  const float angle = Length(_direction - _sky.toSun);
   const float coverage = std::clamp((_sky.sunAngularRadiusRadians - angle) / _pixelRadians + 0.5f, 0.0f, 1.0f);
   // μ, the cosine between the line of sight and the sun's surface, from how far across the disc the direction lies.
   const float across = std::min(angle / _sky.sunAngularRadiusRadians, 1.0f);

@@ -107,8 +107,8 @@ float3 GalaxyRadiance(float3 _direction, uint _seed)
 // §11.4: the sun's radiance toward _direction, a unit vector in the world, with its edge spread over _pixelRadians.
 float3 SunRadiance(float3 _direction, SkyConstants _sky, float _pixelRadians)
 {
-  // The angle from the disc's middle, through the chord between the two unit vectors.
-  float angle = 2.0 * asin(min(0.5 * length(_direction - _sky.toSun), 1.0));
+  // The angle from the disc's middle, taken as the chord between the two unit vectors, as the twin takes it.
+  float angle = length(_direction - _sky.toSun);
   float coverage = saturate((_sky.sunAngularRadiusRadians - angle) / _pixelRadians + 0.5);
   float across = min(angle / _sky.sunAngularRadiusRadians, 1.0);
   float mu = sqrt(1.0 - across * across);

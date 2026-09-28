@@ -52,7 +52,8 @@ The owner made two decisions while it was built, on 2026-09-28:
 
 **The sun** is the welcome's disc, limb-darkened with *u* = 0.6.
 - Its radiance at the middle is *E* / (π *R*² (1 − *u* / 3)), so that the disc gives the lighting's irradiance *E*. `SunGivesTheLightingsIrradiance` integrates the twin's disc to 0.7 within one per cent.
-- The angle from the disc's middle comes from the chord between the two unit vectors, 2 asin(|*d* − *s*| / 2). It keeps its precision near the sun, where an arccosine's would not.
+- The angle from the disc's middle is taken as the chord between the two unit vectors, |*d* − *s*|. Within a pixel of the disc the two differ by less than a millionth of the angle, θ² / 24, and the chord keeps its precision near the sun, where an angle from the cosine would not.
+- **No arcsine.** The first cut took the angle as 2 asin(|*d* − *s*| / 2). WARP's arcsine behaves like Abramowitz and Stegun's 4.4.45, the approximation Cg's reference arcsine uses, whose error near zero is 6 × 10⁻⁵ radians: 1.3 % of the angle at the disc's rim, where a pixel's value moves by the disc's whole radiance over one pixel's angle. The second WARP run failed there, at 932 against the twin's 996.5, and the twin with that approximation gives 932 bit for bit.
 - The edge is antialiased over one pixel's angle at the middle of the view.
 
 **The pass** (`NeuronClient/SkyPass`) runs after the lighting and before bloom.
@@ -63,7 +64,7 @@ The owner made two decisions while it was built, on 2026-09-28:
 - **Stores.** The HDR color holds halves, and Direct3D rounds what it stores toward zero (ADR-022). The triangle stores a pixel's color once, and every star that adds to it stores it again, so the twin rounds as often, in the order the GPU draws.
 - **Data.** The catalog is copied to the GPU once, through `RendererDesc::stars`. The sky's parameters travel every frame in `FrameSettings::sky`, as `SkyConstants`, which is shared with HLSL under R16.
 - **Timing.** `GpuPass::Sky` times the pass, and the bench's CSV and summary carry it.
-- **WARP test.** `SkyPassTests` draws the station's view, 161 × 91, over the depth its own view splat wrote: the sun near a corner, the galaxy's core across the view, the catalog, a star in the open and a brighter one the station hides. It compares every pixel with the twins. Within 1/128 of a pixel of a quad's edge, where the rasterizer's snapping decides whether the star reaches the pixel, what the star adds is allowed besides. The first run failed at (7, 0), up to four steps under a twin that rounded to the nearest; after five stars, the truncating twin gives that pixel bit for bit. It logs how many sky pixels away from a quad's edge match the twins to the bit, and the most halves any other strays.
+- **WARP test.** `SkyPassTests` draws the station's view, 161 × 91, over the depth its own view splat wrote: the sun near a corner, the galaxy's core across the view, the catalog, a star in the open and a brighter one the station hides. It compares every pixel with the twins. Within 1/128 of a pixel of a quad's edge, where the rasterizer's snapping decides whether the star reaches the pixel, what the star adds is allowed besides. The first run failed at (7, 0), up to four steps under a twin that rounded to the nearest; after five stars, the truncating twin gives that pixel bit for bit. It names up to eight pixels beyond its bounds rather than stopping at the first, and logs how many sky pixels away from a quad's edge match the twins to the bit, and the most halves any other strays.
 
 ## Consequences
 
