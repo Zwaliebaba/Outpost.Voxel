@@ -22,7 +22,7 @@ It checks, over the whole tree:
   - registration: every source file is in its project's .vcxproj and .filters, the two agree, and nothing
     listed is missing (§2);
   - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
-    anywhere else (§2, R17);
+    anywhere else, Tools/ least of all, which holds the tools' Python and data (§2, R17, Design/ADR/ADR-020);
   - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
   - an HLSL semantic that clang-format has broken onto a line of its own (ADR-005);
   - shader compilation: every project that compiles HLSL does it with the flags ADR-005 and ADR-007 fix, and names
@@ -48,6 +48,7 @@ HLSL_EXTENSIONS = {'.hlsl', '.hlsli'}
 SOURCE_EXTENSIONS = CPP_EXTENSIONS | HLSL_EXTENSIONS
 ITEM_TYPE_FOR_EXTENSION = {'.cpp': 'ClCompile', '.h': 'ClInclude', '.hlsl': 'FxCompile', '.hlsli': 'None'}
 SHADER_FOLDER = 'Shader'  # AGENTS.md §2: a library's HLSL lives in <Project>/Shader; C++ stays flat
+TOOLS_FOLDER = 'Tools'  # AGENTS.md §2, Design/ADR/ADR-020: the tools that are not C++, and their data
 BANNED_EXTENSIONS = {'.hpp', '.hh', '.hxx', '.h++', '.cc', '.cxx', '.c++', '.inl', '.ipp', '.tpp', '.ixx', '.cppm',
                      '.fx', '.fxh'}
 R7_EXCEPTIONS = {'pch.h', 'pch.cpp', 'framework.h', 'targetver.h', 'Resource.h'}
@@ -561,6 +562,10 @@ def check_registration(projects, files, findings):
     if suffix not in SOURCE_EXTENSIONS:
       continue
     top = posix.parts[0]
+    if top == TOOLS_FOLDER:
+      findings.add(path, '§2', f'is C++ or HLSL in {TOOLS_FOLDER}/, which holds the tools\' Python and data and no code '
+                   'a project builds (Design/ADR/ADR-020)')
+      continue
     if top not in folders or posix.parent.as_posix() != home_of(top, suffix):
       if suffix in HLSL_EXTENSIONS:
         findings.add(path, '§2', f'is not in a project\'s {SHADER_FOLDER} folder; HLSL lives in '

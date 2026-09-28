@@ -23,7 +23,11 @@ static_assert(std::endian::native == std::endian::little, "the .vox format is li
 
 constexpr std::int32_t MAX_MODEL_EXTENT = 256;
 constexpr std::int32_t MAX_SCENE_DEPTH = 64;
-constexpr std::string_view IDENTITY_ROTATION = "4"; // _r for the identity: row 0 picks x, row 1 picks y, nothing negated
+
+// _r packs a rotation into seven bits (MagicaVoxel-file-format-vox-extension.txt): bits 0-1 and 2-3 give the column of
+// the one nonzero entry in rows 0 and 1 of the matrix, row 2 takes the column left over, and bits 4, 5 and 6 negate
+// rows 0, 1 and 2. A model turns as that matrix times its voxels.
+constexpr std::uint32_t ROTATION_BITS = 0x7Fu;
 
 // MagicaVoxel's axes are right-handed with +Z up; the engine's are Direct3D's, left-handed with +Y up and +Z forward
 // (Design/NeuronVoxelFormat.md §4.1). Swapping y and z converts either way. This reader is the one place the engine
@@ -128,14 +132,15 @@ struct Chunk
   std::span<const std::uint8_t> children;
 };
 
-// A transform keeps only the two attributes placement reads, unparsed, so that nothing of a hidden node is parsed. It
-// does not keep its frame's dictionary: moving an MSVC std::map can allocate, and so throw, and a move that can throw
-// is one clang-tidy's bugprone-exception-escape refuses.
+// A transform keeps only the attributes placement reads, unparsed, so that nothing of a hidden node is parsed. It does
+// not keep its dictionaries: moving an MSVC std::map can allocate, and so throw, and a move that can throw is one
+// clang-tidy's bugprone-exception-escape refuses.
 struct TransformNode
 {
   std::int32_t child;
   std::int32_t layer;
   bool hidden;
+  std::string name; // the node's _name
   std::size_t frameCount;
   std::optional<std::string> translation; // the first frame's _t
   std::optional<std::string> rotation;    // the first frame's _r
@@ -244,6 +249,62 @@ struct SceneParts
     return std::nullopt;
   }
   return FromMagicaVoxelAxes({values[0], values[1], values[2]});
+}
+
+// A rotation as _r stores it, in MagicaVoxel's axes, conjugated into the engine's: P R P, where P swaps y and z
+// (Design/NeuronVoxelFormat.md §4.1). One of the cube's 24 rotations; nothing for a reflection, or for text that is not
+// one of the 128 values _r can hold, or that names one column twice.
+[[nodiscard]] std::optional<Rotation> ParseRotation(std::string_view _text) noexcept
+{
+  std::uint32_t bits = 0;
+  const auto [next, error] = std::from_chars(_text.data(), _text.data() + _text.size(), bits);
+  if (error != std::errc{} || next != _text.data() + _text.size() || (bits & ~ROTATION_BITS) != 0)
+  {
+    return std::nullopt;
+  }
+  std::array<std::uint32_t, 3> columns{bits & 3u, (bits >> 2u) & 3u, 0};
+  if (columns[0] > 2 || columns[1] > 2 || columns[0] == columns[1])
+  {
+    return std::nullopt;
+  }
+  columns[2] = 3 - columns[0] - columns[1];
+
+  // MagicaVoxel's matrix: row r holds its sign in column columns[r]. Its determinant is the permutation's sign times the
+  // three signs, and a reflection's is -1.
+  std::array<std::array<std::int32_t, 3>, 3> matrix{};
+  for (std::uint32_t row = 0; row < 3; ++row)
+  {
+    matrix[row][columns[row]] = ((bits >> (4u + row)) & 1u) != 0u ? -1 : 1;
+  }
+  const std::int32_t determinant = matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
+                                   matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
+                                   matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+  if (determinant != 1)
+  {
+    return std::nullopt;
+  }
+
+  // P R P: entry (i, j) of the engine's matrix is MagicaVoxel's entry (p(i), p(j)), where p swaps 1 and 2. Rotation holds
+  // the matrix's columns.
+  constexpr std::array<std::size_t, 3> SWAP{0, 2, 1};
+  const auto column = [&matrix, &SWAP](std::size_t _j)
+  {
+    return Float3{static_cast<float>(matrix[SWAP[0]][SWAP[_j]]), static_cast<float>(matrix[SWAP[1]][SWAP[_j]]),
+                  static_cast<float>(matrix[SWAP[2]][SWAP[_j]])};
+  };
+  return Rotation{column(0), column(1), column(2)};
+}
+
+// The cell that _voxel of _instance lies in: turned about the instance's centre voxel, floor(size / 2) (ModelInstance).
+// Every product is of a small integer and 0 or ±1, so the float arithmetic is exact.
+[[nodiscard]] Int3 InstanceCell(const ModelInstance& _instance, VoxelRecord _voxel) noexcept
+{
+  const Int3 center{_instance.size.x / 2, _instance.size.y / 2, _instance.size.z / 2};
+  const Int3 offset = Int3{_voxel.x, _voxel.y, _voxel.z} - center;
+  const Float3 turned =
+    RotateVector(_instance.rotation, {static_cast<float>(offset.x), static_cast<float>(offset.y), static_cast<float>(offset.z)});
+  return _instance.origin + center +
+         Int3{static_cast<std::int32_t>(turned.x), static_cast<std::int32_t>(turned.y), static_cast<std::int32_t>(turned.z)};
 }
 
 // _a + _b, when every component stays within MAX_TRANSLATION. Both are within int32, so the sum cannot overflow int64.
@@ -379,7 +440,9 @@ struct SceneParts
   ByteReader reader(_content);
   const std::int32_t id = reader.Int32();
   TransformNode node{};
-  node.hidden = IsHidden(reader.Attributes());
+  const VoxAttributes attributes = reader.Attributes();
+  node.hidden = IsHidden(attributes);
+  node.name = Attribute(attributes, "_name").value_or(std::string());
   node.child = reader.Int32();
   static_cast<void>(reader.Bytes(4)); // a reserved id, always -1
   node.layer = reader.Int32();
@@ -524,15 +587,26 @@ struct SceneParts
   return {}; // META, rCAM, NOTE, IMAP, PACK and anything newer: nothing the renderer reads
 }
 
-// A model placed by the scene graph: its index among the chunks, and the translation of its centre.
+// A model placed by the scene graph: its index among the chunks, the translation of its centre voxel, and the name and
+// rotation of the transform that places it.
 struct Placement
 {
   std::size_t model;
   Int3 translation;
+  Rotation rotation;
+  std::string name;
 };
 
-[[nodiscard]] ParseResult Place(const SceneParts& _parts, std::int32_t _node, Int3 _translation, std::int32_t _depth,
-                                std::set<std::int32_t>& _visited, std::vector<Placement>& _placements)
+// What a transform hands to the model it places. A group hands nothing on: a name or a rotation belongs to the transform
+// directly above a model (Design/NeuronVoxelFormat.md §5, §6.1).
+struct Placing
+{
+  std::string_view name;
+  Rotation rotation;
+};
+
+[[nodiscard]] ParseResult Place(const SceneParts& _parts, std::int32_t _node, Int3 _translation, const Placing& _placing,
+                                std::int32_t _depth, std::set<std::int32_t>& _visited, std::vector<Placement>& _placements)
 {
   if (_depth > MAX_SCENE_DEPTH || !_visited.insert(_node).second)
   {
@@ -549,7 +623,18 @@ struct Placement
     {
       return std::unexpected(VoxError::UnsupportedAnimation);
     }
-    if (node.rotation && *node.rotation != IDENTITY_ROTATION)
+    Rotation rotation = IDENTITY_ROTATION;
+    if (node.rotation)
+    {
+      const std::optional<Rotation> parsed = ParseRotation(*node.rotation);
+      if (!parsed)
+      {
+        return std::unexpected(VoxError::UnsupportedRotation);
+      }
+      rotation = *parsed;
+    }
+    // Only the transform that places a model may turn it; a turned group would turn its models about its own pivot.
+    if (!IsIdentityRotation(rotation) && !_parts.shapes.contains(node.child))
     {
       return std::unexpected(VoxError::UnsupportedRotation);
     }
@@ -568,7 +653,7 @@ struct Placement
       }
       translation = *sum;
     }
-    return Place(_parts, node.child, translation, _depth + 1, _visited, _placements);
+    return Place(_parts, node.child, translation, Placing{node.name, rotation}, _depth + 1, _visited, _placements);
   }
   if (const auto group = _parts.groups.find(_node); group != _parts.groups.end())
   {
@@ -578,7 +663,8 @@ struct Placement
     }
     for (const std::int32_t child : group->second.children)
     {
-      if (const ParseResult placed = Place(_parts, child, _translation, _depth + 1, _visited, _placements); !placed)
+      if (const ParseResult placed = Place(_parts, child, _translation, Placing{{}, IDENTITY_ROTATION}, _depth + 1, _visited, _placements);
+          !placed)
       {
         return placed;
       }
@@ -596,7 +682,13 @@ struct Placement
     {
       return std::unexpected(VoxError::BadSceneGraph);
     }
-    _placements.push_back({static_cast<std::size_t>(model), _translation});
+    // Turned only when odd in every dimension, so that its centre voxel is its middle and the turn has one answer.
+    const Int3 size = _parts.models[static_cast<std::size_t>(model)].size;
+    if (!IsIdentityRotation(_placing.rotation) && (size.x % 2 == 0 || size.y % 2 == 0 || size.z % 2 == 0))
+    {
+      return std::unexpected(VoxError::UnsupportedRotation);
+    }
+    _placements.push_back({static_cast<std::size_t>(model), _translation, _placing.rotation, std::string(_placing.name)});
     return {};
   }
   return std::unexpected(VoxError::BadSceneGraph);
@@ -701,7 +793,7 @@ std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _b
 
   std::vector<Placement> placements;
   std::set<std::int32_t> visited;
-  if (const ParseResult placed = Place(parts, 0, {0, 0, 0}, 0, visited, placements); !placed)
+  if (const ParseResult placed = Place(parts, 0, {0, 0, 0}, Placing{{}, IDENTITY_ROTATION}, 0, visited, placements); !placed)
   {
     return std::unexpected(placed.error());
   }
@@ -721,8 +813,8 @@ std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _b
   {
     const RawModel& raw = parts.models[placement.model];
     const Int3 origin = placement.translation - Int3{raw.size.x / 2, raw.size.y / 2, raw.size.z / 2};
-    model.instances.push_back(
-      {origin, raw.size, static_cast<std::uint32_t>(model.records.size()), static_cast<std::uint32_t>(raw.voxels.size())});
+    model.instances.push_back({origin, raw.size, static_cast<std::uint32_t>(model.records.size()),
+                               static_cast<std::uint32_t>(raw.voxels.size()), placement.rotation, placement.name});
     for (const VoxelRecord& voxel : raw.voxels)
     {
       model.records.push_back(PackVoxelRecord(voxel));
@@ -777,8 +869,7 @@ std::optional<VoxelBounds> OccupiedBounds(const VoxModel& _model) noexcept
   {
     for (std::uint32_t i = 0; i < instance.recordCount; ++i)
     {
-      const VoxelRecord voxel = UnpackVoxelRecord(_model.records[instance.firstRecord + i]);
-      const Int3 corner = instance.origin + Int3{voxel.x, voxel.y, voxel.z};
+      const Int3 corner = InstanceCell(instance, UnpackVoxelRecord(_model.records[instance.firstRecord + i]));
       const Int3 beyond = corner + Int3{1, 1, 1};
       if (!bounds)
       {

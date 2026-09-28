@@ -12,7 +12,7 @@ Operating instructions for every agent (and human) writing code in this reposito
 2. **`Design/ADR/`** — engineering decisions taken while building, one file per decision (§6). Numbering starts at `ADR-001`.
 3. **The surrounding code** — for anything neither of the above covers, match the file you are editing.
 
-The design documents sit alongside rather than above: each says what is built and this file says how. A design lives in `Design/` while its plan runs, as [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) and [`Design/SpaceScene.md`](Design/SpaceScene.md) do. It moves to `Design/Archive/` when the plan is done, as [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) has. There it stays the record of what it built, and the code keeps citing it. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in a design before the code is.
+The design documents sit alongside rather than above: each says what is built and this file says how. A design lives in `Design/` while its plan runs, as [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md), [`Design/SpaceScene.md`](Design/SpaceScene.md) and [`Design/GameConcept.md`](Design/GameConcept.md) do. It moves to `Design/Archive/` when the plan is done, as [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) has. There it stays the record of what it built, and the code keeps citing it. A task that needs a design answer the documents do not give asks the owner, and gets the answer written down in a design before the code is.
 
 If a rule here conflicts with a habit from another codebase, this file wins. If you think a rule is wrong or your task cannot be done without deviating, **say so in your report — never deviate silently.**
 
@@ -135,26 +135,29 @@ private:
 
 ## 2. Repository shape
 
-The first layout was settled when the first project landed ([ADR-001](Design/ADR/ADR-001-repository-layout.md)); its present shape, an engine and a game split along the client/server line the game will grow into, is [ADR-003](Design/ADR/ADR-003-engine-and-game-layout.md), and [ADR-016](Design/ADR/ADR-016-server-suites.md) gave the server side its suites. One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
+The first layout was settled when the first project landed ([ADR-001](Design/ADR/ADR-001-repository-layout.md)); its present shape, an engine and a game split along the client/server line the game will grow into, is [ADR-003](Design/ADR/ADR-003-engine-and-game-layout.md), [ADR-016](Design/ADR/ADR-016-server-suites.md) gave the server side its suites, and [ADR-020](Design/ADR/ADR-020-nvf-import.md) added the model importer and `Tools/`. One solution, `Outpost.Voxel.slnx`, sits at the root; each project lives at `<Name>/<Name>.vcxproj` and its namespace is its name:
 
 | Project | Kind | References | Holds |
 |---|---|---|---|
-| `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model and the `.vox` reader, the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
+| `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model, the `.vox` reader, NVF's reader, writer and importer ([ADR-019](Design/ADR/ADR-019-nvf-format.md), [ADR-020](Design/ADR/ADR-020-nvf-import.md)), the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
 | `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock, and the client's session with a server and its snapshots ([ADR-018](Design/ADR/ADR-018-client.md)). Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
 | `NeuronServer` | static library | `NeuronCore` | The server engine: `ServerHost`, which runs the tick and the sessions, and the `World` it simulates through ([ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). No Windows header. |
 | `GameLogic` | static library | `NeuronServer`, `NeuronCore` | The game's rules, on the server side: the sector, its layout, routes, flight and detonations ([ADR-017](Design/ADR/ADR-017-sector.md)). |
 | `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: the space scene, its camera and keys, and the bench. |
 | `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
+| `NvfImport` | console application | `NeuronCore` | `NvfImport.exe`: a `.vox` into an `.nvf`, merged with the hardpoints Blender authored, `--check` and `--dump` ([ADR-020](Design/ADR/ADR-020-nvf-import.md)). A tool of the asset pipeline, not of the game. |
 | `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
 | `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP, and the client's session and snapshots on the CPU. |
 | `NeuronServerTests` | test DLL | `NeuronServer`, `NeuronCore` | The server host, over a world of its own. |
 | `GameLogicTests` | test DLL | `GameLogic`, `NeuronServer`, `NeuronCore` | The sector, alone and through a server host. |
 
-**Engine below, game above, client and server apart.** The `Neuron*` libraries are the engine and know nothing of this game; `GameLib` and `GameLogic` are the game and build on them. The client side (`NeuronClient`, `GameLib`) and the server side (`NeuronServer`, `GameLogic`) never reference each other: what both need lives in `NeuronCore`, or, for the game, in a shared game library created when the first such type appears. `Outpost.exe` is the client and, until the two are separated, the server process too, so it links both sides; when the server moves into its own `Server.exe`, that executable takes `GameLogic` and `NeuronServer`, and the client keeps the rest. A project lists every static library it links as a reference, and puts another project's folder on its include path only if it references it.
+**Engine below, game above, client and server apart.** The `Neuron*` libraries are the engine and know nothing of this game; `GameLib` and `GameLogic` are the game and build on them. The client side (`NeuronClient`, `GameLib`) and the server side (`NeuronServer`, `GameLogic`) never reference each other: what both need lives in `NeuronCore`, or, for the game, in a shared game library created when the first such type appears. `Outpost.exe` is the client and, until the two are separated, the server process too, so it links both sides; when the server moves into its own `Server.exe`, that executable takes `GameLogic` and `NeuronServer`, and the client keeps the rest. `NvfImport` is a tool: it takes `NeuronCore` alone, and nothing links it. A project lists every static library it links as a reference, and puts another project's folder on its include path only if it references it.
 
 Everything builds to `<Platform>\<Configuration>\` at the root, where CI looks in `x64\Debug\` for the test DLLs, with intermediates under `<Platform>\<Configuration>\obj\<Project>\`. Adding a project changes this table and needs an ADR of its own, as the layout did. The constraints below hold for every project, present and future.
 
 **C++ is flat; shaders live in `Shader`.** C++ source lives directly in its project's folder. This is not taste: `.clang-tidy`'s `HeaderFilterRegex` matches headers exactly one level in, so **a header in a subdirectory is silently unchecked** — no findings, no warning, and nobody notices for months. A subdirectory that holds C++ is an exception, and an exception is an ADR plus a matching change to the filter. The one subdirectory there is holds HLSL: shaders belong to the library that uses them and live in its `Shader` folder, `<Project>/Shader/`, beside no C++ (R17, ADR-003).
+
+**`Tools/` holds what is not C++.** The Blender extension's Python lives in `Tools/Blender/`, and the golden file that holds NVF's two implementations to one another in `Tools/Golden/` (ADR-020). No project builds anything there, and `Build/CheckProjectFiles.py` fails C++ or HLSL under it.
 
 **The edges run one way, and a layer never reaches sideways.** Library code is built on by application code and never the reverse (R9), and two libraries at the same level share what is below them rather than each other. An edge that only exists "for now" is an edge, and it is the one that will be impossible to remove later.
 
@@ -201,7 +204,11 @@ msbuild Outpost.Voxel.slnx /p:Configuration=Release /p:Platform=ARM64 /m /v:mini
 
 **A project does not put its own directory on the include path.** `cl.exe` already searches the directory of the including file first for a quoted include, so `#include "FileReader.h"` from a `.cpp` in the same folder resolves without help. Only the directories of *other* projects are listed, as `$(SolutionDir)<Project>`.
 
-**Run the tests**, through `vstest.console.exe`, over every suite the build produced.
+**Run the tests**, through `vstest.console.exe`, over every suite the build produced. The Blender extension's suites are Python's and need no build (R20). Those that drive Blender skip without its `bpy` module, which `pip install bpy==4.2.*` provides on Python 3.11:
+
+```powershell
+python -m unittest discover -s Tools\Blender\NeuronVoxelFormat\Tests -p "*Tests.py"
+```
 
 **vstest reports "no tests found" as a pass.** An empty suite is therefore worse than no suite: it is a green check mark over a library nobody exercised. Every test project ships a placeholder `SuiteSmoke` for exactly this reason; delete it when the first real test lands, never before.
 
@@ -238,7 +245,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R13 — A string you do not write is `const`.** `/permissive-` turns on `/Zc:strictStrings`: a literal is `const char[N]` and will not bind to `char*`. The fix is `const` on the signature, never a cast at the call site — a `const_cast` here is a lie about a literal that lives in a read-only section, and writing through it is a real crash rather than a theoretical one.
 
-**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing the design it comes from, [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md) or [`Design/SpaceScene.md`](Design/SpaceScene.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
+**R14 onward are project-specific rules with a design source.** A design document does not only say what to build; some of what it says constrains how the code is *shaped*. Those rules live here, each citing the design it comes from, [`Design/Archive/SampleRenderer.md`](Design/Archive/SampleRenderer.md), [`Design/SpaceScene.md`](Design/SpaceScene.md), [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) or [`Design/GameConcept.md`](Design/GameConcept.md), and new ones are added at the end without renumbering anything above. Do not invent one without a design decision behind it, and do not import one from another tree: a rule with no source behind it is a rule nobody can settle an argument with.
 
 **R14 — The voxel record is 32 bits and the palette has 16 entries.** Eight bits per model coordinate and four for the colour, which is the palette entry minus one (design D5, §7.1). The owner fixed the palette at sixteen entries. Widening any field is a format change, and a format change is an ADR.
 
@@ -250,6 +257,10 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R18 — Client and server share bytes, never objects.** What the server knows reaches the client only as messages through a `Transport`, in one process as in two (SpaceScene S3 and S20, [ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). Project references already keep the two sides apart (§2). `Outpost`, the one project that links both, creates the transport and hands each side its own end, and nothing else crosses: no pointer, reference or object of one side reaches the other. Review enforces it.
 
+**R19 — The opponent plays through a session.** The computer opponent sees the world only as its side's snapshots and acts on it only by commands, through a `Transport`, as a client does ([`Design/GameConcept.md`](Design/GameConcept.md) G16 and G27). Nothing hands it more than its side is sent, fog of war included (G21), so every rule the player meets, it meets. `Outpost`, which creates it beside the server, hands it its own end of a transport and nothing else: no pointer, reference or object of the server's world reaches it. The project that holds it references `NeuronCore` and the shared game library, never `NeuronServer` or `GameLogic` (GameConcept §10), so the compiler keeps what it can of this rule. Review enforces the rest.
+
+**R20 — NVF has one specification and two implementations.** [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) §4 is the specification. `NeuronCore/NvfModel.cpp` implements it for the engine and `NvfImport`, and the Blender extension's `Tools/Blender/NeuronVoxelFormat/NvfFormat.py` for Blender (design N7, §8). The golden file, `Tools/Golden/Golden.nvf`, keeps the two in agreement: each one's tests write it byte for byte and read it back, and corrupt it alike into the same refusals, checked in the order [ADR-019](Design/ADR/ADR-019-nvf-format.md) fixes. A change to the format changes §4, both implementations and the golden file in one commit, and is an ADR. CI runs both suites, the C++ on Windows and the Python on Linux.
+
 ---
 
 ## 6. Working rules
@@ -260,7 +271,7 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **The checkers are part of the build.** `Build/CheckFormat.py`, `Build/CheckProjectFiles.py` and `Build/RunClangTidy.py` are what §1, §2 and §3 lean on. Each prints what it checked and exits non-zero on a finding; run them before you push, and extend one rather than working around it.
 
-**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites and then clang-tidy; and a Linux job that checks formatting on a pinned clang-format. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
+**What CI runs.** [`.github/workflows/build.yml`](.github/workflows/build.yml) has two jobs: a Windows job that checks the build shape, restores the NuGet packages, builds **Debug|x64**, runs the test suites, checks the models in `GameData` against their sources and then runs clang-tidy; and a Linux job that checks formatting on a pinned clang-format and runs the Blender extension's Python tests with the system Python, skipping those that need Blender. **Every step blocks.** Nothing is `continue-on-error`, and a checker that fails fails the build. While the tree was empty, each gate was guarded on the file it needed; those guards came off when the solution and the checkers landed, so a missing solution, checker or test suite is now a failure rather than a skip. Never add a guard back to get past a red build.
 
 **CI does not build Release or ARM64.** The Windows build is the slow half of the pipeline, and each further configuration roughly doubles it for a tree whose configurations differ only in optimisation and instruction set. What stands in for them is the static alignment check on the four configurations (§3) — and an actual build by whoever needs one: Release by whoever is shipping, before a release, and ARM64 by whoever runs on it (ADR-012). If you change something that could plausibly break only under optimisation, build Release yourself and say so. If it could break on one platform only — an intrinsic, or code that leans on x64's stronger memory ordering — build the other one and say so.
 

@@ -25,6 +25,7 @@
     <ClCompile Include="PlacementSplatTests.cpp" />
     <ClCompile Include="SceneModelsTests.cpp" />
     <ClCompile Include="SnapshotBufferTests.cpp" />
+    <ClCompile Include="VoxelSceneTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli">

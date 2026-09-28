@@ -50,6 +50,15 @@ struct RigidTransform
   return UnrotateVector(_transform.rotation, _point - _transform.translation);
 }
 
+// Whether _rotation is exactly the identity.
+[[nodiscard]] constexpr bool IsIdentityRotation(const Rotation& _rotation) noexcept
+{
+  const auto isAxis = [](Float3 _axis, Float3 _expected)
+  { return _axis.x == _expected.x && _axis.y == _expected.y && _axis.z == _expected.z; };
+  return isAxis(_rotation.axisX, IDENTITY_ROTATION.axisX) && isAxis(_rotation.axisY, IDENTITY_ROTATION.axisY) &&
+         isAxis(_rotation.axisZ, IDENTITY_ROTATION.axisZ);
+}
+
 // Whether _rotation is one of the cube's 24 proper symmetries: every entry exactly 0 or ±1, and a rotation rather than a
 // reflection. A whole placement with one draws with the aligned splat, and every product in its voxels' centers is
 // exact (§7.2). A rotation a rounding away from one is not one.
