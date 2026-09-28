@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "BloomConstants.h"
 #include "CanvasQuad.h"
 #include "ExplosionConstants.h"
 #include "GpuResources.h"
@@ -8,9 +9,12 @@
 #include "PaletteConstants.h"
 #include "PlacementConstants.h"
 #include "ShadowViewConstants.h"
+#include "SkyConstants.h"
 #include "TestSupport.h"
 #include "UploadRing.h"
 #include "ViewConstants.h"
+
+#include "StarCatalog.h"
 
 #include <array>
 #include <cstddef>
@@ -39,6 +43,9 @@ enum RootParameter : std::uint8_t
   PalettesParameter,
   PlacementsParameter,
   CanvasQuadsParameter,
+  SkyParameter,
+  BloomParameter,
+  StarsParameter,
   EchoParameter,
   RootParameterCount
 };
@@ -86,26 +93,36 @@ public:
                                                                          Sentinel<NeuronClient::PlacementConstants>(8)};
         const std::array<NeuronClient::CanvasQuad, 2> canvasQuads{Sentinel<NeuronClient::CanvasQuad>(9),
                                                                   Sentinel<NeuronClient::CanvasQuad>(10)};
+        const auto sky = Sentinel<NeuronClient::SkyConstants>(11);
+        const auto bloom = Sentinel<NeuronClient::BloomConstants>(12);
+        const std::array<NeuronCore::StarRecord, 2> stars{Sentinel<NeuronCore::StarRecord>(13), Sentinel<NeuronCore::StarRecord>(14)};
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, shadowView);
         AppendWords(expected, lighting);
         AppendWords(expected, explosion);
+        AppendWords(expected, sky);
+        AppendWords(expected, bloom);
         AppendWords(expected, palettes);
         AppendWords(expected, placements);
         AppendWords(expected, canvasQuads);
+        AppendWords(expected, stars);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
         const D3D12_GPU_VIRTUAL_ADDRESS shadowViewAddress = constants.Push(shadowView);
         const D3D12_GPU_VIRTUAL_ADDRESS lightingAddress = constants.Push(lighting);
         const D3D12_GPU_VIRTUAL_ADDRESS explosionAddress = constants.Push(explosion);
+        const D3D12_GPU_VIRTUAL_ADDRESS skyAddress = constants.Push(sky);
+        const D3D12_GPU_VIRTUAL_ADDRESS bloomAddress = constants.Push(bloom);
         const winrt::com_ptr<ID3D12Resource> paletteBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(palettes)), L"Layout echo palettes");
         const winrt::com_ptr<ID3D12Resource> placementBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(placements)), L"Layout echo placements");
         const winrt::com_ptr<ID3D12Resource> canvasQuadBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(canvasQuads)), L"Layout echo canvas quads");
+        const winrt::com_ptr<ID3D12Resource> starBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(stars)), L"Layout echo stars");
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -127,6 +144,12 @@ public:
         parameters[PlacementsParameter].Descriptor = {1, 0};
         parameters[CanvasQuadsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
         parameters[CanvasQuadsParameter].Descriptor = {2, 0};
+        parameters[SkyParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[SkyParameter].Descriptor = {4, 0};
+        parameters[BloomParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[BloomParameter].Descriptor = {5, 0};
+        parameters[StarsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[StarsParameter].Descriptor = {3, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -154,6 +177,9 @@ public:
             _list->SetComputeRootShaderResourceView(PalettesParameter, paletteBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootShaderResourceView(PlacementsParameter, placementBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootShaderResourceView(CanvasQuadsParameter, canvasQuadBuffer->GetGPUVirtualAddress());
+            _list->SetComputeRootConstantBufferView(SkyParameter, skyAddress);
+            _list->SetComputeRootConstantBufferView(BloomParameter, bloomAddress);
+            _list->SetComputeRootShaderResourceView(StarsParameter, starBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

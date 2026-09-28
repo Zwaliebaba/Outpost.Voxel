@@ -26,7 +26,6 @@
     <ClCompile Include="VoxModelTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
-    <ClCompile Include="RenderSettingsTests.cpp" />
     <ClCompile Include="ToneMapTests.cpp" />
     <ClCompile Include="CullingTests.cpp" />
     <ClCompile Include="PlacementTests.cpp" />
@@ -38,5 +37,9 @@
     <ClCompile Include="NvfModelTests.cpp" />
     <ClCompile Include="RepositoryFile.cpp" />
     <ClCompile Include="NvfImportTests.cpp" />
+    <ClCompile Include="BloomTests.cpp" />
+    <ClCompile Include="HalfTests.cpp" />
+    <ClCompile Include="SkyTests.cpp" />
+    <ClCompile Include="StarCatalogTests.cpp" />
   </ItemGroup>
 </Project>

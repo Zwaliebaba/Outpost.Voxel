@@ -8,6 +8,8 @@ namespace
 {
 
 // Each header defines one array of bytecode, named by its FxCompile item's VariableName.
+#include "Shaders/BloomDownCS.h"
+#include "Shaders/BloomUpCS.h"
 #include "Shaders/CanvasPS.h"
 #include "Shaders/CanvasVS.h"
 #include "Shaders/CoverageVS.h"
@@ -18,6 +20,10 @@ namespace
 #include "Shaders/ShadowSplatAlignedVS.h"
 #include "Shaders/ShadowSplatOrientedPS.h"
 #include "Shaders/ShadowSplatOrientedVS.h"
+#include "Shaders/SkyPS.h"
+#include "Shaders/SkyVS.h"
+#include "Shaders/StarPS.h"
+#include "Shaders/StarVS.h"
 #include "Shaders/ToneMapPS.h"
 #include "Shaders/ToneMapVS.h"
 #include "Shaders/ViewSplatAlignedOverdrawPS.h"
@@ -94,6 +100,36 @@ D3D12_SHADER_BYTECODE ViewSplatOrientedOverdrawPixelShader() noexcept
 D3D12_SHADER_BYTECODE LightingComputeShader() noexcept
 {
   return {LIGHTING_CS, sizeof(LIGHTING_CS)};
+}
+
+D3D12_SHADER_BYTECODE SkyVertexShader() noexcept
+{
+  return {SKY_VS, sizeof(SKY_VS)};
+}
+
+D3D12_SHADER_BYTECODE SkyPixelShader() noexcept
+{
+  return {SKY_PS, sizeof(SKY_PS)};
+}
+
+D3D12_SHADER_BYTECODE StarVertexShader() noexcept
+{
+  return {STAR_VS, sizeof(STAR_VS)};
+}
+
+D3D12_SHADER_BYTECODE StarPixelShader() noexcept
+{
+  return {STAR_PS, sizeof(STAR_PS)};
+}
+
+D3D12_SHADER_BYTECODE BloomDownComputeShader() noexcept
+{
+  return {BLOOM_DOWN_CS, sizeof(BLOOM_DOWN_CS)};
+}
+
+D3D12_SHADER_BYTECODE BloomUpComputeShader() noexcept
+{
+  return {BLOOM_UP_CS, sizeof(BLOOM_UP_CS)};
 }
 
 D3D12_SHADER_BYTECODE ToneMapVertexShader() noexcept

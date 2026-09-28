@@ -19,9 +19,10 @@
 #include "Lighting.h"
 #include "Message.h"
 #include "Quaternion.h"
-#include "RenderSettings.h"
 #include "RigidTransform.h"
+#include "Sky.h"
 #include "Sphere.h"
+#include "StarCatalog.h"
 
 #include <algorithm>
 #include <array>
@@ -79,8 +80,8 @@ constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NA
                                                                                     L"overdraw"};
 
 // The passes the title and the panel time, by NeuronClient::GpuPass.
-constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAMES{L"shadow splat", L"view splat", L"coverage", L"lighting",
-                                                                                  L"tone map",     L"debug view", L"canvas"};
+constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAMES{
+  L"shadow splat", L"view splat", L"coverage", L"lighting", L"sky", L"bloom", L"tone map", L"debug view", L"canvas"};
 
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
@@ -459,9 +460,12 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::ClientSession session(std::move(_transport), _options.modelDirectory);
   AwaitWorld(session, now);
 
-  // The station sample's lighting, until S-M5 takes the welcome's (Design/SpaceScene.md §12.1).
-  const NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
-  Scene scene(session.Models(), NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians));
+  // The world's lighting and sky, from the welcome (Design/SpaceScene.md §11, §12.1).
+  const NeuronCore::WorldSettings settings = session.Settings();
+  const std::vector<NeuronCore::StarRecord> stars =
+    NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);
+  const NeuronCore::SkyParameters sky = NeuronCore::MakeSkyParameters(settings);
+  Scene scene(session.Models(), settings.toSun);
   const float brightestEmissive = BrightestEmissiveScale(session.Models());
   WorldSample sample = session.Buffer().Sample(session.Buffer().RenderTick(now()));
   scene.FitShadowView(sample);
@@ -473,7 +477,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
 
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
-  NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView()},
+  NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
                                   scene.Models().Models());
   try
   {
@@ -548,7 +552,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
       renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
-                      {controls.debugView, lighting, settings.exposure, controls.vsync, false, false});
+                      {controls.debugView, lighting, sky, EXPOSURE, controls.vsync, false, false});
     }
   }
   catch (...)

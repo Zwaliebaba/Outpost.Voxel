@@ -7,6 +7,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BloomChain.h" />
+    <ClInclude Include="BloomConstants.h" />
+    <ClInclude Include="BloomPass.h" />
     <ClInclude Include="Clock.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
@@ -18,6 +21,8 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shaders.h" />
+    <ClInclude Include="SkyConstants.h" />
+    <ClInclude Include="SkyPass.h" />
     <ClInclude Include="SwapChain.h" />
     <ClInclude Include="UploadRing.h" />
     <ClInclude Include="ViewConstants.h" />
@@ -44,6 +49,8 @@
     <ClInclude Include="SnapshotBuffer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomChain.cpp" />
+    <ClCompile Include="BloomPass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="FailureReport.cpp" />
@@ -54,6 +61,8 @@
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shaders.cpp" />
+    <ClCompile Include="SkyConstants.cpp" />
+    <ClCompile Include="SkyPass.cpp" />
     <ClCompile Include="SwapChain.cpp" />
     <ClCompile Include="UploadRing.cpp" />
     <ClCompile Include="ViewConstants.cpp" />
@@ -79,6 +88,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\Bloom.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\BloomConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\BloomPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\CanvasPass.hlsli">
       <Filter>Shader Files</Filter>
     </None>
@@ -142,10 +160,22 @@
     <None Include="Shader\ShadowViewConstants.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\Sky.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\SkyConstants.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\SkyPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\Splat.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\SplatBounds.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\StarRecord.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\ToneMap.hlsli">
@@ -159,6 +189,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\BloomDownCS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\BloomUpCS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
     <FxCompile Include="Shader\CanvasPS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
@@ -187,6 +223,18 @@
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ShadowSplatOrientedVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\StarPS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\StarVS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\ToneMapPS.hlsl">

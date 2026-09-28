@@ -2,6 +2,7 @@
 
 #include "ToneMapPass.h"
 
+#include "BloomChain.h"
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "Shaders.h"
@@ -20,6 +21,7 @@ enum RootParameter : std::uint8_t
 {
   ExposureParameter,
   HdrColorParameter,
+  BloomParameter,
   RootParameterCount
 };
 
@@ -28,11 +30,14 @@ enum RootParameter : std::uint8_t
 ToneMapPass::ToneMapPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
 {
   const D3D12_DESCRIPTOR_RANGE hdrColorRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 0};
+  const D3D12_DESCRIPTOR_RANGE bloomRange{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, 0};
   std::array<D3D12_ROOT_PARAMETER, RootParameterCount> parameters{};
   parameters[ExposureParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
   parameters[ExposureParameter].Constants = {0, 0, 1};
   parameters[HdrColorParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[HdrColorParameter].DescriptorTable = {1, &hdrColorRange};
+  parameters[BloomParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  parameters[BloomParameter].DescriptorTable = {1, &bloomRange};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
   {
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -56,13 +61,14 @@ ToneMapPass::ToneMapPass(GraphicsDevice& _device, DXGI_FORMAT _targetFormat)
   m_pipeline->SetName(L"Tone map");
 }
 
-void ToneMapPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, float _exposure) const
+void ToneMapPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const BloomChain& _bloom, float _exposure) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
   _list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   _list->SetGraphicsRoot32BitConstant(ExposureParameter, std::bit_cast<UINT>(_exposure), 0);
   _list->SetGraphicsRootDescriptorTable(HdrColorParameter, _targets.HdrColorTable());
+  _list->SetGraphicsRootDescriptorTable(BloomParameter, _bloom.LevelTable(0));
   _list->DrawInstanced(3, 1, 0, 0);
 }
 

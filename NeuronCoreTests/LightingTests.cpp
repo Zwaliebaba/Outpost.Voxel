@@ -2,9 +2,9 @@
 
 #include "Float3.h"
 #include "Lighting.h"
+#include "Message.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
-#include "RenderSettings.h"
 #include "TraceHit.h"
 
 #include <cmath>
@@ -80,16 +80,19 @@ public:
     Assert::AreEqual(0.0f, NeuronCore::EmissiveScale({255, 255, 85, 255, false, 0.6f, 2.0f}), L"not emissive");
   }
 
-  TEST_METHOD(ParametersCombineIntensityAndColor)
+  // Design/SpaceScene.md §12.1: the world's sun and hemisphere as they are, over a black background, with the viewer's
+  // gain.
+  TEST_METHOD(ParametersComeFromTheWorld)
   {
-    NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
-    settings.sunColor = {1.0f, 0.5f, 0.25f};
-    settings.groundColor = {0.2f, 0.4f, 0.6f};
-    const LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, 3.0f);
-    AreClose({0.7f, 0.35f, 0.175f}, lighting.sunRadiance, TOLERANCE, L"_i times _k");
-    AreClose({1.0f, 1.0f, 1.0f}, lighting.skyColor, TOLERANCE, L"the sky, white");
-    Assert::AreEqual(0.7f, lighting.skyIntensity, L"_uni _i");
-    AreClose({0.2f, 0.4f, 0.6f}, lighting.groundColor, TOLERANCE, L"the ambient's lower color");
+    const NeuronCore::WorldSettings world{{0.0f, 0.6f, 0.8f},      {1.0f, 0.5f, 0.25f}, 0.01f, {0.1f, 0.2f, 0.3f}, {0.2f, 0.4f, 0.6f}, 7,
+                                          {0.0f, 0.0f, 0.0f, 1.0f}};
+    const LightingParameters lighting = NeuronCore::MakeLightingParameters(world, 3.0f);
+    AreClose(world.toSun, lighting.toSun, 0.0f, L"the sun's direction");
+    AreClose(world.sunRadiance, lighting.sunRadiance, 0.0f, L"the sun");
+    AreClose(world.ambientUpper, lighting.skyColor, 0.0f, L"the ambient's upper color");
+    Assert::AreEqual(1.0f, lighting.skyIntensity, L"the colors as they are");
+    AreClose(world.ambientLower, lighting.groundColor, 0.0f, L"the ambient's lower color");
+    AreClose({0.0f, 0.0f, 0.0f}, lighting.background, 0.0f, L"black under the sky");
     Assert::AreEqual(3.0f, lighting.emissiveGain);
   }
 

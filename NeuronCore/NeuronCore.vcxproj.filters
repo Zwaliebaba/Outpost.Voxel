@@ -22,7 +22,6 @@
     <ClInclude Include="Explosion.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Lighting.h" />
-    <ClInclude Include="RenderSettings.h" />
     <ClInclude Include="ToneMap.h" />
     <ClInclude Include="Placement.h" />
     <ClInclude Include="Quaternion.h" />
@@ -34,6 +33,10 @@
     <ClInclude Include="Transport.h" />
     <ClInclude Include="NvfModel.h" />
     <ClInclude Include="NvfImport.h" />
+    <ClInclude Include="Bloom.h" />
+    <ClInclude Include="Half.h" />
+    <ClInclude Include="Sky.h" />
+    <ClInclude Include="StarCatalog.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Bloom.cpp" />
@@ -51,7 +54,6 @@
     <ClCompile Include="VoxModel.cpp" />
     <ClCompile Include="Explosion.cpp" />
     <ClCompile Include="Lighting.cpp" />
-    <ClCompile Include="RenderSettings.cpp" />
     <ClCompile Include="ToneMap.cpp" />
     <ClCompile Include="Placement.cpp" />
     <ClCompile Include="RigidTransform.cpp" />
@@ -61,5 +63,9 @@
     <ClCompile Include="Quaternion.cpp" />
     <ClCompile Include="NvfModel.cpp" />
     <ClCompile Include="NvfImport.cpp" />
+    <ClCompile Include="Bloom.cpp" />
+    <ClCompile Include="Half.cpp" />
+    <ClCompile Include="Sky.cpp" />
+    <ClCompile Include="StarCatalog.cpp" />
   </ItemGroup>
 </Project>

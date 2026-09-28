@@ -11,9 +11,11 @@
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomPassTests.cpp" />
     <ClCompile Include="DebugViewPassTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="SkyPassTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
     <ClCompile Include="ViewSplatTests.cpp" />
     <ClCompile Include="CanvasTests.cpp" />

@@ -10,6 +10,7 @@
 #include "VoxelScene.h"
 
 #include "Box.h"
+#include "Message.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
 #include "Placement.h"
@@ -100,9 +101,6 @@ enum class Permutations : std::uint8_t
                                                                std::span<const NeuronCore::Placement> _placements,
                                                                Permutations _permutations = Permutations::AsPlaced);
 
-// The number a half-precision word holds, as an R16G16B16A16_FLOAT texture stores it.
-[[nodiscard]] float HalfToFloat(std::uint16_t _half) noexcept;
-
 // A seeded, random 8 × 8 × 8 block of voxels, a little over a third of the cells full, its corner at the origin: small
 // enough to check by brute force.
 [[nodiscard]] NeuronCore::VoxModel RandomBlock();
@@ -114,6 +112,17 @@ enum class Permutations : std::uint8_t
 // centred on the box every placed model's SIZE spans, and deep enough for that box.
 [[nodiscard]] NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, NeuronCore::Float3 _toSun, float _halfExtent,
                                                           std::uint32_t _sizePixels);
+
+// Copies _pixels into a 2D texture, rows packed tightly, _bytesPerPixel times its width to a row. The texture is in
+// _state before and after.
+void WriteTexture2D(NeuronClient::GraphicsDevice& _device, ID3D12Resource* _texture, D3D12_RESOURCE_STATES _state,
+                    std::span<const std::byte> _pixels, std::uint32_t _bytesPerPixel);
+
+// A world lit as the station's file lit the station until the lighting came from the world (Design/ADR/ADR-008,
+// Design/SpaceScene.md §12.1): a white sun at 50 and 50 degrees at 0.7, and a hemisphere from the ground's sRGB 80 at
+// 0.7 below to white at 0.7 above, brighter than the space scene's so that the ambient shows; with the sector's sun
+// size, galactic plane and seed.
+[[nodiscard]] NeuronCore::WorldSettings TestWorld() noexcept;
 
 // The vertical field of view and near plane every test camera uses: the application's (§3, §7.5).
 inline constexpr float TEST_FOV_Y_RADIANS = 0.785398163f;

@@ -12,12 +12,13 @@
 #include "ViewConstants.h"
 #include "ViewTargets.h"
 
+#include "ColorSpace.h"
+#include "Lighting.h"
 #include "RigidTransform.h"
 #include "VoxelRecord.h"
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
@@ -197,8 +198,8 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
                        std::span<const NeuronCore::Placement> _placements, const NeuronClient::SplatPass& _pass,
                        const NeuronCore::PerspectiveView& _view, Permutations _permutations)
 {
-  NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
-  NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false, L"Test depth stencil views");
+  NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false, L"Test render target views");
+  NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 2, false, L"Test depth stencil views");
   NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 12, true, L"Test shader views");
   NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, false, L"Test CPU-only views");
   NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);
@@ -274,20 +275,59 @@ std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, cons
   return depth;
 }
 
-float HalfToFloat(std::uint16_t _half) noexcept
+void WriteTexture2D(NeuronClient::GraphicsDevice& _device, ID3D12Resource* _texture, D3D12_RESOURCE_STATES _state,
+                    std::span<const std::byte> _pixels, std::uint32_t _bytesPerPixel)
 {
-  const std::uint32_t sign = static_cast<std::uint32_t>(_half & 0x8000u) << 16u;
-  const std::uint32_t exponent = (_half >> 10u) & 0x1Fu;
-  const std::uint32_t mantissa = _half & 0x3FFu;
-  if (exponent == 0u)
+  const D3D12_RESOURCE_DESC desc = _texture->GetDesc();
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+  UINT rows = 0;
+  UINT64 rowBytes = 0;
+  UINT64 totalBytes = 0;
+  _device.Device()->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &rows, &rowBytes, &totalBytes);
+  const winrt::com_ptr<ID3D12Resource> upload = NeuronClient::CreateBuffer(_device, D3D12_HEAP_TYPE_UPLOAD, totalBytes, L"Texture upload");
+  const std::size_t packedRowBytes = static_cast<std::size_t>(desc.Width) * _bytesPerPixel;
+  Assert::AreEqual(packedRowBytes * rows, _pixels.size(), L"the pixels fill the texture");
+  void* mapped = nullptr;
+  const D3D12_RANGE nothingRead{0, 0};
+  winrt::check_hresult(upload->Map(0, &nothingRead, &mapped));
+  auto* destination = static_cast<std::byte*>(mapped);
+  for (UINT row = 0; row < rows; ++row)
   {
-    // Zero or subnormal: mantissa × 2^-24, exact in single precision.
-    const float magnitude = static_cast<float>(mantissa) * 5.9604644775390625e-8f;
-    return sign != 0u ? -magnitude : magnitude;
+    std::memcpy(destination + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
+                _pixels.data() + row * packedRowBytes, packedRowBytes);
   }
-  const std::uint32_t bits =
-    exponent == 0x1Fu ? (sign | 0x7F800000u | (mantissa << 13u)) : (sign | ((exponent + 112u) << 23u) | (mantissa << 13u));
-  return std::bit_cast<float>(bits);
+  upload->Unmap(0, nullptr);
+
+  _device.Execute(
+    [&](ID3D12GraphicsCommandList* _list)
+    {
+      const D3D12_RESOURCE_BARRIER toCopy = NeuronClient::Transition(_texture, _state, D3D12_RESOURCE_STATE_COPY_DEST);
+      _list->ResourceBarrier(1, &toCopy);
+      D3D12_TEXTURE_COPY_LOCATION target{};
+      target.pResource = _texture;
+      target.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+      target.SubresourceIndex = 0;
+      D3D12_TEXTURE_COPY_LOCATION source{};
+      source.pResource = upload.get();
+      source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+      source.PlacedFootprint = footprint;
+      _list->CopyTextureRegion(&target, 0, 0, 0, &source, nullptr);
+      const D3D12_RESOURCE_BARRIER back = NeuronClient::Transition(_texture, D3D12_RESOURCE_STATE_COPY_DEST, _state);
+      _list->ResourceBarrier(1, &back);
+    });
+}
+
+NeuronCore::WorldSettings TestWorld() noexcept
+{
+  constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
+  const float ground = 0.7f * NeuronCore::SrgbToLinear(80);
+  return {NeuronCore::SunDirection(50.0f * RADIANS_PER_DEGREE, 50.0f * RADIANS_PER_DEGREE),
+          {0.7f, 0.7f, 0.7f},
+          0.27f * RADIANS_PER_DEGREE,
+          {0.7f, 0.7f, 0.7f},
+          {ground, ground, ground},
+          1,
+          {0.5f, 0.0f, 0.0f, 0.8660254f}};
 }
 
 NeuronCore::OrthographicView TestShadowView(const NeuronCore::VoxModel& _model, NeuronCore::Float3 _toSun, float _halfExtent,

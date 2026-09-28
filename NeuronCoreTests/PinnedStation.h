@@ -1,6 +1,8 @@
 #pragma once
 
+#include "ColorSpace.h"
 #include "Float3.h"
+#include "Lighting.h"
 
 #include <array>
 #include <cstdint>
@@ -15,6 +17,22 @@ namespace NeuronCoreTests
 // 3c7dc2b with NeuronCore's tracer, explosion and lighting, compiled by GCC 13.3 at -O2 for x86-64. The explosion's
 // flights and the ground's half of the lighting's column were pinned too; they retired with the gravity and the ground
 // they pinned (Design/ADR/ADR-013), and what is left is as it was generated.
+
+// The station's lighting, as its file's render objects gave it until the lighting came from the world
+// (Design/ADR/ADR-008, Design/SpaceScene.md §12.1), and as the pins were taken under it: a white sun at _angle 50 50 and
+// _i 0.7, a white sky at _i 0.7, the ground's sRGB 80 as the ambient's lower color, and a black background.
+[[nodiscard]] inline NeuronCore::LightingParameters StationLighting(float _emissiveGain) noexcept
+{
+  constexpr float SUN_RADIANS = 50.0f * 0.0174532925f;
+  const float ground = NeuronCore::SrgbToLinear(80);
+  return {NeuronCore::SunDirection(SUN_RADIANS, SUN_RADIANS),
+          {0.7f, 0.7f, 0.7f},
+          {1.0f, 1.0f, 1.0f},
+          0.7f,
+          {ground, ground, ground},
+          {0.0f, 0.0f, 0.0f},
+          _emissiveGain};
+}
 
 // The cameras of the view splat tests: the application's field of view and near plane (SampleRenderer §3, §7.5), and
 // an odd-sized image, so that a level camera has a whole row and column of rays with exactly-zero components.

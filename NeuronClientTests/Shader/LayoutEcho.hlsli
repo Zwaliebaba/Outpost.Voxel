@@ -5,12 +5,15 @@
 // the C++ structs hold them in. A mirror that places a field anywhere else, or a structured buffer whose stride differs
 // from the struct's size, reads another field's word, and LayoutEchoTests sees it.
 
+#include "BloomConstants.hlsli"
 #include "CanvasQuad.hlsli"
 #include "ExplosionConstants.hlsli"
 #include "LightingConstants.hlsli"
 #include "PaletteConstants.hlsli"
 #include "PlacementConstants.hlsli"
 #include "ShadowViewConstants.hlsli"
+#include "SkyConstants.hlsli"
+#include "StarRecord.hlsli"
 #include "ViewConstants.hlsli"
 
 ConstantBuffer<ViewConstants> g_view : register(b0);
@@ -20,6 +23,9 @@ ConstantBuffer<ExplosionConstants> g_explosion : register(b3);
 StructuredBuffer<PaletteConstants> g_palettes : register(t0);
 StructuredBuffer<PlacementConstants> g_placements : register(t1);
 StructuredBuffer<CanvasQuad> g_canvasQuads : register(t2);
+ConstantBuffer<SkyConstants> g_sky : register(b4);
+ConstantBuffer<BloomConstants> g_bloom : register(b5);
+StructuredBuffer<StarRecord> g_stars : register(t3);
 RWByteAddressBuffer g_echo : register(u0);
 
 void Echo(inout uint _word, uint _value)
@@ -80,6 +86,21 @@ void Echo3(inout uint _word, uint3 _value)
   Echo(word, g_explosion.seed);
   Echo(word, g_explosion.hashBase);
 
+  Echo3(word, asuint(g_sky.toSun));
+  Echo(word, asuint(g_sky.sunAngularRadiusRadians));
+  Echo3(word, asuint(g_sky.sunRadiance));
+  Echo(word, g_sky.seed);
+  Echo3(word, asuint(g_sky.galaxyX));
+  Echo(word, asuint(g_sky.galaxyGain));
+  Echo3(word, asuint(g_sky.galaxyY));
+  Echo(word, asuint(g_sky.starGain));
+  Echo3(word, asuint(g_sky.galaxyZ));
+
+  Echo(word, g_bloom.widthPixels);
+  Echo(word, g_bloom.heightPixels);
+  Echo(word, g_bloom.karis);
+  Echo(word, asuint(g_bloom.belowShare));
+
   [unroll] for (uint palette = 0u; palette < 2u; ++palette)
   {
     [unroll] for (uint i = 0u; i < PALETTE_ENTRY_COUNT; ++i)
@@ -115,5 +136,13 @@ void Echo3(inout uint _word, uint3 _value)
     Echo(word, canvasQuad.fill);
     Echo3(word, asuint(canvasQuad.color));
     Echo(word, asuint(canvasQuad.alpha));
+  }
+
+  [unroll] for (uint star = 0u; star < 2u; ++star)
+  {
+    StarRecord record = g_stars[star];
+    Echo3(word, asuint(record.direction));
+    Echo(word, asuint(record.flux));
+    Echo3(word, asuint(record.color));
   }
 }

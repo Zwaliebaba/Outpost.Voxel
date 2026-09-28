@@ -221,7 +221,6 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="PlacementTests.cpp" />
-    <ClCompile Include="RenderSettingsTests.cpp" />
     <ClCompile Include="RepositoryFile.cpp" />
     <ClCompile Include="RigidTransformTests.cpp" />
     <ClCompile Include="SceneTracerTests.cpp" />

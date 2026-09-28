@@ -177,7 +177,6 @@
     <ClInclude Include="Placement.h" />
     <ClInclude Include="Quaternion.h" />
     <ClInclude Include="Ray.h" />
-    <ClInclude Include="RenderSettings.h" />
     <ClInclude Include="RigidTransform.h" />
     <ClInclude Include="SceneTracer.h" />
     <ClInclude Include="Sky.h" />
@@ -210,7 +209,6 @@
     <ClCompile Include="PerspectiveView.cpp" />
     <ClCompile Include="Placement.cpp" />
     <ClCompile Include="Quaternion.cpp" />
-    <ClCompile Include="RenderSettings.cpp" />
     <ClCompile Include="RigidTransform.cpp" />
     <ClCompile Include="SceneTracer.cpp" />
     <ClCompile Include="Sky.cpp" />
