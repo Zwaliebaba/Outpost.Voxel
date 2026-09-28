@@ -357,8 +357,9 @@ public:
                        what.c_str());
         const std::optional<NeuronCore::PlacedVoxel> placed = NeuronCore::FindVoxel(placements, voxel);
         Assert::IsTrue(placed.has_value(), what.c_str());
-        Assert::AreEqual(placements[found].firstRecord + (voxel - placements[found].firstVoxel), placed->record, what.c_str());
-        Assert::AreEqual(placements[found].paletteIndex, placed->paletteIndex, what.c_str());
+        const NeuronCore::PlacedVoxel placedVoxel = placed.value_or(NeuronCore::PlacedVoxel{});
+        Assert::AreEqual(placements[found].firstRecord + (voxel - placements[found].firstVoxel), placedVoxel.record, what.c_str());
+        Assert::AreEqual(placements[found].paletteIndex, placedVoxel.paletteIndex, what.c_str());
       }
       for (const std::uint32_t beyond : {total, total + 1u, NeuronCore::NO_VOXEL})
       {
