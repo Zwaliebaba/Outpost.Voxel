@@ -1,6 +1,6 @@
 # Outpost.Voxel — MVP Plan
 
-**Status:** proposed to the owner, 2026-09-29, with the scope the owner chose that day (§2.3); its phases run one pull request at a time, each approved at a checkpoint before the next begins (§3.5) · **Date:** 2026-09-29
+**Status:** approved by the owner, 2026-09-29, with the scope the owner chose that day (§2.3); its phases run one pull request at a time, each approved at a checkpoint before the next begins (§3.5) · **Date:** 2026-09-29
 **Builds on:** [`GameConcept.md`](GameConcept.md), whose G74 puts this MVP first; [`../AGENTS.md`](../AGENTS.md), which every phase follows; and the code as it stands on `main` · **Executed by:** an agent, Claude Code on the owner's Windows PC (§3.1)
 
 This plan says how the next phase of work reaches a playable game: a skirmish of one human against the computer opponent, under fog of war, with limited research and ships. It is the technical design of its phases, as `AGENTS.md` asks of a milestone; each phase adds the ADRs its decisions need, in the commits that implement them. It changes no rule of `AGENTS.md` and no decision of the concept. Where the MVP builds less than a decision describes, §2.2 says so, and the decision stands for the milestones that follow the MVP (§7).
@@ -601,4 +601,4 @@ The opponent decides every 15 ticks. Its steps are counted as work, never timed 
 
 | Phase | Pull request | Date | Verdict | Notes |
 |---|---|---|---|---|
-| Plan | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Proposed | The owner's review of this plan |
+| Plan | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Approved | Repair stays out of the MVP, as §2.2 has it. Phase 1 may start. |
