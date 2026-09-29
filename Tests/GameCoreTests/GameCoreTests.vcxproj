@@ -199,12 +199,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CatalogueTests.cpp" />
+    <ClCompile Include="DesignCompositeTests.cpp" />
     <ClCompile Include="DesignTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ProfileTests.cpp" />
+    <ClCompile Include="SkirmishLayoutTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
+    <ClCompile Include="WelcomeNamesTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\NeuronCore\NeuronCore.vcxproj">

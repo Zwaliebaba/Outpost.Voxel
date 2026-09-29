@@ -1,0 +1,79 @@
+# ADR-030 — The skirmish: its layout, its designs as composites, and its names
+
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4, in `GameCore` first; `GameLogic::Skirmish` and the command line follow in the same phase, and add to this ADR · **Amends:** [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes
+
+## Context
+
+Phase 2 puts the MVP's skirmish on screen: two cores, each side's starting ships, and six asteroid fields (§2.1, §8.4). [ADR-029](ADR-029-protocol-composites-and-sides.md) gave the protocol what that needs: composites, sides and a payload for the game.
+
+The concept asks for three things of the layout (§3, §7.1, G66):
+- **Symmetry.** The sector is its own half turn about its center, with the sides exchanged, so that neither start is favored.
+- **Shared code.** The layout comes from the seed through a generator in the shared library, which both sides could run.
+- **Alignment.** Asteroids stand at whole coordinates and turned by quarter turns, which no build rounds differently.
+
+The plan gives the cores' places and the fields' centers. It leaves open how many asteroids a field holds and how they are placed, how a design becomes a composite, which colors the sides wear, and what the game first says through the payload.
+
+## Decision
+
+**The generator** is `GameCore::MakeSkirmishLayout(seed)`, a pure function of the seed. It draws from `PcgHash` of an index and a stream offset by the seed, as the sector's layout does ([ADR-017](ADR-017-sector.md)), and in integers throughout.
+
+It lays out half of the sector:
+- **Side 1's core** is anchored at (−1,800, 0, 0), turned a quarter turn about +y, so that a design's front, +Z, faces +x, toward side 2.
+- **Side 1's ships** are two miners and two gunships, anchored in a line 120 units in front of the core, at z = ±90 and ±30, the miners outside. They face the same way.
+- **Three fields:** the two near fields at (−1,400, 0, ±500), each of 6 asteroids within 110 units of its center, and the first middle field at (0, 0, 800), of 10 within 180.
+- **Each asteroid:**
+  - a place drawn uniformly within its field's radius on the plane, within 20 units of the plane, and at least 48 units from its field's other asteroids, more than the largest asteroid's diameter;
+  - then one of the three asteroid models, and one of the cube's 24 rotations.
+
+  The generator tries up to 256 places for each asteroid.
+
+**The other half** is the first turned a half turn, (x, y, z) → (−x, y, −z):
+- each anchor's position is turned;
+- each turn is composed with the half turn after it;
+- side 1 becomes side 2.
+
+So every image is exact, and the layout is its own half turn by construction.
+
+**Where a thing stands.** An *anchor* is where the lower corner of the cell holding the middle of the thing's box goes. The thing stands at the anchor plus its turn of the middle's offset from that corner, `AnchoredPosition`. Every term is a whole or a half voxel, so every voxel's cell is whole, and the thing draws aligned (SpaceScene §7.2). The half turn of an anchor stands exactly at the half turn of the position.
+
+**Measured,** by running `MakeSkirmishLayout` natively:
+- over seeds 0 to 99,999, it never left an asteroid out, so a skirmish holds 44;
+- the closest two anchors stood 48.00 units apart, the floor.
+
+By arithmetic from the centers and radii, every asteroid of a middle field is anchored more than 1,780 units from either core, beyond the array's 1,200: its center is 1,970 away, and its radius 180.
+
+**The sides.** Side 1, the player's, is blue, (70, 130, 220). Side 2, the opponent's, is red, (220, 80, 60). Each is the color of palette entry 16 in its side's variants (ADR-029).
+
+**A design as a composite** (`GameCore::DesignComposite`):
+- The hull comes first, left where it is.
+- Then comes the module at each mount, in the hull's order. A module is one part, odd on every axis, authored in its mount's frame with +Z the way it faces ([ADR-027](ADR-027-design-generator.md)). It turns by the mount's turn, stored as the NVF importer's table spells that rotation, so it is exact.
+- It moves by the whole voxels that put its center cell *m* on the mount's *c*: *t* = *c* + ½ − *R*(*m* + ½). This is computed in doubled integers, where every component is even, so *t* is exact.
+- The command module, 3 × 3 × 3, sits centered in its 3 × 3 × 5 mount's box.
+
+**The names** are the game's first payload, in the welcome (`GameCore::WelcomeNames`): the name of each composite, a design's or an asteroid's, and of each side, which the client shows in its figures.
+- **The layout,** little-endian:
+  - a `u8` version, 1;
+  - a `u32` count of composites, then each name;
+  - a `u32` count of sides, then each name;
+  - each name a `u8` length and 1 to 255 letters and digits.
+- **Refusals:** `Truncated`, `UnsupportedVersion`, `BadName` and `TrailingBytes`. A count beyond the bytes is refused before anything is reserved for it.
+- **An empty payload,** such as the sector's, names nothing, and is not refused.
+
+**Tests.** `GameCoreTests` gains 10:
+- `SkirmishLayoutTests`, 5:
+  - the layout is its own half turn, with the sides exchanged, on 20 seeds, each image found among the whole layout;
+  - each side starts at its core;
+  - the fields are where §8.4 puts them, full, aligned and spaced, on 20 seeds;
+  - one seed gives one layout;
+  - the cube's 24 rotations and anchors are exact.
+- `DesignCompositeTests`, 2: every module of every MVP design fills its mount's box, with its center on the mount's and facing the way the mount faces; and a missing model is refused by name.
+- `WelcomeNamesTests`, 3: the round trip, each refusal by name, and a name too long to encode.
+
+All 50 pass natively, built by GCC 13.3 against the stand-in for the test framework: at `-O1`, again under `-O2 -mfma -ffp-contract=fast`, and with `<windows.h>`'s plain-word macros defined, as MSVC's builds see them.
+
+## What this forecloses
+
+- **A skirmish that is not its own half turn,** or an asteroid off the whole grid or turned other than by quarter turns.
+- **A field whose count depends on the seed.** Its places depend on the seed, and its size does not, so the economy's tuning (phase 6) sets the counts and radii as data.
+- **A module that is not one part, odd on every axis, in its mount's frame.**
+- **Names beyond letters and digits,** until a later version of the payload says otherwise.

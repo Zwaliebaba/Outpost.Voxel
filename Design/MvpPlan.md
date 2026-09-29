@@ -580,6 +580,8 @@ The cores stand at (−1,800, 0, 0) and (1,800, 0, 0).
 
 The half turn is (x, y, z) → (−x, y, −z), so each field has its image. No core sees the middle at the start: the nearest middle field lies 1,970 units from a core, beyond the array's 1,200.
 
+**Phase 2's values** ([ADR-030](ADR/ADR-030-skirmish.md)). A near field holds 6 asteroids within 110 units of its center, and a middle field 10 within 180, 44 in all. Each stands within 20 units of the plane and at least 48 from its field's others. Each side's two miners and two gunships hold station in a line 120 units in front of its core. Side 1, the player's, is blue, and side 2 red.
+
 ### 8.5 The opponent's script
 
 The opponent decides every 15 ticks. Its steps are counted as work, never timed (R21).

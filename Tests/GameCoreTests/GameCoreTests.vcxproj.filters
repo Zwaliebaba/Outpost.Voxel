@@ -10,5 +10,8 @@
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="ProfileTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
+    <ClCompile Include="DesignCompositeTests.cpp" />
+    <ClCompile Include="SkirmishLayoutTests.cpp" />
+    <ClCompile Include="WelcomeNamesTests.cpp" />
   </ItemGroup>
 </Project>

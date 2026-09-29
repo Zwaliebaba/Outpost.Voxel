@@ -163,16 +163,22 @@
   <ItemGroup>
     <ClInclude Include="Catalogue.h" />
     <ClInclude Include="Design.h" />
+    <ClInclude Include="DesignComposite.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Profile.h" />
+    <ClInclude Include="SkirmishLayout.h" />
+    <ClInclude Include="WelcomeNames.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Catalogue.cpp" />
     <ClCompile Include="Design.cpp" />
+    <ClCompile Include="DesignComposite.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Profile.cpp" />
+    <ClCompile Include="SkirmishLayout.cpp" />
+    <ClCompile Include="WelcomeNames.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">

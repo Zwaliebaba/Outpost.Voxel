@@ -5,11 +5,17 @@
     <ClInclude Include="Design.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Profile.h" />
+    <ClInclude Include="DesignComposite.h" />
+    <ClInclude Include="SkirmishLayout.h" />
+    <ClInclude Include="WelcomeNames.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Catalogue.cpp" />
     <ClCompile Include="Design.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Profile.cpp" />
+    <ClCompile Include="DesignComposite.cpp" />
+    <ClCompile Include="SkirmishLayout.cpp" />
+    <ClCompile Include="WelcomeNames.cpp" />
   </ItemGroup>
 </Project>
