@@ -27,6 +27,7 @@
 #include "DebugView.h"
 #include "Fragmentation.h"
 #include "Lighting.h"
+#include "Message.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
 #include "Placement.h"
@@ -82,9 +83,11 @@ class Renderer
 public:
   static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
-  // _models are the scene's, whose records and palettes the placements name (NeuronCore::SceneRecords), and _fragments
-  // what they break into, the ones the placements' detonations view (Design/ADR/ADR-024).
-  Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments);
+  // _models are the scene's, whose records and palettes the placements name (NeuronCore::SceneRecords); _fragments what
+  // they break into, the ones the placements' detonations view (Design/ADR/ADR-024); and _sides the colors of the world's
+  // sides, whose palettes the placements name too (NeuronCore::SidePaletteIndex).
+  Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments,
+           std::span<const NeuronCore::SideColor> _sides);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;

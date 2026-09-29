@@ -30,7 +30,9 @@ using NeuronCore::Quaternion;
 
 constexpr std::uint32_t TICK_RATE = 30;
 constexpr Quaternion IDENTITY{0.0f, 0.0f, 0.0f, 1.0f};
-constexpr std::uint16_t MODEL = 1;
+// What the ships are drawn as, and whose they are (Design/ADR/ADR-029).
+constexpr std::uint16_t COMPOSITE = 1;
+constexpr std::uint8_t SIDE = 2;
 
 // How far a sampled position may lie from a double-precision reference: rounding of coordinates of a few hundred.
 constexpr float POSITION_TOLERANCE = 1.0e-4f;
@@ -68,18 +70,18 @@ constexpr Course COURSE{{120.0f, -40.0f, 310.0f}, {55.0f, 4.0f, -21.0f}, {-6.0f,
 [[nodiscard]] NeuronCore::EntityState ShipAt(std::uint32_t _id, const Course& _course, std::uint64_t _tick)
 {
   const double seconds = SecondsOf(static_cast<double>(_tick));
-  return {_id, MODEL, _course.PositionAt(seconds), IDENTITY, _course.VelocityAt(seconds)};
+  return {_id, COMPOSITE, SIDE, _course.PositionAt(seconds), IDENTITY, _course.VelocityAt(seconds)};
 }
 
 [[nodiscard]] NeuronCore::EntityState StillAt(std::uint32_t _id, Float3 _position, Quaternion _rotation)
 {
-  return {_id, MODEL, _position, _rotation, {0.0f, 0.0f, 0.0f}};
+  return {_id, COMPOSITE, SIDE, _position, _rotation, {0.0f, 0.0f, 0.0f}};
 }
 
 // A snapshot of tick _tick whose world has advanced as many ticks, unpaused.
 [[nodiscard]] NeuronCore::Snapshot At(std::uint64_t _tick, std::vector<NeuronCore::EntityState> _entities)
 {
-  return {_tick, _tick, false, std::move(_entities), {}};
+  return {_tick, _tick, false, std::move(_entities), {}, {}};
 }
 
 // When a snapshot of tick _tick arrives if it comes on time, a few milliseconds after its tick.
@@ -156,6 +158,8 @@ public:
       const SampledEntity ship = Get(buffer.Sample(tick), 7);
       AreClose(COURSE.PositionAt(SecondsOf(tick)), ship.position, POSITION_TOLERANCE, std::format(L"position at tick {}", tick));
       Assert::IsFalse(ship.detonation.has_value(), L"whole");
+      Assert::AreEqual(COMPOSITE, ship.composite, L"drawn as its composite");
+      Assert::IsTrue(ship.side == SIDE, L"in its side's colors");
     }
     // At a snapshot's tick, its own position, to the bit.
     AreIdentical(ShipAt(7, COURSE, 10).position, Get(buffer.Sample(10.0), 7).position, L"at tick 10");
@@ -166,8 +170,8 @@ public:
   {
     // 170 and -170 degrees about +Y are 20 degrees apart through 180, and 340 through 0.
     SnapshotBuffer buffer(TICK_RATE);
-    buffer.Add(At(10, {{3, MODEL, {0.0f, 0.0f, 0.0f}, TurnAboutY(170.0), {0.0f, 0.0f, 0.0f}}}), OnTime(10));
-    buffer.Add(At(11, {{3, MODEL, {0.0f, 0.0f, 0.0f}, TurnAboutY(-170.0), {0.0f, 0.0f, 0.0f}}}), OnTime(11));
+    buffer.Add(At(10, {{3, COMPOSITE, SIDE, {0.0f, 0.0f, 0.0f}, TurnAboutY(170.0), {0.0f, 0.0f, 0.0f}}}), OnTime(10));
+    buffer.Add(At(11, {{3, COMPOSITE, SIDE, {0.0f, 0.0f, 0.0f}, TurnAboutY(-170.0), {0.0f, 0.0f, 0.0f}}}), OnTime(11));
     const NeuronCore::Rotation halfway = NeuronCore::RotationOf(Get(buffer.Sample(10.5), 3).rotation);
     // Halfway along the shorter arc is the half turn, which takes +X to -X.
     AreClose({-1.0f, 0.0f, 0.0f}, halfway.axisX, 1.0e-6f, L"+X halfway");
@@ -301,7 +305,8 @@ public:
     const auto ship = [](std::uint64_t _tick)
     {
       const double seconds = static_cast<double>(_tick) / RATE;
-      return NeuronCore::Snapshot{_tick, _tick, false, {{6, MODEL, COURSE.PositionAt(seconds), IDENTITY, COURSE.VelocityAt(seconds)}}, {}};
+      return NeuronCore::Snapshot{
+        _tick, _tick, false, {{6, COMPOSITE, SIDE, COURSE.PositionAt(seconds), IDENTITY, COURSE.VelocityAt(seconds)}}, {}, {}};
     };
     const auto arrival = [](std::uint64_t _tick, bool _stalled)
     { return static_cast<double>(_stalled && (_tick == 20 || _tick == 21) ? 22 : _tick) / RATE + LATENESS_SECONDS; };

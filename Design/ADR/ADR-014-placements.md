@@ -1,6 +1,6 @@
 # ADR-014 — Placements, scene-wide ids and culling
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M2 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§7, §15, §16) · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s record index per drawn voxel, [ADR-006](ADR-006-depth-conventions.md)'s tie rule across placements, and [ADR-013](ADR-013-zero-gravity-detonation.md)'s parameter block, randomness and envelope · **Amended by:** [ADR-024](ADR-024-fragmented-detonation.md), proposed, which hashes by fragment rather than by voxel, carries the inherited velocity apart from the launch, and grows `ExplosionConstants` and the splat's root signature
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M2 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§7, §15, §16) · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s record index per drawn voxel, [ADR-006](ADR-006-depth-conventions.md)'s tie rule across placements, and [ADR-013](ADR-013-zero-gravity-detonation.md)'s parameter block, randomness and envelope · **Amended by:** [ADR-024](ADR-024-fragmented-detonation.md), proposed, which hashes by fragment rather than by voxel, carries the inherited velocity apart from the launch, and grows `ExplosionConstants` and the splat's root signature; and [ADR-029](ADR-029-protocol-composites-and-sides.md), which gives each model a palette for each side
 
 ## Context
 

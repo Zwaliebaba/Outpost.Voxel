@@ -51,7 +51,8 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
   }
   while (std::optional<std::vector<std::uint8_t>> bytes = m_transport->Receive())
   {
-    std::expected<NeuronCore::Message, NeuronCore::ProtocolError> message = NeuronCore::DecodeMessage(*bytes, m_models.size());
+    std::expected<NeuronCore::Message, NeuronCore::ProtocolError> message =
+      NeuronCore::DecodeMessage(*bytes, {m_composites.size(), m_sides.size()});
     if (!message)
     {
       return Refuse(SessionRefusal::BadMessage, NeuronCore::ProtocolErrorName(message.error()));
@@ -102,6 +103,9 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
     m_models = std::move(models);
     m_settings = welcome->settings;
     m_manifest = welcome->manifest;
+    m_composites = welcome->composites;
+    m_sides = welcome->sides;
+    m_welcomePayload = welcome->payload;
     m_buffer = SnapshotBuffer(welcome->tickRate);
     m_welcomed = true;
   }

@@ -2,6 +2,7 @@
 
 #include "Sector.h"
 
+#include "Composite.h"
 #include "Hash.h"
 #include "Lighting.h"
 #include "NvfModel.h"
@@ -275,6 +276,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
     sector->m_radii[model] = measure->radius;
     sector->m_manifest.push_back({MODEL_NAMES[model], measure->hash});
   }
+  sector->m_composites = NeuronCore::SingleModelComposites(MODEL_COUNT);
   sector->m_classes[CAPITAL_SHIP_MODEL] = {sector->m_radii[CAPITAL_SHIP_MODEL],
                                            CAPITAL_SHIP_CRUISE,
                                            WINGMAN_LOW_SPEED * CAPITAL_SHIP_CRUISE,
@@ -449,6 +451,11 @@ std::span<const NeuronCore::ManifestEntry> Sector::Manifest() const noexcept
   return m_manifest;
 }
 
+std::span<const NeuronCore::CompositeModel> Sector::Composites() const noexcept
+{
+  return m_composites;
+}
+
 void Sector::Advance(std::uint64_t _worldTick)
 {
   // Debris whose lifetime has run out leaves the world with its entity, on the tick it runs out (§5.5).
@@ -532,12 +539,12 @@ void Sector::Describe(NeuronCore::Snapshot& _snapshot) const
     {
       const Float3 velocity = entity.detonation ? Float3{0.0f, 0.0f, 0.0f} : entity.motion.forward * entity.motion.speed;
       _snapshot.entities.push_back(
-        {entity.id, entity.model, entity.motion.position, NeuronCore::QuaternionOf(ShipRotation(entity.motion)), velocity});
+        {entity.id, entity.model, 0, entity.motion.position, NeuronCore::QuaternionOf(ShipRotation(entity.motion)), velocity});
     }
     else
     {
       _snapshot.entities.push_back(
-        {entity.id, entity.model, entity.position, NeuronCore::QuaternionOf(entity.rotation), {0.0f, 0.0f, 0.0f}});
+        {entity.id, entity.model, 0, entity.position, NeuronCore::QuaternionOf(entity.rotation), {0.0f, 0.0f, 0.0f}});
     }
   }
   for (const Entity& entity : m_entities)

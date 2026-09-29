@@ -3,6 +3,7 @@
 #include "ClientSession.h"
 #include "TestSupport.h"
 
+#include "Composite.h"
 #include "Hash.h"
 #include "LoopbackTransport.h"
 #include "Message.h"
@@ -35,6 +36,10 @@ using NeuronClient::SessionError;
 // The models GameData holds, as the game's server names them.
 constexpr std::array<const char*, 3> MODEL_NAMES{"MilitaryStation", "CapitalShip", "Frigate"};
 
+// The welcome's one side, and a payload the engine carries unread (Design/ADR/ADR-029).
+constexpr NeuronCore::SideColor SIDE{40, 120, 220};
+constexpr std::array<std::uint8_t, 3> PAYLOAD{5, 6, 7};
+
 constexpr NeuronCore::WorldSettings SETTINGS{
   {0.0f, 1.0f, 0.0f}, {0.7f, 0.7f, 0.7f}, 0.005f, {0.05f, 0.05f, 0.05f}, {0.05f, 0.05f, 0.05f}, 7u, {0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -51,9 +56,12 @@ constexpr NeuronCore::WorldSettings SETTINGS{
   return manifest;
 }
 
+// A welcome that names _manifest's models, each alone as a composite, and one side.
 [[nodiscard]] NeuronCore::Welcome WelcomeOf(std::vector<NeuronCore::ManifestEntry> _manifest)
 {
-  return {NeuronCore::PROTOCOL_VERSION, 30, 0, SETTINGS, std::move(_manifest)};
+  std::vector<NeuronCore::CompositeModel> composites = NeuronCore::SingleModelComposites(_manifest.size());
+  return {NeuronCore::PROTOCOL_VERSION,    30, 0, SETTINGS, std::move(_manifest), std::move(composites), {SIDE},
+          {PAYLOAD.begin(), PAYLOAD.end()}};
 }
 
 // A client session over a loopback, and the server's end of it, which the test speaks for.
@@ -79,7 +87,7 @@ void Send(NeuronCore::Transport& _transport, const NeuronCore::Message& _message
 {
   const std::optional<std::vector<std::uint8_t>> bytes = _server.Receive();
   Assert::IsTrue(bytes.has_value(), L"the client sent a message");
-  const auto message = NeuronCore::DecodeMessage(bytes.value_or(std::vector<std::uint8_t>{}), MODEL_NAMES.size());
+  const auto message = NeuronCore::DecodeMessage(bytes.value_or(std::vector<std::uint8_t>{}), {MODEL_NAMES.size(), 1});
   Assert::IsTrue(message.has_value(), L"the client's message decodes");
   return message.value_or(NeuronCore::Message{});
 }
@@ -121,7 +129,8 @@ public:
     Assert::IsFalse(link.session->IsWelcomed());
 
     Send(*link.server, WelcomeOf(GameDataManifest()));
-    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {{9, 2, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 60.0f}}}, {}});
+    Send(*link.server,
+         NeuronCore::Snapshot{1, 1, false, {{9, 2, 1, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 60.0f}}}, {}, {}});
     Assert::IsTrue(link.session->Poll(0.5).has_value(), L"welcomed");
     Assert::IsTrue(link.session->IsWelcomed());
     Assert::AreEqual(std::size_t{3}, link.session->Models().size());
@@ -132,6 +141,12 @@ public:
     Assert::AreEqual(30u, link.session->Buffer().TickRate());
     Assert::AreEqual(std::uint64_t{1}, link.session->Buffer().Newest().tick, L"the snapshot in the buffer");
     Assert::AreEqual(9u, link.session->Buffer().Newest().entities.front().id);
+    Assert::AreEqual(std::size_t{3}, link.session->Composites().size(), L"the welcome's composites");
+    Assert::AreEqual(std::uint16_t{2}, link.session->Composites()[2].components.front().model);
+    Assert::AreEqual(std::size_t{1}, link.session->Sides().size(), L"its side");
+    Assert::IsTrue(link.session->Sides().front().blue == SIDE.blue, L"its color");
+    Assert::AreEqual(PAYLOAD.size(), link.session->WelcomePayload().size(), L"its payload, unread");
+    Assert::IsTrue(link.session->WelcomePayload().back() == PAYLOAD.back(), L"byte for byte");
   }
 
   TEST_METHOD(SendsItsCommands)
@@ -215,7 +230,7 @@ public:
     }
     {
       Link link = Connect(GameDataDirectory());
-      Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}});
+      Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}, {}});
       ExpectRefusal(link, NeuronClient::SessionRefusal::BadMessage, "a Snapshot before the Welcome");
     }
     {
@@ -238,7 +253,7 @@ public:
     // What the server sent before it closed the link is taken first.
     Link link = Connect(GameDataDirectory());
     Send(*link.server, WelcomeOf(GameDataManifest()));
-    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}});
+    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}, {}});
     link.server->Close();
     ExpectRefusal(link, NeuronClient::SessionRefusal::Closed, "the server closed the session");
     Assert::IsTrue(link.session->IsWelcomed(), L"the welcome was taken");

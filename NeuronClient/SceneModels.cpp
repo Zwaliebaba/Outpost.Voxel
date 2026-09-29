@@ -2,9 +2,10 @@
 
 #include "SceneModels.h"
 
+#include "Composite.h"
 #include "Explosion.h"
 #include "Quaternion.h"
-#include "RigidTransform.h"
+#include "SidePalette.h"
 
 #include <optional>
 #include <stdexcept>
@@ -22,70 +23,92 @@ using NeuronCore::Float3;
   return {static_cast<float>(_value.x), static_cast<float>(_value.y), static_cast<float>(_value.z)};
 }
 
-// Where the part whose origin is _origin stands, in a model whose box's middle is _middle, of an entity at _position
-// turned by _rotation (§7.2). For a station, whose position is whole and whose rotation is a symmetry of the cube, every
-// term is exact, and so is every voxel's center.
-[[nodiscard]] NeuronCore::RigidTransform PartTransform(Float3 _middle, Float3 _origin, const NeuronCore::Rotation& _rotation,
-                                                       Float3 _position) noexcept
-{
-  return {_rotation, _position + NeuronCore::RotateVector(_rotation, _origin - _middle)};
-}
-
-// The detonation as the part whose origin is _origin sees it (§7.7): ADR-024's defaults about the model's centroid, the
-// entity's velocity at the event turned into the part's axes, and the event's seed.
-[[nodiscard]] NeuronCore::ExplosionParameters PartExplosion(Float3 _centroid, Float3 _origin, const NeuronCore::Rotation& _rotation,
-                                                            Float3 _velocity, std::uint32_t _seed) noexcept
-{
-  NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(_centroid - _origin);
-  parameters.inheritedVelocity = NeuronCore::UnrotateVector(_rotation, _velocity);
-  parameters.seed = _seed;
-  return parameters;
-}
-
 } // namespace
 
-SceneModels::SceneModels(std::span<const NeuronCore::VoxModel> _models)
+SceneModels::SceneModels(std::span<const NeuronCore::VoxModel> _models, std::span<const NeuronCore::CompositeModel> _composites,
+                         std::size_t _sideCount)
   : m_models(_models.begin(), _models.end()),
-    m_fragments(m_models)
+    m_fragments(m_models),
+    m_sideCount(_sideCount)
 {
   const std::vector<std::uint32_t> firstRecords = NeuronCore::ModelFirstRecords(m_models);
-  for (std::uint32_t index = 0; index < m_models.size(); ++index)
+  for (std::uint32_t index = 0; index < _composites.size(); ++index)
   {
-    const NeuronCore::VoxModel& model = m_models[index];
-    const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(model);
+    const NeuronCore::CompositeModel& composite = _composites[index];
+    for (const NeuronCore::CompositeComponent& component : composite.components)
+    {
+      if (component.model >= m_models.size())
+      {
+        throw std::invalid_argument("Composite " + std::to_string(index) + " of the welcome names model " +
+                                    std::to_string(component.model) + ", of its " + std::to_string(m_models.size()) + ".");
+      }
+    }
+    const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::CompositeBounds(m_models, composite);
     if (!bounds)
     {
-      throw std::invalid_argument("Model " + std::to_string(index) + " of the welcome holds no voxel.");
+      throw std::invalid_argument("Composite " + std::to_string(index) + " of the welcome holds no voxel.");
     }
     const Float3 lower = ToFloat3(bounds->lower);
     const Float3 upper = ToFloat3(bounds->upper);
     const Float3 middle = (lower + upper) * 0.5f;
-    m_measures.push_back({middle, NeuronCore::Length(upper - middle), NeuronCore::VoxelCentroid(model),
-                          static_cast<std::uint32_t>(m_parts.size()), static_cast<std::uint32_t>(model.instances.size())});
-    for (std::uint32_t part = 0; part < model.instances.size(); ++part)
+    const auto firstPart = static_cast<std::uint32_t>(m_parts.size());
+    for (const NeuronCore::CompositeComponent& component : composite.components)
     {
-      m_parts.push_back(
-        NeuronCore::PlacePart(model, index, firstRecords[index], part, {NeuronCore::IDENTITY_ROTATION, {0.0f, 0.0f, 0.0f}}));
+      const NeuronCore::VoxModel& model = m_models[component.model];
+      for (std::uint32_t part = 0; part < model.instances.size(); ++part)
+      {
+        m_parts.push_back({NeuronCore::PlacePart(model, component.model, firstRecords[component.model], part,
+                                                 {NeuronCore::IDENTITY_ROTATION, {0.0f, 0.0f, 0.0f}}),
+                           NeuronCore::ComponentTransform(component), NeuronCore::IsIdentityComponent(component),
+                           ToFloat3(model.instances[part].origin), component.model, part});
+      }
     }
+    m_measures.push_back({middle, NeuronCore::Length(upper - middle), NeuronCore::CompositeCentroid(m_models, composite), firstPart,
+                          static_cast<std::uint32_t>(m_parts.size()) - firstPart});
   }
 }
 
+namespace
+{
+
+// The rotation that turns a part of a component of an entity turned by _rotation into the world.
+[[nodiscard]] NeuronCore::Rotation PartRotation(const NeuronCore::RigidTransform& _component, bool _isIdentity,
+                                                const NeuronCore::Rotation& _rotation) noexcept
+{
+  return _isIdentity ? _rotation : NeuronCore::ComposeRotations(_rotation, _component.rotation);
+}
+
+} // namespace
+
 void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements) const
 {
-  const Measure& measure = m_measures.at(_entity.modelIndex);
-  const NeuronCore::VoxModel& model = m_models[_entity.modelIndex];
+  const Measure& measure = m_measures.at(_entity.composite);
   const NeuronCore::Rotation rotation = NeuronCore::RotationOf(_entity.rotation);
-  for (std::uint32_t part = 0; part < measure.partCount; ++part)
+  for (std::uint32_t index = 0; index < measure.partCount; ++index)
   {
-    NeuronCore::Placement placement = m_parts[measure.firstPart + part];
-    const Float3 origin = ToFloat3(model.instances[part].origin);
-    placement.transform = PartTransform(measure.middle, origin, rotation, _entity.position);
+    const Part& part = m_parts[measure.firstPart + index];
+    // Where the part's origin stands in the composite's space, about the middle of its box, turned with the entity and
+    // taken to its position (§7.2). The component turns by a symmetry of the cube and moves by whole voxels, so for a
+    // station, whose position is whole and whose rotation is a symmetry of the cube too, every term is exact, and so is
+    // every voxel's center. A component that leaves its model where it is adds nothing, not even a rounding.
+    const Float3 origin = part.isIdentity ? part.origin : NeuronCore::TransformPoint(part.component, part.origin);
+    const NeuronCore::Rotation turned = PartRotation(part.component, part.isIdentity, rotation);
+    NeuronCore::Placement placement = part.whole;
+    placement.transform = {turned, _entity.position + NeuronCore::RotateVector(rotation, origin - measure.middle)};
+    placement.paletteIndex = NeuronCore::SidePaletteIndex(part.model, _entity.side, m_sideCount);
     if (_entity.detonation)
     {
       const NeuronCore::DetonationEvent& event = _entity.detonation->event;
-      placement.detonation = NeuronCore::PlacementDetonation{PartExplosion(measure.centroid, origin, rotation, event.velocity, event.seed),
-                                                             _entity.detonation->seconds, m_fragments.Part(_entity.modelIndex, part),
-                                                             NeuronCore::DefaultHeatParameters(measure.radius)};
+      // The detonation as the part sees it (§7.7): ADR-024's defaults about the composite's centroid, the entity's
+      // velocity at the event turned into the part's axes, and the event's seed; the fragments its model breaks into,
+      // and ADR-025's heat for the composite's size.
+      const Float3 centroid = part.isIdentity ? measure.centroid : NeuronCore::InverseTransformPoint(part.component, measure.centroid);
+      NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(centroid - part.origin);
+      parameters.inheritedVelocity = NeuronCore::UnrotateVector(turned, event.velocity);
+      parameters.seed = event.seed;
+      placement.detonation =
+        NeuronCore::PlacementDetonation{parameters, _entity.detonation->seconds, m_fragments.Part(part.model, part.part),
+                                        NeuronCore::DefaultHeatParameters(measure.radius)};
     }
     _placements.push_back(placement);
   }
@@ -97,7 +120,7 @@ std::optional<NeuronCore::Blast> SceneModels::Blast(const SampledEntity& _entity
   {
     return std::nullopt;
   }
-  const Measure& measure = m_measures.at(_entity.modelIndex);
+  const Measure& measure = m_measures.at(_entity.composite);
   const NeuronCore::Rotation rotation = NeuronCore::RotationOf(_entity.rotation);
   // The debris drifts by the entity's velocity over the lone voxel's drag, as every part's detonation has it.
   const float drag = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 0.0f}).drag;
@@ -114,7 +137,7 @@ NeuronCore::Sphere SceneModels::Extent(const SampledEntity& _entity) const
 {
   if (!_entity.detonation)
   {
-    return {_entity.position, m_measures.at(_entity.modelIndex).radius};
+    return {_entity.position, m_measures.at(_entity.composite).radius};
   }
   std::vector<NeuronCore::Placement> placements;
   Place(_entity, placements);
@@ -129,28 +152,33 @@ NeuronCore::Sphere SceneModels::Extent(const SampledEntity& _entity) const
 
 NeuronCore::Sphere SceneModels::Reach(const SampledEntity& _entity) const
 {
-  const Measure& measure = m_measures.at(_entity.modelIndex);
-  const NeuronCore::VoxModel& model = m_models[_entity.modelIndex];
-  const NeuronCore::Rotation rotation = NeuronCore::RotationOf(_entity.rotation);
-  // The seed moves voxels within the envelope, not the envelope.
-  const Float3 velocity = _entity.detonation ? _entity.detonation->event.velocity : _entity.velocity;
-  std::vector<NeuronCore::Sphere> spheres{{_entity.position, measure.radius}};
-  for (std::uint32_t part = 0; part < measure.partCount; ++part)
+  const Measure& measure = m_measures.at(_entity.composite);
+  // The seed and the time move voxels within the envelope, not the envelope.
+  SampledEntity detonated = _entity;
+  if (!detonated.detonation)
   {
-    const NeuronCore::Placement& whole = m_parts[measure.firstPart + part];
-    const Float3 origin = ToFloat3(model.instances[part].origin);
-    const NeuronCore::ExplosionParameters parameters = PartExplosion(measure.centroid, origin, rotation, velocity, 0u);
-    const NeuronCore::Sphere local = NeuronCore::EnvelopeSphere(
-      NeuronCore::BoundExplosion(parameters, whole.lower, whole.upper, m_fragments.Part(_entity.modelIndex, part).radius));
-    spheres.push_back(
-      {NeuronCore::TransformPoint(PartTransform(measure.middle, origin, rotation, _entity.position), local.center), local.radius});
+    detonated.detonation = SampledDetonation{{_entity.id, 0u, 0u, _entity.velocity}, 0.0f};
+  }
+  std::vector<NeuronCore::Placement> placements;
+  placements.reserve(measure.partCount);
+  Place(detonated, placements);
+  std::vector<NeuronCore::Sphere> spheres{{_entity.position, measure.radius}};
+  for (const NeuronCore::Placement& placement : placements)
+  {
+    // Every placement of a detonated entity is detonated.
+    if (!placement.detonation)
+    {
+      continue;
+    }
+    const NeuronCore::Sphere local = NeuronCore::EnvelopeSphere(NeuronCore::PlacementEnvelope(placement, *placement.detonation));
+    spheres.push_back({NeuronCore::TransformPoint(placement.transform, local.center), local.radius});
   }
   return NeuronCore::EnclosingSphere(spheres);
 }
 
-float SceneModels::Radius(std::uint16_t _model) const
+float SceneModels::Radius(std::uint16_t _composite) const
 {
-  return m_measures.at(_model).radius;
+  return m_measures.at(_composite).radius;
 }
 
 } // namespace NeuronClient

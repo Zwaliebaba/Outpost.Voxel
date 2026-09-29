@@ -2,10 +2,13 @@
 
 #include "Message.h"
 
+#include "RigidTransform.h"
+
 #include <algorithm>
 #include <bit>
 #include <cmath>
 #include <numbers>
+#include <ranges>
 #include <stdexcept>
 #include <string_view>
 #include <type_traits>
@@ -30,6 +33,9 @@ constexpr std::uint32_t PAUSED_FLAG = 1u;
 
 // The least a manifest entry can take: a name's length byte, one letter and the hash.
 constexpr std::size_t MIN_MANIFEST_ENTRY_BYTES = 1 + 1 + 8;
+
+// The least a composite can take: its component count. A composite of none is refused, but only once it is read.
+constexpr std::size_t MIN_COMPOSITE_BYTES = 4;
 
 // Where a header keeps the message's size.
 constexpr std::size_t HEADER_SIZE_OFFSET = 4;
@@ -60,6 +66,11 @@ public:
     Unsigned(_value, 8);
   }
 
+  void I32(std::int32_t _value)
+  {
+    U32(static_cast<std::uint32_t>(_value));
+  }
+
   void F32(float _value)
   {
     U32(std::bit_cast<std::uint32_t>(_value));
@@ -83,6 +94,11 @@ public:
   void Text(std::string_view _text)
   {
     m_bytes.insert(m_bytes.end(), _text.begin(), _text.end());
+  }
+
+  void Raw(std::span<const std::uint8_t> _bytes)
+  {
+    m_bytes.insert(m_bytes.end(), _bytes.begin(), _bytes.end());
   }
 
   // The bytes written, with the header's size filled in.
@@ -164,6 +180,11 @@ public:
   [[nodiscard]] std::uint64_t U64() noexcept
   {
     return Unsigned(8);
+  }
+
+  [[nodiscard]] std::int32_t I32() noexcept
+  {
+    return static_cast<std::int32_t>(U32());
   }
 
   [[nodiscard]] float F32() noexcept
@@ -268,6 +289,30 @@ void Write(ByteWriter& _writer, const Welcome& _welcome)
     _writer.Text(entry.name);
     _writer.U64(entry.hash);
   }
+  _writer.U32(static_cast<std::uint32_t>(_welcome.composites.size()));
+  for (const CompositeModel& composite : _welcome.composites)
+  {
+    _writer.U32(static_cast<std::uint32_t>(composite.components.size()));
+    for (const CompositeComponent& component : composite.components)
+    {
+      _writer.U16(component.model);
+      _writer.U16(0); // reserved
+      _writer.I32(component.translation.x);
+      _writer.I32(component.translation.y);
+      _writer.I32(component.translation.z);
+      _writer.Rotation(component.rotation);
+    }
+  }
+  _writer.U32(static_cast<std::uint32_t>(_welcome.sides.size()));
+  for (const SideColor& side : _welcome.sides)
+  {
+    _writer.U8(side.red);
+    _writer.U8(side.green);
+    _writer.U8(side.blue);
+    _writer.U8(0); // reserved
+  }
+  _writer.U32(static_cast<std::uint32_t>(_welcome.payload.size()));
+  _writer.Raw(_welcome.payload);
 }
 
 void Write(ByteWriter& _writer, const Snapshot& _snapshot)
@@ -278,11 +323,13 @@ void Write(ByteWriter& _writer, const Snapshot& _snapshot)
   _writer.U32(_snapshot.paused ? PAUSED_FLAG : 0u);
   _writer.U32(static_cast<std::uint32_t>(_snapshot.entities.size()));
   _writer.U32(static_cast<std::uint32_t>(_snapshot.detonations.size()));
+  _writer.U32(static_cast<std::uint32_t>(_snapshot.payload.size()));
   for (const EntityState& entity : _snapshot.entities)
   {
     _writer.U32(entity.id);
-    _writer.U16(entity.modelIndex);
-    _writer.U16(0); // the reserved flags
+    _writer.U16(entity.composite);
+    _writer.U8(entity.side);
+    _writer.U8(0); // the reserved flags
     _writer.Vector(entity.position);
     _writer.Rotation(entity.rotation);
     _writer.Vector(entity.velocity);
@@ -294,6 +341,7 @@ void Write(ByteWriter& _writer, const Snapshot& _snapshot)
     _writer.U64(detonation.worldTick);
     _writer.Vector(detonation.velocity);
   }
+  _writer.Raw(_snapshot.payload);
 }
 
 void Write(ByteWriter& _writer, const Command& _command)
@@ -341,24 +389,88 @@ void Write(ByteWriter& _writer, const Command& _command)
     badName = badName || !IsModelName(name);
     welcome.manifest.push_back({std::string(name.begin(), name.end()), hash});
   }
+
+  // The composites and the sides are read whole, like the records of a snapshot, before any is judged.
+  bool reservedSet = false;
+  const std::uint32_t compositeCount = _reader.U32();
+  if (_reader.Failed() || compositeCount > _reader.Remaining() / MIN_COMPOSITE_BYTES)
+  {
+    return std::unexpected(ProtocolError::MalformedMessage);
+  }
+  welcome.composites.reserve(compositeCount);
+  for (std::uint32_t i = 0; i < compositeCount; ++i)
+  {
+    const std::uint32_t componentCount = _reader.U32();
+    if (_reader.Failed() || componentCount > _reader.Remaining() / COMPONENT_RECORD_BYTES)
+    {
+      return std::unexpected(ProtocolError::MalformedMessage);
+    }
+    CompositeModel composite;
+    composite.components.reserve(componentCount);
+    for (std::uint32_t j = 0; j < componentCount; ++j)
+    {
+      CompositeComponent component{};
+      component.model = _reader.U16();
+      reservedSet = reservedSet || _reader.U16() != 0;
+      const std::int32_t x = _reader.I32();
+      const std::int32_t y = _reader.I32();
+      const std::int32_t z = _reader.I32();
+      component.translation = {x, y, z};
+      component.rotation = _reader.Rotation();
+      composite.components.push_back(component);
+    }
+    welcome.composites.push_back(std::move(composite));
+  }
+  const std::uint32_t sideCount = _reader.U32();
+  if (_reader.Failed() || sideCount > _reader.Remaining() / SIDE_RECORD_BYTES)
+  {
+    return std::unexpected(ProtocolError::MalformedMessage);
+  }
+  welcome.sides.reserve(sideCount);
+  for (std::uint32_t i = 0; i < sideCount; ++i)
+  {
+    const std::uint8_t red = _reader.U8();
+    const std::uint8_t green = _reader.U8();
+    const std::uint8_t blue = _reader.U8();
+    reservedSet = reservedSet || _reader.U8() != 0;
+    welcome.sides.push_back({red, green, blue});
+  }
+  const std::span<const std::uint8_t> payload = _reader.Bytes(_reader.U32());
+  welcome.payload.assign(payload.begin(), payload.end());
   if (!_reader.Exhausted())
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }
 
+  const auto components = welcome.composites | std::views::transform(&CompositeModel::components) | std::views::join;
   if (!IsFinite(settings.toSun) || !IsFinite(settings.sunRadiance) || !std::isfinite(settings.sunAngularRadiusRadians) ||
-      !IsFinite(settings.ambientUpper) || !IsFinite(settings.ambientLower) || !IsFinite(settings.galacticPlane))
+      !IsFinite(settings.ambientUpper) || !IsFinite(settings.ambientLower) || !IsFinite(settings.galacticPlane) ||
+      !std::ranges::all_of(components, [](const CompositeComponent& _component) { return IsFinite(_component.rotation); }))
   {
     return std::unexpected(ProtocolError::NotFinite);
   }
-  if (!IsUnitRotation(settings.galacticPlane))
+  if (!IsUnitRotation(settings.galacticPlane) ||
+      !std::ranges::all_of(components, [](const CompositeComponent& _component) { return IsUnitRotation(_component.rotation); }))
   {
     return std::unexpected(ProtocolError::NotUnitRotation);
   }
+  if (!std::ranges::all_of(components,
+                           [](const CompositeComponent& _component) { return IsCubeSymmetry(RotationOf(_component.rotation)); }))
+  {
+    return std::unexpected(ProtocolError::NotCubeRotation);
+  }
   constexpr float QUARTER_TURN_RADIANS = 0.5f * std::numbers::pi_v<float>;
+  const auto withinReach = [](const CompositeComponent& _component)
+  {
+    const Int3 t = _component.translation;
+    return std::abs(std::int64_t{t.x}) <= MAX_COMPONENT_TRANSLATION && std::abs(std::int64_t{t.y}) <= MAX_COMPONENT_TRANSLATION &&
+           std::abs(std::int64_t{t.z}) <= MAX_COMPONENT_TRANSLATION;
+  };
   if (welcome.tickRate == 0 || std::abs(Length(settings.toSun) - 1.0f) > UNIT_ROTATION_TOLERANCE || !IsNonNegative(settings.sunRadiance) ||
       !(settings.sunAngularRadiusRadians > 0.0f && settings.sunAngularRadiusRadians < QUARTER_TURN_RADIANS) ||
-      !IsNonNegative(settings.ambientUpper) || !IsNonNegative(settings.ambientLower))
+      !IsNonNegative(settings.ambientUpper) || !IsNonNegative(settings.ambientLower) || reservedSet || welcome.sides.size() > MAX_SIDES ||
+      std::ranges::any_of(welcome.composites, [](const CompositeModel& _composite) { return _composite.components.empty(); }) ||
+      !std::ranges::all_of(components, withinReach))
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }
@@ -366,10 +478,14 @@ void Write(ByteWriter& _writer, const Command& _command)
   {
     return std::unexpected(ProtocolError::BadName);
   }
+  if (!std::ranges::all_of(components, [modelCount](const CompositeComponent& _component) { return _component.model < modelCount; }))
+  {
+    return std::unexpected(ProtocolError::BadModelIndex);
+  }
   return welcome;
 }
 
-[[nodiscard]] Decoded ReadSnapshot(ByteReader& _reader, std::size_t _modelCount)
+[[nodiscard]] Decoded ReadSnapshot(ByteReader& _reader, WelcomeCounts _counts)
 {
   Snapshot snapshot{};
   snapshot.tick = _reader.U64();
@@ -377,8 +493,10 @@ void Write(ByteWriter& _writer, const Command& _command)
   const std::uint32_t flags = _reader.U32();
   const std::uint32_t entityCount = _reader.U32();
   const std::uint32_t detonationCount = _reader.U32();
+  const std::uint32_t payloadBytes = _reader.U32();
   if (_reader.Failed() || (flags & ~PAUSED_FLAG) != 0 ||
-      std::uint64_t{entityCount} * ENTITY_RECORD_BYTES + std::uint64_t{detonationCount} * DETONATION_RECORD_BYTES != _reader.Remaining())
+      std::uint64_t{entityCount} * ENTITY_RECORD_BYTES + std::uint64_t{detonationCount} * DETONATION_RECORD_BYTES + payloadBytes !=
+        _reader.Remaining())
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }
@@ -391,8 +509,9 @@ void Write(ByteWriter& _writer, const Command& _command)
   {
     EntityState entity{};
     entity.id = _reader.U32();
-    entity.modelIndex = _reader.U16();
-    reservedSet = reservedSet || _reader.U16() != 0;
+    entity.composite = _reader.U16();
+    entity.side = _reader.U8();
+    reservedSet = reservedSet || _reader.U8() != 0;
     entity.position = _reader.Vector();
     entity.rotation = _reader.Rotation();
     entity.velocity = _reader.Vector();
@@ -408,6 +527,8 @@ void Write(ByteWriter& _writer, const Command& _command)
     detonation.velocity = _reader.Vector();
     snapshot.detonations.push_back(detonation);
   }
+  const std::span<const std::uint8_t> payload = _reader.Bytes(payloadBytes);
+  snapshot.payload.assign(payload.begin(), payload.end());
 
   for (const EntityState& entity : snapshot.entities)
   {
@@ -433,9 +554,13 @@ void Write(ByteWriter& _writer, const Command& _command)
     {
       return std::unexpected(ProtocolError::MalformedMessage);
     }
-    if (entity.modelIndex >= _modelCount)
+    if (entity.composite >= _counts.composites)
     {
-      return std::unexpected(ProtocolError::BadModelIndex);
+      return std::unexpected(ProtocolError::BadCompositeIndex);
+    }
+    if (entity.side > _counts.sides)
+    {
+      return std::unexpected(ProtocolError::BadSide);
     }
   }
 
@@ -528,6 +653,12 @@ const char* ProtocolErrorName(ProtocolError _error) noexcept
     return "BadModelIndex";
   case ProtocolError::UnknownEntity:
     return "UnknownEntity";
+  case ProtocolError::NotCubeRotation:
+    return "NotCubeRotation";
+  case ProtocolError::BadCompositeIndex:
+    return "BadCompositeIndex";
+  case ProtocolError::BadSide:
+    return "BadSide";
   }
   return "Unknown";
 }
@@ -539,7 +670,7 @@ std::vector<std::uint8_t> EncodeMessage(const Message& _message)
   return std::move(writer).Finish();
 }
 
-std::expected<Message, ProtocolError> DecodeMessage(std::span<const std::uint8_t> _bytes, std::size_t _modelCount)
+std::expected<Message, ProtocolError> DecodeMessage(std::span<const std::uint8_t> _bytes, WelcomeCounts _counts)
 {
   if (_bytes.size() < MESSAGE_HEADER_BYTES)
   {
@@ -574,7 +705,7 @@ std::expected<Message, ProtocolError> DecodeMessage(std::span<const std::uint8_t
   case MessageType::Welcome:
     return ReadWelcome(content);
   case MessageType::Snapshot:
-    return ReadSnapshot(content, _modelCount);
+    return ReadSnapshot(content, _counts);
   case MessageType::Command:
     return ReadCommand(content);
   }

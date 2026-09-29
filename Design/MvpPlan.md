@@ -609,3 +609,4 @@ The opponent decides every 15 ticks. Its steps are counted as work, never timed 
 | Phase | Pull request | Date | Verdict | Notes |
 |---|---|---|---|---|
 | Plan | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Approved | Repair stays out of the MVP, as §2.2 has it. Phase 1 may start. |
+| Phase 1 | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Approved | Vectored thrust stands (ADR-026), and the cruiser keeps its 63 % heavy armor. The build rate, the working names and `GameCore` drew no comment and stand. No run of `Outpost.exe` was reported. Phase 2 may start. |

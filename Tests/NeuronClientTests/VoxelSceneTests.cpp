@@ -4,10 +4,15 @@
 #include "TestSupport.h"
 #include "VoxelScene.h"
 
+#include "ColorSpace.h"
 #include "Fragmentation.h"
+#include "Lighting.h"
+#include "Message.h"
 #include "RigidTransform.h"
+#include "SidePalette.h"
 #include "VoxModel.h"
 
+#include <array>
 #include <cstdint>
 #include <format>
 #include <stdexcept>
@@ -74,6 +79,44 @@ public:
           refused = true;
         }
         Assert::IsTrue(refused, L"fragments of more records than the scene's are refused");
+      });
+  }
+
+  // Design/ADR/ADR-029: each model's own palette, then its variant for each side, model after model, where
+  // NeuronCore::SidePaletteIndex finds them. A side's variant differs from the model's own in the side's entry alone.
+  TEST_METHOD(HoldsEachSidesPalettes)
+  {
+    RunGpuTest(
+      [](NeuronClient::GraphicsDevice& _device)
+      {
+        std::vector<NeuronCore::VoxModel> models{RandomBlock(), RandomBlock()};
+        models[1].palette[3].red = 7;
+        const std::array<NeuronCore::SideColor, 2> sides{{{40, 120, 220}, {220, 80, 60}}};
+        const NeuronClient::VoxelScene scene(_device, models, NeuronCore::SceneFragments(models), sides);
+        Assert::AreEqual(6u, scene.PaletteCount(), L"three for each model");
+        for (std::uint32_t model = 0; model < models.size(); ++model)
+        {
+          for (std::uint32_t side = 0; side <= sides.size(); ++side)
+          {
+            const NeuronClient::PaletteConstants& palette = scene.PaletteValues(NeuronCore::SidePaletteIndex(model, side, sides.size()));
+            for (std::uint32_t entry = 0; entry < NeuronCore::PALETTE_ENTRY_COUNT; ++entry)
+            {
+              NeuronCore::PaletteEntry expected = models[model].palette[entry];
+              if (side > 0 && entry + 1 == NeuronCore::SIDE_PALETTE_ENTRY)
+              {
+                expected.red = sides[side - 1].red;
+                expected.green = sides[side - 1].green;
+                expected.blue = sides[side - 1].blue;
+              }
+              const NeuronCore::Float3 albedo = palette.materials[entry].albedo;
+              const std::wstring what = std::format(L"model {}, side {}, entry {}", model, side, entry + 1);
+              Assert::AreEqual(NeuronCore::SrgbToLinear(expected.red), albedo.x, (what + L", red").c_str());
+              Assert::AreEqual(NeuronCore::SrgbToLinear(expected.green), albedo.y, (what + L", green").c_str());
+              Assert::AreEqual(NeuronCore::SrgbToLinear(expected.blue), albedo.z, (what + L", blue").c_str());
+              Assert::AreEqual(NeuronCore::EmissiveScale(expected), palette.materials[entry].emissiveScale, (what + L", glow").c_str());
+            }
+          }
+        }
       });
   }
 };

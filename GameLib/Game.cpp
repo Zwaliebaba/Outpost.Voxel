@@ -264,7 +264,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
       _camera.orbit.Frame(extent.center, extent.radius);
       if (_camera.chasing)
       {
-        _camera.chase.Reset(chosen->position, NeuronCore::RotationOf(chosen->rotation), _scene.Models().Radius(chosen->modelIndex));
+        _camera.chase.Reset(chosen->position, NeuronCore::RotationOf(chosen->rotation), _scene.Models().Radius(chosen->composite));
       }
     }
   }
@@ -277,7 +277,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
   if (_input.WasKeyPressed('C') && target != nullptr)
   {
     _camera.chasing = !_camera.chasing;
-    _camera.chase.Reset(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex));
+    _camera.chase.Reset(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->composite));
   }
   if (_input.WasKeyPressed(VK_TAB))
   {
@@ -296,8 +296,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
     _camera.followed = target->position;
     if (_camera.chasing)
     {
-      _camera.chase.Follow(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex),
-                           _seconds);
+      _camera.chase.Follow(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->composite), _seconds);
     }
   }
   else
@@ -571,7 +570,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   const NeuronCore::WorldSettings settings = session.Settings();
   const std::vector<NeuronCore::StarRecord> stars =
     NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);
-  Scene scene(session.Models(), settings.toSun);
+  Scene scene(session.Models(), session.Composites(), session.Sides().size(), settings.toSun);
   const float brightestEmissive = BrightestEmissiveScale(session.Models());
   WorldSample sample = session.Buffer().Sample(session.Buffer().RenderTick(now()));
   scene.FitShadowView(sample);
@@ -584,7 +583,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
   NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
-                                  scene.Models().Models(), scene.Models().Fragments());
+                                  scene.Models().Models(), scene.Models().Fragments(), session.Sides());
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.

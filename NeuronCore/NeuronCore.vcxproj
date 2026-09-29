@@ -161,6 +161,7 @@
     <ClInclude Include="Blast.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
+    <ClInclude Include="Composite.h" />
     <ClInclude Include="DebugView.h" />
     <ClInclude Include="Explosion.h" />
     <ClInclude Include="Fragmentation.h" />
@@ -181,6 +182,7 @@
     <ClInclude Include="Ray.h" />
     <ClInclude Include="RigidTransform.h" />
     <ClInclude Include="SceneTracer.h" />
+    <ClInclude Include="SidePalette.h" />
     <ClInclude Include="Sky.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="SplatBounds.h" />
@@ -196,6 +198,7 @@
     <ClCompile Include="Blast.cpp" />
     <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
+    <ClCompile Include="Composite.cpp" />
     <ClCompile Include="DebugView.cpp" />
     <ClCompile Include="Explosion.cpp" />
     <ClCompile Include="Fragmentation.cpp" />
@@ -215,6 +218,7 @@
     <ClCompile Include="Quaternion.cpp" />
     <ClCompile Include="RigidTransform.cpp" />
     <ClCompile Include="SceneTracer.cpp" />
+    <ClCompile Include="SidePalette.cpp" />
     <ClCompile Include="Sky.cpp" />
     <ClCompile Include="SplatBounds.cpp" />
     <ClCompile Include="StarCatalog.cpp" />

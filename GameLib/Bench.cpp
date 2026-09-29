@@ -373,7 +373,7 @@ struct Bench::Run
   void Begin()
   {
     const NeuronCore::WorldSettings& settings = session.Settings();
-    scene = std::make_unique<Scene>(session.Models(), settings.toSun);
+    scene = std::make_unique<Scene>(session.Models(), session.Composites(), session.Sides().size(), settings.toSun);
     stars = NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);
     sky = NeuronCore::MakeSkyParameters(settings);
     const NeuronClient::WorldSample sample = session.Buffer().Sample(RenderTick(0));
@@ -389,7 +389,7 @@ struct Bench::Run
     scene->FitShadowView(sample);
     renderer = std::make_unique<NeuronClient::Renderer>(
       NeuronClient::RendererDesc{device, window.Handle(), BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, scene->ShadowView(), stars},
-      scene->Models().Models(), scene->Models().Fragments());
+      scene->Models().Models(), scene->Models().Fragments(), session.Sides());
   }
 
   // Draws shot _step: frame _index of the timeline with _depth, and a measured shot unless it is a warm-up one.

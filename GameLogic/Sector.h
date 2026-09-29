@@ -84,6 +84,8 @@ public:
   [[nodiscard]] std::uint32_t TickRate() const noexcept override;
   [[nodiscard]] const NeuronCore::WorldSettings& Settings() const noexcept override;
   [[nodiscard]] std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept override;
+  // Each model alone, as the space scene draws it: composite i is model i, and no entity has a side (Design/ADR/ADR-029).
+  [[nodiscard]] std::span<const NeuronCore::CompositeModel> Composites() const noexcept override;
   void Advance(std::uint64_t _worldTick) override;
   void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override;
   void Restore(std::uint32_t _entity) override;
@@ -137,6 +139,7 @@ private:
   SectorParameters m_parameters{};
   NeuronCore::WorldSettings m_settings{};
   std::vector<NeuronCore::ManifestEntry> m_manifest;
+  std::vector<NeuronCore::CompositeModel> m_composites;
   std::array<float, MODEL_COUNT> m_radii{};
   std::array<ShipClass, MODEL_COUNT> m_classes{};
   std::vector<Entity> m_entities; // entity id is its index plus one
