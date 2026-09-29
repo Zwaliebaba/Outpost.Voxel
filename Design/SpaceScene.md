@@ -388,9 +388,9 @@ What it takes from the look is some softness where history is rejected or clampe
 
 **Camera.** The orbit camera orbits a target entity and follows it as it moves. N and B cycle the target forward and back through the stations and the flights' leaders. C switches to a chase camera behind and above a ship, in the ship's frame, sprung so that the ship's banking reads without the view shaking. Tab still flies free, now with +Y as up, and F frames the target.
 
-**Keys.** E detonates the camera's target and R restores it, commands to the server for testing (§5.5); Space pauses the server. 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view; T toggles temporal anti-aliasing. [ and ] set the emissive gain, V vsync, F1 the key map and F2 the figures; Alt+F4 quits.
+**Keys.** E detonates the camera's target and R restores it, commands to the server for testing (§5.5); Space pauses the server. 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view; T toggles temporal anti-aliasing. [ and ] set the emissive gain, V vsync, which starts off, F1 the key map and F2 the figures; Alt+F4 quits.
 
-**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is. On 2026-09-29 the owner asked for the frame rate, in frames a second, in place of the frame time; the GPU's times stay in milliseconds.
+**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is. On 2026-09-29 the owner asked for the frame rate, in frames a second, in place of the frame time; the GPU's times stay in milliseconds. Vsync starts off, as the owner asked the same day, where the sample renderer started it on, so the figures show "vsync on" when it is on, instead of "vsync off" when it is off.
 
 ## 14. `--bench`
 

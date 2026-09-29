@@ -104,7 +104,7 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
 struct Controls
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
-  bool vsync = true;
+  bool vsync = false;
   bool figures = true; // on screen; the title always carries them
   float emissiveGain = 1.0f;
 };
@@ -410,9 +410,9 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   {
     figures.push_back(std::format(L"emissive {:.2f}", _brightestEmissive * _controls.emissiveGain));
   }
-  if (!_controls.vsync)
+  if (_controls.vsync)
   {
-    figures.emplace_back(L"vsync off");
+    figures.emplace_back(L"vsync on");
   }
   if (_device.DebugLayer() == NeuronClient::DebugLayerState::Unavailable)
   {
