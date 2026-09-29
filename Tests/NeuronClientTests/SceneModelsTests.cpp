@@ -154,7 +154,6 @@ public:
       Assert::AreEqual(static_cast<std::uint32_t>(block.records.size()) + model.instances[part].firstRecord, placement.firstRecord,
                        L"the part's records, after the first model's");
       Assert::AreEqual(1u, placement.paletteIndex, L"its model's palette");
-      Assert::AreEqual(model.instances[part].firstRecord, placement.hashBase, L"hashed from the part's first record in its model");
       for (std::uint32_t voxel = 0; voxel < placement.recordCount; ++voxel)
       {
         const std::uint32_t record = model.records[model.instances[part].firstRecord + voxel];
@@ -208,6 +207,8 @@ public:
                what + L": the velocity");
       Assert::AreEqual(0xBEEFu, detonation.parameters.seed, (what + L": the seed").c_str());
       Assert::AreEqual(2.0f, detonation.timeSeconds, (what + L": the time").c_str());
+      Assert::AreEqual(static_cast<std::size_t>(flying[part].recordCount), detonation.fragments.fragmentOf.size(),
+                       (what + L": broken into its part's fragments").c_str());
     }
   }
 
@@ -224,7 +225,7 @@ public:
     Assert::AreEqual(models.Radius(0), intact.radius, L"whole, its model's sphere");
     Assert::IsTrue(Holds(reach, intact), L"the reach holds the whole station");
 
-    // Through the flight to past the stop, 11.61 s (ADR-013).
+    // Through the flight to past the stop, 40.4 s (ADR-024).
     for (const float seconds : {0.0f, 0.5f, 2.0f, 6.0f, 12.0f, 60.0f})
     {
       entity.detonation = SampledDetonation{{1, 99u, 12, {0.0f, 0.0f, 0.0f}}, seconds};

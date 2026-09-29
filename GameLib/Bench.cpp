@@ -412,8 +412,7 @@ struct Bench::Run
       {
         if (placement.detonation)
         {
-          stopSeconds = std::max(
-            stopSeconds, NeuronCore::BoundExplosion(placement.detonation->parameters, placement.lower, placement.upper).stopSeconds);
+          stopSeconds = std::max(stopSeconds, NeuronCore::PlacementEnvelope(placement, *placement.detonation).stopSeconds);
         }
       }
       phase = explosionSeconds < stopSeconds ? Phase::Flight : Phase::Stopped;

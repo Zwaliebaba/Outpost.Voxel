@@ -17,9 +17,10 @@ namespace NeuronClient
 class GraphicsDevice;
 
 // The scene's models on the GPU (Design/Archive/SpaceScene.md §7.1): every model's voxel records in one buffer, model after
-// model as NeuronCore::SceneRecords lays them out, and their palettes in another, one per model, uploaded once. A model's
-// records are stored once however many placements draw them. The buffers rest in the common state and are promoted by
-// each read.
+// model as NeuronCore::SceneRecords lays them out, their palettes in another, one per model, and the fragments each model
+// breaks into when it detonates in two more, as NeuronCore::SceneFragments lays them out (Design/ADR/ADR-024), all uploaded
+// once. A model's records are stored once however many placements draw them. The buffers rest in the common state and
+// are promoted by each read.
 class VoxelScene
 {
 public:
@@ -33,6 +34,18 @@ public:
     return m_records->GetGPUVirtualAddress();
   }
 
+  // Each record's fragment within its model, parallel to the records, as one StructuredBuffer<uint>.
+  [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS FragmentOf() const noexcept
+  {
+    return m_fragmentOf->GetGPUVirtualAddress();
+  }
+
+  // Every model's fragments, model after model, as one StructuredBuffer<Fragment>.
+  [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Fragments() const noexcept
+  {
+    return m_fragments->GetGPUVirtualAddress();
+  }
+
   // The palettes as one StructuredBuffer<PaletteConstants>, by model.
   [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Palettes() const noexcept
   {
@@ -42,6 +55,11 @@ public:
   [[nodiscard]] std::uint32_t RecordCount() const noexcept
   {
     return m_recordCount;
+  }
+
+  [[nodiscard]] std::uint32_t FragmentCount() const noexcept
+  {
+    return m_fragmentCount;
   }
 
   [[nodiscard]] std::uint32_t ModelCount() const noexcept
@@ -58,7 +76,10 @@ public:
 private:
   winrt::com_ptr<ID3D12Resource> m_records;
   winrt::com_ptr<ID3D12Resource> m_palettes;
+  winrt::com_ptr<ID3D12Resource> m_fragmentOf;
+  winrt::com_ptr<ID3D12Resource> m_fragments;
   std::uint32_t m_recordCount = 0;
+  std::uint32_t m_fragmentCount = 0;
   std::vector<PaletteConstants> m_paletteValues;
 };
 

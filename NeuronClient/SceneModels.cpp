@@ -31,7 +31,7 @@ using NeuronCore::Float3;
   return {_rotation, _position + NeuronCore::RotateVector(_rotation, _origin - _middle)};
 }
 
-// The detonation as the part whose origin is _origin sees it (§7.7): ADR-013's defaults about the model's centroid, the
+// The detonation as the part whose origin is _origin sees it (§7.7): ADR-024's defaults about the model's centroid, the
 // entity's velocity at the event turned into the part's axes, and the event's seed.
 [[nodiscard]] NeuronCore::ExplosionParameters PartExplosion(Float3 _centroid, Float3 _origin, const NeuronCore::Rotation& _rotation,
                                                             Float3 _velocity, std::uint32_t _seed) noexcept
@@ -45,7 +45,8 @@ using NeuronCore::Float3;
 } // namespace
 
 SceneModels::SceneModels(std::span<const NeuronCore::VoxModel> _models)
-  : m_models(_models.begin(), _models.end())
+  : m_models(_models.begin(), _models.end()),
+    m_fragments(m_models)
 {
   const std::vector<std::uint32_t> firstRecords = NeuronCore::ModelFirstRecords(m_models);
   for (std::uint32_t index = 0; index < m_models.size(); ++index)
@@ -83,7 +84,7 @@ void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Pl
     {
       const NeuronCore::DetonationEvent& event = _entity.detonation->event;
       placement.detonation = NeuronCore::PlacementDetonation{PartExplosion(measure.centroid, origin, rotation, event.velocity, event.seed),
-                                                             _entity.detonation->seconds};
+                                                             _entity.detonation->seconds, m_fragments.Part(_entity.modelIndex, part)};
     }
     _placements.push_back(placement);
   }
@@ -119,7 +120,8 @@ NeuronCore::Sphere SceneModels::Reach(const SampledEntity& _entity) const
     const NeuronCore::Placement& whole = m_parts[measure.firstPart + part];
     const Float3 origin = ToFloat3(model.instances[part].origin);
     const NeuronCore::ExplosionParameters parameters = PartExplosion(measure.centroid, origin, rotation, velocity, 0u);
-    const NeuronCore::Sphere local = NeuronCore::EnvelopeSphere(NeuronCore::BoundExplosion(parameters, whole.lower, whole.upper));
+    const NeuronCore::Sphere local = NeuronCore::EnvelopeSphere(
+      NeuronCore::BoundExplosion(parameters, whole.lower, whole.upper, m_fragments.Part(_entity.modelIndex, part).radius));
     spheres.push_back(
       {NeuronCore::TransformPoint(PartTransform(measure.middle, origin, rotation, _entity.position), local.center), local.radius});
   }

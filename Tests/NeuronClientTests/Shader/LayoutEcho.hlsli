@@ -8,6 +8,7 @@
 #include "BloomConstants.hlsli"
 #include "CanvasQuad.hlsli"
 #include "ExplosionConstants.hlsli"
+#include "Fragment.hlsli"
 #include "LightingConstants.hlsli"
 #include "PaletteConstants.hlsli"
 #include "PlacementConstants.hlsli"
@@ -26,6 +27,7 @@ StructuredBuffer<CanvasQuad> g_canvasQuads : register(t2);
 ConstantBuffer<SkyConstants> g_sky : register(b4);
 ConstantBuffer<BloomConstants> g_bloom : register(b5);
 StructuredBuffer<StarRecord> g_stars : register(t3);
+StructuredBuffer<Fragment> g_fragments : register(t4);
 RWByteAddressBuffer g_echo : register(u0);
 
 void Echo(inout uint _word, uint _value)
@@ -80,11 +82,13 @@ void Echo3(inout uint _word, uint3 _value)
   Echo(word, asuint(g_explosion.launchSpeed));
   Echo(word, asuint(g_explosion.falloffDistance));
   Echo(word, asuint(g_explosion.directionJitter));
-  Echo(word, asuint(g_explosion.speedJitter));
+  Echo(word, asuint(g_explosion.speedSpread));
   Echo(word, asuint(g_explosion.drag));
-  Echo(word, g_explosion.maxQuarterTurns);
+  Echo(word, asuint(g_explosion.minDrag));
+  Echo(word, asuint(g_explosion.maxSpinRadians));
+  Echo(word, asuint(g_explosion.shockSpeed));
   Echo(word, g_explosion.seed);
-  Echo(word, g_explosion.hashBase);
+  Echo(word, g_explosion.firstFragment);
 
   Echo3(word, asuint(g_sky.toSun));
   Echo(word, asuint(g_sky.sunAngularRadiusRadians));
@@ -144,5 +148,12 @@ void Echo3(inout uint _word, uint3 _value)
     Echo3(word, asuint(record.direction));
     Echo(word, asuint(record.flux));
     Echo3(word, asuint(record.color));
+  }
+
+  [unroll] for (uint fragmentIndex = 0u; fragmentIndex < 2u; ++fragmentIndex)
+  {
+    Fragment fragment = g_fragments[fragmentIndex];
+    Echo3(word, asuint(fragment.pivot));
+    Echo(word, asuint(fragment.sizeScale));
   }
 }

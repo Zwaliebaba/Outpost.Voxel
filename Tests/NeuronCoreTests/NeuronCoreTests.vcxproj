@@ -208,6 +208,7 @@
     <ClCompile Include="CullingTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="FragmentationTests.cpp" />
     <ClCompile Include="HalfTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
     <ClCompile Include="LoopbackTransportTests.cpp" />

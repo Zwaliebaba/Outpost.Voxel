@@ -43,8 +43,9 @@ static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_
 static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
-// no bound: records beyond the scene's, a palette it lacks, and ids that fall back, overlap or reach NO_VOXEL, which the
-// binary search over them and the visibility buffer rely on (Design/Archive/SpaceScene.md §7.3).
+// no bound: records beyond the scene's, a palette it lacks, a detonation's fragments beyond the scene's, and ids that
+// fall back, overlap or reach NO_VOXEL, which the binary search over them and the visibility buffer rely on
+// (Design/Archive/SpaceScene.md §7.3, Design/ADR/ADR-024).
 void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Placement> _placements)
 {
   std::uint64_t nextVoxel = 0;
@@ -59,6 +60,16 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
     {
       throw std::invalid_argument(
         std::format("Placement {} takes palette {}, of the scene's {}.", i, placement.paletteIndex, _scene.ModelCount()));
+    }
+    if (placement.detonation.has_value())
+    {
+      const NeuronCore::PartFragments& fragments = placement.detonation->fragments;
+      if (fragments.fragmentOf.size() != placement.recordCount ||
+          std::uint64_t{fragments.firstFragment} + fragments.fragments.size() > _scene.FragmentCount())
+      {
+        throw std::invalid_argument(
+          std::format("Placement {}'s detonation names fragments beyond the scene's {}.", i, _scene.FragmentCount()));
+      }
     }
     if (placement.firstVoxel < nextVoxel)
     {

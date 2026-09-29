@@ -14,6 +14,7 @@
 #include "UploadRing.h"
 #include "ViewConstants.h"
 
+#include "Fragmentation.h"
 #include "StarCatalog.h"
 
 #include <array>
@@ -46,6 +47,7 @@ enum RootParameter : std::uint8_t
   SkyParameter,
   BloomParameter,
   StarsParameter,
+  FragmentsParameter,
   EchoParameter,
   RootParameterCount
 };
@@ -96,6 +98,7 @@ public:
         const auto sky = Sentinel<NeuronClient::SkyConstants>(11);
         const auto bloom = Sentinel<NeuronClient::BloomConstants>(12);
         const std::array<NeuronCore::StarRecord, 2> stars{Sentinel<NeuronCore::StarRecord>(13), Sentinel<NeuronCore::StarRecord>(14)};
+        const std::array<NeuronCore::Fragment, 2> fragments{Sentinel<NeuronCore::Fragment>(15), Sentinel<NeuronCore::Fragment>(16)};
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, shadowView);
@@ -107,6 +110,7 @@ public:
         AppendWords(expected, placements);
         AppendWords(expected, canvasQuads);
         AppendWords(expected, stars);
+        AppendWords(expected, fragments);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
@@ -123,6 +127,8 @@ public:
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(canvasQuads)), L"Layout echo canvas quads");
         const winrt::com_ptr<ID3D12Resource> starBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(stars)), L"Layout echo stars");
+        const winrt::com_ptr<ID3D12Resource> fragmentBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(fragments)), L"Layout echo fragments");
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -150,6 +156,8 @@ public:
         parameters[BloomParameter].Descriptor = {5, 0};
         parameters[StarsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
         parameters[StarsParameter].Descriptor = {3, 0};
+        parameters[FragmentsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[FragmentsParameter].Descriptor = {4, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -180,6 +188,7 @@ public:
             _list->SetComputeRootConstantBufferView(SkyParameter, skyAddress);
             _list->SetComputeRootConstantBufferView(BloomParameter, bloomAddress);
             _list->SetComputeRootShaderResourceView(StarsParameter, starBuffer->GetGPUVirtualAddress());
+            _list->SetComputeRootShaderResourceView(FragmentsParameter, fragmentBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

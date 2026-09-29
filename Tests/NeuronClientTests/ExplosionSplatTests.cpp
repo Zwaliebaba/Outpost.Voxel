@@ -8,6 +8,7 @@
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Lighting.h"
 #include "OctahedralNormal.h"
 #include "OrthographicView.h"
@@ -105,13 +106,16 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
 }
 
 // The block's detonation: the defaults' shape, scaled to an 8-voxel block, so that its debris stays within a camera's
-// reach and every voxel still covers a few pixels.
+// reach and every voxel still covers a few pixels, and so slow a blast that the fragments start one after another
+// within the times the tests draw.
 [[nodiscard]] NeuronCore::ExplosionParameters BlockExplosion(const NeuronCore::VoxModel& _model)
 {
   NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(_model));
   parameters.launchSpeed = 6.0f;
   parameters.falloffDistance = 8.0f;
   parameters.drag = 1.5f;
+  parameters.minDrag = 0.75f;
+  parameters.shockSpeed = 20.0f;
   return parameters;
 }
 
@@ -280,9 +284,10 @@ public:
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
         const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const NeuronCore::SceneFragments fragments({&model, 1});
         const std::vector<NeuronCore::Placement> whole = WholePlacements(model);
         const std::vector<NeuronCore::Placement> intact =
-          DetonatePlacements(whole, NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
+          DetonatePlacements(whole, {&model, 1}, fragments, NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
 
         const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView({180.0f, 210.0f, -260.0f}, {0.0f, 110.0f, 0.0f}, WORLD_UP,
                                                                                  TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
@@ -314,8 +319,10 @@ public:
       {
         const NeuronCore::VoxModel model = RandomBlock();
         const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const NeuronCore::SceneFragments fragments({&model, 1});
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
-        const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
+        const NeuronCore::ExplosionEnvelope envelope =
+          NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f}, fragments.Part(0, 0).radius);
         const NeuronCore::PerspectiveView view = EnvelopeView(envelope);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
@@ -323,7 +330,8 @@ public:
         const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
         for (const float time : BlockTimes(envelope))
         {
-          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(WholePlacements(model), parameters, time);
+          const std::vector<NeuronCore::Placement> placements =
+            DetonatePlacements(WholePlacements(model), {&model, 1}, fragments, parameters, time);
           const SplatImage image = RenderSplat(_device, scene, placements, pass, view);
           const Comparison comparison =
             CompareView(view, PlacedBoxes(model.records, placements, 0.0f), PlacedBoxes(model.records, placements, EDGE_EPSILON),
@@ -347,6 +355,7 @@ public:
       {
         const NeuronCore::VoxModel model = RandomBlock();
         const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const NeuronCore::SceneFragments fragments({&model, 1});
         std::vector<NeuronCore::Placement> whole{
           PlaceCentered(model, 0, 0, 0, NeuronCore::RotationOf({-0.4f, 0.1f, 0.3f, 0.86f}), {30.0f, -12.0f, 55.0f})};
         Assert::IsTrue(NeuronCore::AssignVoxelIds(whole));
@@ -357,8 +366,10 @@ public:
         parameters.seed = 11u;
 
         // The envelope, bounded in the part's space and taken into the world, around the whole of its drift.
-        const NeuronCore::ExplosionParameters partParameters = DetonatePlacements(whole, parameters, 1.0f).front().detonation->parameters;
-        const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(partParameters, whole.front().lower, whole.front().upper);
+        const NeuronCore::Placement detonated = DetonatePlacements(whole, {&model, 1}, fragments, parameters, 1.0f).front();
+        Assert::IsTrue(detonated.detonation.has_value());
+        const NeuronCore::ExplosionEnvelope envelope =
+          NeuronCore::PlacementEnvelope(detonated, detonated.detonation.value_or(NeuronCore::PlacementDetonation{}));
         const NeuronCore::Sphere reach = NeuronCore::EnvelopeSphere(envelope);
         const NeuronCore::ExplosionEnvelope world{
           NeuronCore::TransformPoint(whole.front().transform, reach.center), reach.radius, {0.0f, 0.0f, 0.0f}, envelope.stopSeconds};
@@ -368,7 +379,7 @@ public:
         const NeuronClient::SplatPass shadowPass(_device, NeuronClient::SplatPass::Kind::Shadow);
         for (const float time : BlockTimes(envelope))
         {
-          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(whole, parameters, time);
+          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(whole, {&model, 1}, fragments, parameters, time);
           const std::vector<NeuronCore::Box> exact = PlacedBoxes(model.records, placements, 0.0f);
           const std::vector<NeuronCore::Box> grown = PlacedBoxes(model.records, placements, EDGE_EPSILON);
           const std::vector<NeuronCore::Box> shrunk = PlacedBoxes(model.records, placements, -EDGE_EPSILON);
@@ -388,13 +399,16 @@ public:
       {
         const NeuronCore::VoxModel model = RandomBlock();
         const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const NeuronCore::SceneFragments fragments({&model, 1});
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
-        const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f});
+        const NeuronCore::ExplosionEnvelope envelope =
+          NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f}, fragments.Part(0, 0).radius);
         const NeuronCore::OrthographicView view = EnvelopeShadowView(envelope);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::Shadow);
         for (const float time : BlockTimes(envelope))
         {
-          const std::vector<NeuronCore::Placement> placements = DetonatePlacements(WholePlacements(model), parameters, time);
+          const std::vector<NeuronCore::Placement> placements =
+            DetonatePlacements(WholePlacements(model), {&model, 1}, fragments, parameters, time);
           const std::vector<float> depth = RenderShadowSplat(_device, scene, placements, pass, view);
           const Comparison comparison =
             CompareShadow(view, PlacedBoxes(model.records, placements, 0.0f), PlacedBoxes(model.records, placements, EDGE_EPSILON),

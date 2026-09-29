@@ -18,6 +18,7 @@
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Half.h"
 #include "Lighting.h"
 #include "OctahedralNormal.h"
@@ -481,9 +482,10 @@ public:
       {
         const ThreeModels three = LoadThreeModels();
         const NeuronClient::VoxelScene scene(_device, three.models);
+        const NeuronCore::SceneFragments fragments(three.models);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const std::vector<Placement> detonated =
-          DetonatePlacements(whole, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
+          DetonatePlacements(whole, three.models, fragments, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronCore::PerspectiveView view = FromTheOrigin();
         Report(L"detonated at time 0, the view",
@@ -507,6 +509,7 @@ public:
       {
         const ThreeModels three = LoadThreeModels();
         const NeuronClient::VoxelScene scene(_device, three.models);
+        const NeuronCore::SceneFragments fragments(three.models);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const NeuronClient::SplatPass standard(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
@@ -519,7 +522,8 @@ public:
         explosion.seed = 7u;
         for (const float time : {0.0f, 0.5f})
         {
-          const std::vector<Placement> placements = time > 0.0f ? DetonatePlacements(whole, explosion, time) : whole;
+          const std::vector<Placement> placements =
+            time > 0.0f ? DetonatePlacements(whole, three.models, fragments, explosion, time) : whole;
           const SplatImage image = RenderSplat(_device, scene, placements, standard, view);
           Report(std::format(L"plain depth at {} s", time),
                  CompareDrawings(image, RenderSplat(_device, scene, placements, plainDepth, view)), EDGE_MISMATCH_LIMIT);

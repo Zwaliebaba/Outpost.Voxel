@@ -5,6 +5,7 @@
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 
+#include "Fragmentation.h"
 #include "Placement.h"
 
 #include <stdexcept>
@@ -43,6 +44,11 @@ VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxM
     m_paletteValues.push_back(MakePaletteConstants(model.palette));
   }
   m_palettes = CreateStaticBuffer(_device, std::as_bytes(std::span(m_paletteValues)), L"Palettes");
+
+  const NeuronCore::SceneFragments fragments(_models);
+  m_fragmentCount = static_cast<std::uint32_t>(fragments.Fragments().size());
+  m_fragmentOf = CreateStaticBuffer(_device, std::as_bytes(fragments.FragmentOf()), L"Fragment of each record");
+  m_fragments = CreateStaticBuffer(_device, std::as_bytes(fragments.Fragments()), L"Fragments");
 }
 
 } // namespace NeuronClient

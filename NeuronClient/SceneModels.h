@@ -3,6 +3,7 @@
 #include "SnapshotBuffer.h"
 
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Placement.h"
 #include "Sphere.h"
 #include "VoxModel.h"
@@ -18,7 +19,8 @@ namespace NeuronClient
 // the middle of its model's box is, turned by its rotation, and draws as one placement for each part of its model, with
 // the part's origin folded into the placement's transform (§7.1, §7.2). A detonated one draws its parts' debris, blasted
 // from the mean of its model's voxels with the entity's velocity at the event and the event's seed, at the time since
-// the event (§5.5, §7.7): so every client poses the same debris from the same event.
+// the event, each part broken into the fragments its model breaks into (§5.5, §7.7, Design/ADR/ADR-024): so every client
+// poses the same debris from the same event.
 class SceneModels
 {
 public:
@@ -56,6 +58,7 @@ private:
   };
 
   std::vector<NeuronCore::VoxModel> m_models;
+  NeuronCore::SceneFragments m_fragments; // what a detonated placement's fragments view
   std::vector<Measure> m_measures;
   std::vector<NeuronCore::Placement> m_parts; // every model's parts, whole and untransformed, model after model
 };

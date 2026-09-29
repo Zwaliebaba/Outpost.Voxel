@@ -402,6 +402,7 @@
     <None Include="Shader\DebugViewPass.hlsli" />
     <None Include="Shader\Explosion.hlsli" />
     <None Include="Shader\ExplosionConstants.hlsli" />
+    <None Include="Shader\Fragment.hlsli" />
     <None Include="Shader\FullScreen.hlsli" />
     <None Include="Shader\Hash.hlsli" />
     <None Include="Shader\Lighting.hlsli" />

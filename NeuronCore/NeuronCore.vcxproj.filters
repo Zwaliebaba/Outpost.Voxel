@@ -20,6 +20,7 @@
     <ClInclude Include="VoxelRecord.h" />
     <ClInclude Include="VoxModel.h" />
     <ClInclude Include="Explosion.h" />
+    <ClInclude Include="Fragmentation.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="ToneMap.h" />
@@ -53,6 +54,7 @@
     <ClCompile Include="VoxelGrid.cpp" />
     <ClCompile Include="VoxModel.cpp" />
     <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Fragmentation.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="ToneMap.cpp" />
     <ClCompile Include="Placement.cpp" />

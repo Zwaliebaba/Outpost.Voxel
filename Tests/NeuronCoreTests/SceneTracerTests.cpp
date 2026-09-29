@@ -6,6 +6,7 @@
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Placement.h"
 #include "Ray.h"
 #include "RigidTransform.h"
@@ -68,7 +69,8 @@ constexpr float PLACEMENT_SPACING = 80.0f;
 
 // A scene of the three kinds of placement: aligned, turned by a cube symmetry with a translation that need not be whole;
 // rigid, turned any way; and detonated, at some time since. The whole ones stand on a lattice PLACEMENT_SPACING apart.
-[[nodiscard]] std::vector<Placement> RandomPlacements(SeededRandom& _random, const std::vector<NeuronCore::VoxModel>& _models)
+[[nodiscard]] std::vector<Placement> RandomPlacements(SeededRandom& _random, const std::vector<NeuronCore::VoxModel>& _models,
+                                                      const NeuronCore::SceneFragments& _fragments)
 {
   const std::vector<std::uint32_t> firstRecords = NeuronCore::ModelFirstRecords(_models);
   const std::array<CubeSymmetry, 48> symmetries = CubeSymmetries();
@@ -104,7 +106,7 @@ constexpr float PLACEMENT_SPACING = 80.0f;
       const Float3 heading = _random.Direction();
       parameters.inheritedVelocity = heading * _random.Uniform(0.0f, 10.0f);
       parameters.seed = _random.Below(100u);
-      placement.detonation = NeuronCore::PlacementDetonation{parameters, _random.Uniform(0.0f, 3.0f)};
+      placement.detonation = NeuronCore::PlacementDetonation{parameters, _random.Uniform(0.0f, 3.0f), _fragments.Part(model, part)};
     }
     placements.push_back(placement);
   }
@@ -166,7 +168,8 @@ public:
     for (std::uint32_t scene = 0; scene < 12u; ++scene)
     {
       const std::vector<NeuronCore::VoxModel> models{RandomModel(random), RandomModel(random), RandomModel(random)};
-      std::vector<Placement> placements = RandomPlacements(random, models);
+      const NeuronCore::SceneFragments fragments(models);
+      std::vector<Placement> placements = RandomPlacements(random, models, fragments);
       Assert::IsTrue(NeuronCore::AssignVoxelIds(placements));
       const std::vector<std::uint32_t> records = NeuronCore::SceneRecords(models);
       const NeuronCore::SceneTracer tracer(models, placements);

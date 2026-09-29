@@ -118,6 +118,9 @@
     <None Include="Shader\ExplosionConstants.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\Fragment.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\FullScreen.hlsli">
       <Filter>Shader Files</Filter>
     </None>

@@ -162,6 +162,7 @@
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
     <ClInclude Include="Explosion.h" />
+    <ClInclude Include="Fragmentation.h" />
     <ClInclude Include="Float3.h" />
     <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
@@ -195,6 +196,7 @@
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
     <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Fragmentation.cpp" />
     <ClCompile Include="Half.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="LoopbackTransport.cpp" />

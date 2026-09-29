@@ -32,6 +32,8 @@ enum RootParameter : std::uint8_t
   ExplosionConstantsParameter,
   RecordsParameter,
   PlacementsParameter,
+  FragmentOfParameter,
+  FragmentsParameter,
   OverdrawParameter,
   RootParameterCount
 };
@@ -148,6 +150,12 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Variant _variant)
   parameters[PlacementsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[PlacementsParameter].Descriptor = {1, 0};
   parameters[PlacementsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  parameters[FragmentOfParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[FragmentOfParameter].Descriptor = {2, 0};
+  parameters[FragmentOfParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  parameters[FragmentsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[FragmentsParameter].Descriptor = {3, 0};
+  parameters[FragmentsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, 0};
   parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
@@ -220,6 +228,8 @@ void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scen
   _list->SetGraphicsRootConstantBufferView(ViewConstantsParameter, _viewConstants);
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
   _list->SetGraphicsRootShaderResourceView(PlacementsParameter, _placements);
+  _list->SetGraphicsRootShaderResourceView(FragmentOfParameter, _scene.FragmentOf());
+  _list->SetGraphicsRootShaderResourceView(FragmentsParameter, _scene.Fragments());
   if (m_variant == Variant::Overdraw)
   {
     _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _overdrawTable);

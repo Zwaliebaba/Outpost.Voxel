@@ -10,6 +10,7 @@
 #include "VoxelScene.h"
 
 #include "Box.h"
+#include "Fragmentation.h"
 #include "Message.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
@@ -45,9 +46,12 @@ namespace NeuronClientTests
                                                   std::uint32_t _modelFirstRecord, std::uint32_t _part,
                                                   const NeuronCore::Rotation& _rotation, NeuronCore::Float3 _center);
 
-// _placements detonated _timeSeconds ago by _parameters, whose blast origin and inherited velocity are in the world: each
-// placement gets them in its part's space (§7.7).
+// _placements, of the scene of _models, detonated _timeSeconds ago by _parameters, whose blast origin and inherited
+// velocity are in the world: each placement gets them in its part's space (§7.7), and its part's fragments from
+// _fragments (Design/ADR/ADR-024), which the placements view and which must outlive them.
 [[nodiscard]] std::vector<NeuronCore::Placement> DetonatePlacements(std::vector<NeuronCore::Placement> _placements,
+                                                                    std::span<const NeuronCore::VoxModel> _models,
+                                                                    const NeuronCore::SceneFragments& _fragments,
                                                                     const NeuronCore::ExplosionParameters& _parameters, float _timeSeconds);
 
 // Every box _placements draw where the twin puts them, oriented, with half-extents of ½ + _change: grown boxes are hit

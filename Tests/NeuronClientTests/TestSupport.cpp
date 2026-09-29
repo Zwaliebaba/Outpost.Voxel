@@ -113,14 +113,23 @@ NeuronCore::Placement PlaceCentered(const NeuronCore::VoxModel& _model, std::uin
 }
 
 std::vector<NeuronCore::Placement> DetonatePlacements(std::vector<NeuronCore::Placement> _placements,
+                                                      std::span<const NeuronCore::VoxModel> _models,
+                                                      const NeuronCore::SceneFragments& _fragments,
                                                       const NeuronCore::ExplosionParameters& _parameters, float _timeSeconds)
 {
+  const std::vector<std::uint32_t> firstRecords = NeuronCore::ModelFirstRecords(_models);
   for (NeuronCore::Placement& placement : _placements)
   {
     NeuronCore::ExplosionParameters parameters = _parameters;
     parameters.blastOrigin = NeuronCore::InverseTransformPoint(placement.transform, _parameters.blastOrigin);
     parameters.inheritedVelocity = NeuronCore::UnrotateVector(placement.transform.rotation, _parameters.inheritedVelocity);
-    placement.detonation = NeuronCore::PlacementDetonation{parameters, _timeSeconds};
+    // The placement's model is its palette's, and its part the one whose records it draws.
+    const std::uint32_t model = placement.paletteIndex;
+    const std::vector<NeuronCore::ModelInstance>& instances = _models[model].instances;
+    const auto part = std::ranges::find(instances, placement.firstRecord - firstRecords[model], &NeuronCore::ModelInstance::firstRecord);
+    Assert::IsTrue(part != instances.end(), L"the placement draws one of its model's parts");
+    placement.detonation = NeuronCore::PlacementDetonation{parameters, _timeSeconds,
+                                                           _fragments.Part(model, static_cast<std::uint32_t>(part - instances.begin()))};
   }
   return _placements;
 }
