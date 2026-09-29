@@ -61,7 +61,7 @@ The renderer keeps its technique, its depth conventions and its twins. What it g
 
 **The documents.** `SampleRenderer.md` is archived as the record of what it built, and S-M1 does not rewrite it. D2 and D3 hold as written, since neither names gravity. §12's motion, §11's ground, §13's G key and time scale, and §14's pose tests no longer describe the code, and the archive's status line says so, pointing here and to the detonation's ADR; the code cites those two from then on. ADR-009 is superseded rather than edited, and ADR-011's row for the explosion and ADR-008's ground paragraph are amended.
 
-**N-M0's pins** (`NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. The owner confirmed that reading on 2026-09-28 (§17). `LightsAsPinned`'s shades stay: the formula they pin does not change.
+**N-M0's pins** (`Tests/NeuronCoreTests/PinnedStation.h`, ADR-011) fall in two kinds. The four tracer images of the intact station pin nothing S-M1 changes, and they stay as they are. The thirteen flights of `ExplodesAsPinned` pin the gravity explosion's contacts and centers, and the lower half of `LightsAsPinned`'s column is the ground; S-M1 retires both behaviors, so it retires those pins with them. ADR-011 forbids re-pinning, which is regenerating a pin to make a test pass; removing a pin whose behavior the owner has retired is not that, and S-M1's ADR says which pins go and why. The owner confirmed that reading on 2026-09-28 (§17). `LightsAsPinned`'s shades stay: the formula they pin does not change.
 
 ### 3.2 After N-M0
 
@@ -388,9 +388,9 @@ What it takes from the look is some softness where history is rejected or clampe
 
 **Camera.** The orbit camera orbits a target entity and follows it as it moves. N and B cycle the target forward and back through the stations and the flights' leaders. C switches to a chase camera behind and above a ship, in the ship's frame, sprung so that the ship's banking reads without the view shaking. Tab still flies free, now with +Y as up, and F frames the target.
 
-**Keys.** E detonates the camera's target and R restores it, commands to the server for testing (§5.5); Space pauses the server. 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view; T toggles temporal anti-aliasing. [ and ] set the emissive gain, V vsync, F1 the key map and F2 the figures; Alt+F4 quits.
+**Keys.** E detonates the camera's target and R restores it, commands to the server for testing (§5.5); Space pauses the server. 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view; T toggles temporal anti-aliasing. [ and ] set the emissive gain, V vsync, which starts off, F1 the key map and F2 the figures; Alt+F4 quits.
 
-**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is.
+**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is. On 2026-09-29 the owner asked for the frame rate, in frames a second, in place of the frame time; the GPU's times stay in milliseconds. Vsync starts off, as the owner asked the same day, where the sample renderer started it on, so the figures show "vsync on" when it is on, instead of "vsync off" when it is off.
 
 ## 14. `--bench`
 
@@ -508,7 +508,7 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 **Answered by the owner while S-M5 was built, on 2026-09-28:**
 
 26. **S-M5 runs before the game concept's slice.** The concept had deferred it with S-M6 and S-M7 (§16). The owner chose to finish it first, and S-M6 and S-M7 still wait. ADR-021 records it.
-27. **The sky uses no textures, and bloom stays the frame's only glow (§11.1, §12.2).** The owner added two sprites to `GameData/Textures`, a glow and a starburst, and asked whether the sky needs textures. It does not, and the owner kept the design; no code reads them. ADR-021 records it.
+27. **The sky uses no textures, and bloom stays the frame's only glow (§11.1, §12.2).** The owner added two sprites to `GameData/Textures`, a glow and a starburst, and asked whether the sky needs textures. It does not, and the owner kept the design; no code reads them. ADR-021 records it. The owner removed both on 2026-09-29, with the restructure of ADR-023.
 
 No question is open.
 

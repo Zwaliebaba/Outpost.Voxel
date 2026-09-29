@@ -1,4 +1,4 @@
-"""NvfFormat.py against Design/NeuronVoxelFormat.md §4: the Python twin of NeuronCoreTests/NvfModelTests.cpp.
+"""NvfFormat.py against Design/NeuronVoxelFormat.md §4: the Python twin of Tests/NeuronCoreTests/NvfModelTests.cpp.
 
 A test here and its C++ twin are named alike, and corrupt the golden file the same way into the same refusal, so that
 both implementations are held to the one order of checking ADR-019 fixes (AGENTS.md R20). The Linux CI job runs them

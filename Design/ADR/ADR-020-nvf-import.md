@@ -1,6 +1,6 @@
 # ADR-020 — NvfImport: the importer, its project, and `Tools/`
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and the Blender extension in `Tools/` with N-M4 · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and the Blender extension in `Tools/` with N-M4 · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game · **Amended by:** [ADR-023](ADR-023-tests-and-tools-folders.md), which moves `NvfImport` into `Tools/` and lets C++ live there in a tool's own folder
 
 ## Context
 

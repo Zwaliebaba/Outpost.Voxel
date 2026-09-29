@@ -1,4 +1,4 @@
-"""Finds the repository's files for the tests, as NeuronCoreTests/RepositoryFile.cpp does for the C++ suite."""
+"""Finds the repository's files for the tests, as Tests/NeuronCoreTests/RepositoryFile.cpp does for the C++ suite."""
 
 from pathlib import Path
 
