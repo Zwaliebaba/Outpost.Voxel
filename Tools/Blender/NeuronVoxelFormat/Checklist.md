@@ -1,6 +1,6 @@
 # The extension, checked by hand
 
-[`Design/NeuronVoxelFormat.md`](../../../Design/NeuronVoxelFormat.md) §9 calls N-M4 done when this checklist has passed by hand on the frigate and on the capital ship. CI has no Blender. `Tests/ExtensionTests.py` drives the same operators headless, but it cannot look at a viewport, a panel or a dialog, and this checklist can. Record the date, the Blender version and anything that surprised you in §10's row for N-M4.
+[`Design/Archive/NeuronVoxelFormat.md`](../../../Design/Archive/NeuronVoxelFormat.md) §9 called N-M4 done when this checklist had passed by hand on the frigate and on the capital ship, as it has ([ADR-020](../../../Design/ADR/ADR-020-nvf-import.md)). CI has no Blender. `Tests/ExtensionTests.py` drives the same operators headless, but it cannot look at a viewport, a panel or a dialog, and this checklist can. When you run it, record the date, the Blender version and anything that surprised you in ADR-020, beside N-M4's runs.
 
 ## Before you start
 

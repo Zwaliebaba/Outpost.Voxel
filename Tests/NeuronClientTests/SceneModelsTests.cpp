@@ -61,7 +61,7 @@ struct Double3
 }
 
 // Where _point, in _model's own space, lies in the world, in double: the entity's position, plus its rotation of the
-// point less the middle of the model's box (Design/SpaceScene.md §5.1, §7.2).
+// point less the middle of the model's box (Design/Archive/SpaceScene.md §5.1, §7.2).
 [[nodiscard]] Double3 ReferencePoint(const NeuronCore::VoxModel& _model, Double3 _point, const SampledEntity& _entity)
 {
   const NeuronCore::VoxelBounds bounds = NeuronCore::OccupiedBounds(_model).value_or(NeuronCore::VoxelBounds{});
@@ -97,7 +97,7 @@ void AreClose(Double3 _expected, Float3 _actual, double _tolerance, const std::w
 }
 
 // Two copies of the random block, the second at its own origin: a model of two parts, as NVF's tree of parts will
-// give (Design/SpaceScene.md §7.1).
+// give (Design/Archive/SpaceScene.md §7.1).
 [[nodiscard]] NeuronCore::VoxModel TwoPartModel()
 {
   NeuronCore::VoxModel model = RandomBlock();
@@ -109,7 +109,7 @@ void AreClose(Double3 _expected, Float3 _actual, double _tolerance, const std::w
 
 } // namespace
 
-// Design/SpaceScene.md §5.1, §7.1, §7.2 and §7.7: where an entity's placements put its voxels, whole and detonated.
+// Design/Archive/SpaceScene.md §5.1, §7.1, §7.2 and §7.7: where an entity's placements put its voxels, whole and detonated.
 TEST_CLASS(SceneModelsTests)
 {
 public:

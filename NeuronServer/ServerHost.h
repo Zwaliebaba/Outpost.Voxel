@@ -17,7 +17,7 @@ namespace NeuronServer
 {
 
 // How many due ticks the host's thread runs when it wakes, at most, before it gives up on the rest: a stall delays
-// snapshots, and never turns into a spiral of catching up (Design/SpaceScene.md §6.3).
+// snapshots, and never turns into a spiral of catching up (Design/Archive/SpaceScene.md §6.3).
 inline constexpr std::uint32_t MAX_TICKS_PER_WAKE = 4;
 
 // The server: sessions over transports, the handshake, one snapshot a tick to every session, and commands (§6.1,

@@ -118,7 +118,7 @@ void ExpectAttribute(const NeuronCore::VoxAttributes& _attributes, std::string_v
 }
 
 // The explosion tests follow every EXPLOSION_STRIDE-th voxel through this many samples of its flight, from the
-// detonation to twice the envelope's stop time (Design/SpaceScene.md §5.5).
+// detonation to twice the envelope's stop time (Design/Archive/SpaceScene.md §5.5).
 constexpr std::uint32_t EXPLOSION_STRIDE = 101;
 constexpr std::uint32_t FLIGHT_SAMPLES = 128;
 
@@ -231,13 +231,13 @@ void ExpectSameHit(const NeuronCore::TraceHit& _expected, const NeuronCore::Trac
   }
 }
 
-// The pins are in MagicaVoxel's axes (PinnedStation.h), and the engine's swap y and z (Design/NeuronVoxelFormat.md §12).
+// The pins are in MagicaVoxel's axes (PinnedStation.h), and the engine's swap y and z (Design/Archive/NeuronVoxelFormat.md §12).
 [[nodiscard]] constexpr Float3 FromPinnedAxes(Float3 _vector) noexcept
 {
   return {_vector.x, _vector.z, _vector.y};
 }
 
-// The pins of Design/NeuronVoxelFormat.md §12.4 (PinnedStation.h). A pixel may show another voxel than its pin, or
+// The pins of Design/Archive/NeuronVoxelFormat.md §12.4 (PinnedStation.h). A pixel may show another voxel than its pin, or
 // none, only where its ray passes within PIN_EDGE_EPSILON of an edge, the sliver of the splat tests (SampleRenderer §14):
 // where it meets the grown box of the voxel it shows, if any, and misses the shrunk box of the voxel it was pinned to,
 // if any. Two more checks make that rule mean what it says (Design/ADR/ADR-011): the ray must also meet the grown box of
@@ -443,7 +443,7 @@ public:
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const NeuronCore::VoxelGrid grid(model);
 
-    // The occupied cells, in world space: the lowest layer sits exactly on y = 0 (Design/NeuronVoxelFormat.md §12.4).
+    // The occupied cells, in world space: the lowest layer sits exactly on y = 0 (Design/Archive/NeuronVoxelFormat.md §12.4).
     AreEqualInt3({-102, 0, -113}, grid.Origin(), L"grid origin");
     AreEqualInt3({205, 255, 227}, grid.Size(), L"grid size");
 
@@ -458,7 +458,7 @@ public:
 
   TEST_METHOD(IsBoundedByItsOccupiedCells)
   {
-    // Design/SpaceScene.md §4's occupied box, 205 × 227 × 255 in MagicaVoxel's axes, where the grid finds it: an entity
+    // Design/Archive/SpaceScene.md §4's occupied box, 205 × 227 × 255 in MagicaVoxel's axes, where the grid finds it: an entity
     // of this model stands at its middle (§5.1).
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const NeuronCore::VoxelGrid grid(model);
@@ -540,7 +540,7 @@ public:
     Assert::IsTrue(2 * hits > rays, L"most rays hit, or the comparison says little");
   }
 
-  // Design/SpaceScene.md §5.5: time 0 is the intact station, every voxel where it was and unrotated, exactly.
+  // Design/Archive/SpaceScene.md §5.5: time 0 is the intact station, every voxel where it was and unrotated, exactly.
   TEST_METHOD(ExplosionStartsIntact)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
@@ -665,7 +665,7 @@ public:
       }
     }
   }
-  // Design/NeuronVoxelFormat.md §12.4: the voxel each pixel shows, from the view splat tests' cameras and from the
+  // Design/Archive/NeuronVoxelFormat.md §12.4: the voxel each pixel shows, from the view splat tests' cameras and from the
   // station's sun, is the one pinned before the axis move, but for rays within rounding of an edge.
   TEST_METHOD(TracesThePinnedVoxels)
   {
@@ -687,7 +687,7 @@ public:
       { return NeuronCore::OrthographicRay(sun, _x, _y); }, 0.0f, PINNED_SUN_PIXELS, PINNED_SUN_PIXELS);
   }
 
-  // Design/SpaceScene.md §16, S-M2: the station as one placement, placed as the application places it, traces as its
+  // Design/Archive/SpaceScene.md §16, S-M2: the station as one placement, placed as the application places it, traces as its
   // grid does in every pixel of the pinned views: the same voxel, whose id is its record, at the same distance, with the
   // same normal. So the pins hold through the placement too.
   TEST_METHOD(TracesThroughOnePlacementAsItsGridDoes)

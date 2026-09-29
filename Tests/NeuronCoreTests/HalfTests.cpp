@@ -21,7 +21,7 @@ void AreEqualHalf(std::uint32_t _expected, float _value, const wchar_t* _what)
 
 } // namespace
 
-// Half precision as a DXGI_FORMAT_R16G16B16A16_FLOAT target stores it (Design/SpaceScene.md §12.2), by Direct3D's rules
+// Half precision as a DXGI_FORMAT_R16G16B16A16_FLOAT target stores it (Design/Archive/SpaceScene.md §12.2), by Direct3D's rules
 // for converting a float to a narrower one: the twins of the HDR color and of bloom's chain round through it, as the GPU
 // does.
 TEST_CLASS(HalfTests)

@@ -72,7 +72,7 @@ constexpr float EDGE_EPSILON = 1.0f / 256.0f;
 constexpr float PLACED_DEPTH_TOLERANCE = 1.0e-4f;
 constexpr float PLACED_NORMAL_TOLERANCE = 2.0e-3f;
 
-// Mismatches on an edge allowed per image or map, which Design/SpaceScene.md §15 sets from the first measured run. That
+// Mismatches on an edge allowed per image or map, which Design/Archive/SpaceScene.md §15 sets from the first measured run. That
 // run, on WARP in CI on 2026-09-28, found none against the scene tracer in any image or map, the one from 10,000 units
 // included, and one in each of two views drawn both ways: symmetric placements through either permutation, and
 // placements detonated at time 0 against the whole ones. The bound is not zero for the reason the other splat tests give:
@@ -85,7 +85,7 @@ constexpr float HDR_RELATIVE_TOLERANCE = 1.0e-3f;
 constexpr float HDR_ABSOLUTE_TOLERANCE = 4.0e-3f;
 constexpr std::uint32_t SHADOW_FLIP_LIMIT = 4;
 
-// The white of Design/SpaceScene.md §4: palette entry 16, record color 15. The station's glows; the capital ship's does
+// The white of Design/Archive/SpaceScene.md §4: palette entry 16, record color 15. The station's glows; the capital ship's does
 // not.
 constexpr std::uint32_t WHITE = 15;
 
@@ -96,7 +96,7 @@ constexpr NeuronCore::Rotation HALF_TURN_ABOUT_X{{1.0f, 0.0f, 0.0f}, {0.0f, -1.0
 constexpr NeuronCore::Rotation TILTED = NeuronCore::RotationOf({0.21f, -0.37f, 0.12f, 0.896f});
 constexpr NeuronCore::Rotation LEANING = NeuronCore::RotationOf({-0.4f, 0.1f, 0.3f, 0.86f});
 
-// The three models of Design/SpaceScene.md §4 as one scene's models, in this order.
+// The three models of Design/Archive/SpaceScene.md §4 as one scene's models, in this order.
 constexpr std::uint32_t STATION = 0;
 constexpr std::uint32_t CAPITAL_SHIP = 1;
 constexpr std::uint32_t FRIGATE = 2;
@@ -146,7 +146,7 @@ struct ThreeModels
 }
 
 // The same scene from 10,000 units further back, narrowed to frame it as before: where a standard-Z buffer could not
-// separate the surfaces (Design/SpaceScene.md §9).
+// separate the surfaces (Design/Archive/SpaceScene.md §9).
 [[nodiscard]] NeuronCore::PerspectiveView FromFarAway() noexcept
 {
   constexpr float DISTANCE = 10000.0f;
@@ -266,7 +266,7 @@ struct IdBoxes
   return atFaces >= 2u;
 }
 
-// §14's rule against the scene tracer (Design/SpaceScene.md §15). Away from edges the GPU must find the tracer's voxel,
+// §14's rule against the scene tracer (Design/Archive/SpaceScene.md §15). Away from edges the GPU must find the tracer's voxel,
 // at its depth and with its normal, to rounding. Near an edge it may find another face of the same voxel, or another
 // voxel: one whose grown box the ray meets, where the tracer's voxel, if any, is missed by its shrunk box.
 [[nodiscard]] Comparison CompareWithTracer(const NeuronCore::PerspectiveView& _view, const NeuronCore::SceneTracer& _tracer,
@@ -400,7 +400,7 @@ struct IdBoxes
 
 } // namespace
 
-// Design/SpaceScene.md §15's placement tests on WARP: several placements of the three models against the scene tracer,
+// Design/Archive/SpaceScene.md §15's placement tests on WARP: several placements of the three models against the scene tracer,
 // near and far and across the near plane; the two permutations drawing the same where both may; the measurement variants
 // on turned placements; and the lighting through each model's palette.
 TEST_CLASS(PlacementSplatTests)
@@ -530,7 +530,7 @@ public:
   }
 
   // §7.1, §15: each model lights with its own palette. In one image, the station's white glows and the capital ship's
-  // does not (Design/SpaceScene.md §4), and every pixel is what the lighting twin makes of the voxel the view splat
+  // does not (Design/Archive/SpaceScene.md §4), and every pixel is what the lighting twin makes of the voxel the view splat
   // found, through its placement's palette.
   TEST_METHOD(LightsThroughEachModelsPalette)
   {

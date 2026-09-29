@@ -23,7 +23,7 @@ inline constexpr float SHADOW_VIEW_GROWTH = 1.25f;
 // 1.772, as the owner tuned it by eye on 2026-09-29 (Design/SpaceScene.md §12.1).
 inline constexpr float EXPOSURE = 1.772f;
 
-// What the client shows of the world (Design/SpaceScene.md §6.1, §7): the placements its entities draw at a render time,
+// What the client shows of the world (Design/Archive/SpaceScene.md §6.1, §7): the placements its entities draw at a render time,
 // and the sun's view they are lit in. Until S-M7's cascades the sun's view is one square fitted to the whole layout
 // (§10): around every entity's reach, whole and as debris, as far as the client has seen it. It never shrinks, and it
 // moves only when something reaches beyond it, then grown by SHADOW_VIEW_GROWTH, so that shadows hold still. It is never

@@ -12,7 +12,7 @@ namespace NeuronClient
 
 // What the lighting pass knows besides the pixel it shades (R16, Design/Archive/SampleRenderer.md §7.4, §11): the light,
 // and how many placements the frame's structured buffer holds, which a pixel's voxel is found among
-// (Design/SpaceScene.md §7.3). This struct is the truth; Shader/LightingConstants.hlsli mirrors it, and the layout echo
+// (Design/Archive/SpaceScene.md §7.3). This struct is the truth; Shader/LightingConstants.hlsli mirrors it, and the layout echo
 // in NeuronClientTests proves the two agree. A float3 and one scalar to each 16 bytes, as HLSL packs them.
 struct LightingConstants
 {

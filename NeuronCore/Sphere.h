@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// A sphere around what a placement draws, which each view culls it by (Design/SpaceScene.md §7.4).
+// A sphere around what a placement draws, which each view culls it by (Design/Archive/SpaceScene.md §7.4).
 struct Sphere
 {
   Float3 center;
@@ -20,7 +20,7 @@ struct Sphere
 inline constexpr float CULL_MARGIN = 1.0f;
 
 // A sphere around every one of _spheres, about the middle of the box around them: not the smallest there is, but one
-// that holds them all, to fit a view to or frame a camera on (Design/SpaceScene.md §10, §13). With none, it is the point
+// that holds them all, to fit a view to or frame a camera on (Design/Archive/SpaceScene.md §10, §13). With none, it is the point
 // at the origin.
 [[nodiscard]] inline Sphere EnclosingSphere(std::span<const Sphere> _spheres) noexcept
 {

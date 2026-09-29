@@ -9,7 +9,7 @@
 namespace GameLib
 {
 
-// The chase camera of Design/SpaceScene.md §13: behind and above an entity, in the entity's own frame, so that a ship's
+// The chase camera of Design/Archive/SpaceScene.md §13: behind and above an entity, in the entity's own frame, so that a ship's
 // banking reads. Its frame is sprung: it follows the entity's with a first-order lag, a time constant of 0.35 s, so that
 // the ship turns and banks before the camera does and nothing small shakes the view. Every model faces its +Z with its
 // +Y up (§4).

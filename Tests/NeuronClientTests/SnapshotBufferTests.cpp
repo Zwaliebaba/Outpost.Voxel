@@ -141,7 +141,7 @@ void AreIdentical(Quaternion _expected, Quaternion _actual, const std::wstring& 
 
 } // namespace
 
-// Design/SpaceScene.md §6.4 and §15: bracketing, appearing and disappearing, holding past the newest snapshot, and a
+// Design/Archive/SpaceScene.md §6.4 and §15: bracketing, appearing and disappearing, holding past the newest snapshot, and a
 // stall shorter than the interpolation delay passing unseen, on the CPU.
 TEST_CLASS(SnapshotBufferTests)
 {

@@ -1,6 +1,6 @@
 # ADR-021 — The sky, and the lighting from the world
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M5 of [`Design/SpaceScene.md`](../SpaceScene.md) (§11, §12.1, §15) · **Supersedes:** [ADR-008](ADR-008-lighting-from-the-file.md), but for its emissive mapping and `SunDirection`'s convention · **Amends:** [ADR-018](ADR-018-client.md), whose client kept the station's lighting until now, and [ADR-017](ADR-017-sector.md), whose placeholder settings become the defaults · **Refines:** SpaceScene §11.3, on the dust's lanes
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M5 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§11, §12.1, §15) · **Supersedes:** [ADR-008](ADR-008-lighting-from-the-file.md), but for its emissive mapping and `SunDirection`'s convention · **Amends:** [ADR-018](ADR-018-client.md), whose client kept the station's lighting until now, and [ADR-017](ADR-017-sector.md), whose placeholder settings become the defaults · **Refines:** SpaceScene §11.3, on the dust's lanes
 
 ## Context
 
@@ -66,6 +66,7 @@ The owner made two decisions while it was built, on 2026-09-28:
 - **Timing.** `GpuPass::Sky` times the pass, and the bench's CSV and summary carry it.
 - **WARP test.** `SkyPassTests` draws the station's view, 161 × 91, over the depth its own view splat wrote: the sun near a corner, the galaxy's core across the view, the catalog, a star in the open and a brighter one the station hides. It compares every pixel with the twins. Within 1/128 of a pixel of a quad's edge, where the rasterizer's snapping decides whether the star reaches the pixel, what the star adds is allowed besides. The first run failed at (7, 0), up to four steps under a twin that rounded to the nearest; after five stars, the truncating twin gives that pixel bit for bit. It names up to eight pixels beyond its bounds rather than stopping at the first, and logs how many sky pixels away from a quad's edge match the twins to the bit, and the most halves any other strays.
 - **Measured.** On the run of 74d2f64, the first with the truncating twin and the chord, the view held 13,841 sky pixels: 12,105 lit by stars, 5 by the sun, and 49 hiding the bright star. Away from a quad's edge, 13,082 matched the twins to the bit and none strayed more than one half step. The bounds, four steps and a floor for the faintest galaxy, stay as headroom. The test writes the color under the sky before the pass rather than clearing the target to it, since the debug layer warns about a clear without the clear value the target was made with, and any warning fails a WARP test; the renderer never clears the HDR color, whose every pixel the lighting writes.
+- **On hardware.** The owner has seen the sky on hardware, as S-M5's done-when asks (SpaceScene §16), and confirmed it on 2026-09-29. No default changed with it; the look is judged in S-M6, with anti-aliasing in place (§12.1).
 
 ## Consequences
 

@@ -8,7 +8,7 @@
 namespace NeuronServer
 {
 
-// What a ServerHost simulates (Design/SpaceScene.md §6.1). The host owns the clock, the sessions and the messages; the
+// What a ServerHost simulates (Design/Archive/SpaceScene.md §6.1). The host owns the clock, the sessions and the messages; the
 // world only advances a tick at a time and describes itself. The game's world is GameLogic's Sector, and the
 // server's tests bring one of their own.
 class World

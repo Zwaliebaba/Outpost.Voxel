@@ -11,7 +11,7 @@ namespace GameLib
 // The camera of Design/Archive/SampleRenderer.md §13. It orbits a target, pans across the view and dollies towards the target,
 // or, in fly mode, moves freely and looks about. Angles are about the world's +Y, which is up; a heading of 0 looks
 // along +X and one of a quarter turn along +Z. In the space scene the target is an entity's, which the camera follows
-// (Design/SpaceScene.md §13).
+// (Design/Archive/SpaceScene.md §13).
 class OrbitCamera
 {
 public:
@@ -25,7 +25,7 @@ public:
   // Looks at the sphere from as far as frames it, keeping the direction; leaves fly mode.
   void Frame(NeuronCore::Float3 _center, float _radius) noexcept;
 
-  // Moves the target by _offset, and the eye with it: how the camera follows a moving entity (Design/SpaceScene.md §13).
+  // Moves the target by _offset, and the eye with it: how the camera follows a moving entity (Design/Archive/SpaceScene.md §13).
   // In fly mode the eye stays where it is, and leaving fly mode puts the target in front of it again.
   void MoveTarget(NeuronCore::Float3 _offset) noexcept;
 

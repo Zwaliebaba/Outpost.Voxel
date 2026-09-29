@@ -12,7 +12,7 @@ class GraphicsDevice;
 class ViewTargets;
 
 // The tone map pass (Design/Archive/SampleRenderer.md §8, §11): one triangle over the render target bound by the caller, which
-// shows the HDR color, with bloom's share of it spread (Design/SpaceScene.md §12.2), through the exposure and the ACES
+// shows the HDR color, with bloom's share of it spread (Design/Archive/SpaceScene.md §12.2), through the exposure and the ACES
 // fit. _targetFormat is the render target's view format; the application's is the swap chain's sRGB view, which encodes
 // the result, and a test's may be a float format.
 class ToneMapPass

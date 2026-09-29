@@ -1,7 +1,7 @@
 #pragma once
 
 // The tone map pass (Design/Archive/SampleRenderer.md §8, §11): one triangle over the render target the caller binds, which
-// shows the lighting's HDR color, with bloom's share of it spread (Design/SpaceScene.md §12.2), through the exposure and
+// shows the lighting's HDR color, with bloom's share of it spread (Design/Archive/SpaceScene.md §12.2), through the exposure and
 // the ACES fit. The application's target is an sRGB view, which encodes the result.
 
 #include "Bloom.hlsli"

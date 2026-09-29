@@ -9,7 +9,7 @@
 namespace NeuronCore
 {
 
-// The detonation's parameter block (Design/SpaceScene.md §5.5). Lengths are in voxels and times in seconds, and nothing in
+// The detonation's parameter block (Design/Archive/SpaceScene.md §5.5). Lengths are in voxels and times in seconds, and nothing in
 // it has an up: there is no gravity and no ground. Design/ADR/ADR-013 records the defaults and how they were chosen, and
 // Design/ADR/ADR-014 the inherited velocity and the seed, which a detonation brings with it (§7.7).
 struct ExplosionParameters

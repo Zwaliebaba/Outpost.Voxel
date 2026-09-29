@@ -95,7 +95,7 @@ void RotationOfInDouble(const DoubleQuaternion& _q, std::array<double, 9>& _entr
 
 } // namespace
 
-// Design/SpaceScene.md §7.2 and §15: rotations, quaternions and rigid transforms, against the cube's symmetries and
+// Design/Archive/SpaceScene.md §7.2 and §15: rotations, quaternions and rigid transforms, against the cube's symmetries and
 // double-precision references.
 TEST_CLASS(RigidTransformTests)
 {

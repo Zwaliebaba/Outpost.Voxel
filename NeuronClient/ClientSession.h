@@ -18,7 +18,7 @@
 namespace NeuronClient
 {
 
-// Why a session ended (Design/SpaceScene.md §6.2). The client refuses by name, as the server and the readers do.
+// Why a session ended (Design/Archive/SpaceScene.md §6.2). The client refuses by name, as the server and the readers do.
 enum class SessionRefusal : std::uint8_t
 {
   Closed,         // the server closed the session: it refused the client, or it stopped

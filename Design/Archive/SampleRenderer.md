@@ -1,6 +1,6 @@
 # Outpost.Voxel — Sample Renderer Design
 
-**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built; S-M1 of [`SpaceScene.md`](../SpaceScene.md) then retired the ground and the explosion's gravity, so §11's ground, §12's motion, §13's G key and time scale and §14's pose tests no longer describe the code, and SpaceScene.md §3.1 and §5.5 and [ADR-013](../ADR/ADR-013-zero-gravity-detonation.md) say what replaced them; S-M2 then drew every model through placements, so §4.2's item 10, §7's model origin, single palette and record index, and §9.1's single draw no longer describe the code either, and SpaceScene.md §7 and [ADR-014](../ADR/ADR-014-placements.md) say what replaced them · **Date:** 2026-09-27
+**Status:** accepted by the owner, 2026-09-27; the questions of §16 are answered; D4 and D13 revised and D14 added by the owner, 2026-09-28; M0 to M5 are done (§15), and the document moved to `Design/Archive` on 2026-09-28 as the record of what they built; S-M1 of [`SpaceScene.md`](SpaceScene.md) then retired the ground and the explosion's gravity, so §11's ground, §12's motion, §13's G key and time scale and §14's pose tests no longer describe the code, and SpaceScene.md §3.1 and §5.5 and [ADR-013](../ADR/ADR-013-zero-gravity-detonation.md) say what replaced them; S-M2 then drew every model through placements, so §4.2's item 10, §7's model origin, single palette and record index, and §9.1's single draw no longer describe the code either, and SpaceScene.md §7 and [ADR-014](../ADR/ADR-014-placements.md) say what replaced them · **Date:** 2026-09-27
 **Technique:** A. Majercik, C. Crassin, P. Shirley, M. McGuire, *A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering*, JCGT 7(3), 2018 — `Majercik2018Voxel.pdf`
 **Asset:** `GameData/MilitaryStation.vox`
 
@@ -504,7 +504,7 @@ Each expected ADR lands in the commit that implements it:
 - ADR-008, lighting read from the file: the `rOBJ` values, the sun's angles and the emissive mapping (M3);
 - ADR-009, explosion motion model and its defaults (M4);
 - ADR-010, the canvas: DirectWrite text drawn straight by Direct3D 12, recorded when the owner asked for text on screen (2026-09-28);
-- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/NeuronVoxelFormat.md`, 2026-09-28);
+- ADR-011, the engine's axes: Direct3D's, left-handed with +Y up, with the `.vox` reader the one converter from MagicaVoxel's (N-M0 of `Design/Archive/NeuronVoxelFormat.md`, 2026-09-28);
 - ADR-012, ARM64 as a second platform beside x64, with CI kept on x64, recorded when the owner added it (2026-09-28).
 
 ## 18. References

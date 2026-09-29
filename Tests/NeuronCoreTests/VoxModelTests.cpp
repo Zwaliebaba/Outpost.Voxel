@@ -40,7 +40,7 @@ constexpr std::size_t SHAPE_CHUNK = 5;
 constexpr std::size_t PALETTE_CHUNK = 6;
 
 // An L of three voxels in palette entries 1, 2 and 16, the lowest and highest the reader accepts. The file is in
-// MagicaVoxel's axes; the engine sees it with y and z swapped (Design/NeuronVoxelFormat.md §12).
+// MagicaVoxel's axes; the engine sees it with y and z swapped (Design/Archive/NeuronVoxelFormat.md §12).
 constexpr Int3 L_SIZE{4, 3, 5};
 constexpr Int3 ENGINE_L_SIZE{4, 5, 3};
 constexpr std::array<FileVoxel, 3> L_VOXELS{{{0, 0, 0, 1}, {1, 0, 0, 2}, {1, 2, 3, 16}}};
@@ -49,7 +49,7 @@ constexpr std::array<FileVoxel, 3> L_VOXELS{{{0, 0, 0, 1}, {1, 0, 0, 2}, {1, 2, 
 constexpr Int3 DOT_SIZE{1, 1, 1};
 constexpr std::array<FileVoxel, 1> DOT_VOXELS{{{0, 0, 0, 5}}};
 
-// A marker as Design/NeuronVoxelFormat.md §5 draws one: an arrow three voxels long along MagicaVoxel's +Y, which is the
+// A marker as Design/Archive/NeuronVoxelFormat.md §5 draws one: an arrow three voxels long along MagicaVoxel's +Y, which is the
 // engine's forward, +Z. Odd in every dimension, so it may be turned.
 constexpr Int3 ARROW_SIZE{1, 3, 1};
 constexpr std::array<FileVoxel, 3> ARROW_VOXELS{{{0, 0, 0, 3}, {0, 1, 0, 3}, {0, 2, 0, 16}}};
@@ -57,7 +57,7 @@ constexpr std::array<FileVoxel, 3> ARROW_VOXELS{{{0, 0, 0, 3}, {0, 1, 0, 3}, {0,
 // _r = 33: row 0 picks y, row 1 picks x negated, row 2 picks z. It turns MagicaVoxel's +Y to +X: a quarter turn about +Z.
 constexpr std::string_view Y_TO_X_ROTATION = "33";
 
-// MagicaVoxel's y and z swapped, which converts a vector either way (Design/NeuronVoxelFormat.md §4.1).
+// MagicaVoxel's y and z swapped, which converts a vector either way (Design/Archive/NeuronVoxelFormat.md §4.1).
 [[nodiscard]] constexpr NeuronCore::Float3 Swap(NeuronCore::Float3 _vector) noexcept
 {
   return {_vector.x, _vector.z, _vector.y};
@@ -202,7 +202,7 @@ void AreEqualInt3(Int3 _expected, Int3 _actual, const wchar_t* _what)
 TEST_CLASS(VoxModelTests)
 {
 public:
-  // Design/NeuronVoxelFormat.md §12.4: the asymmetric L lands with every coordinate, its size and its translation swapped
+  // Design/Archive/NeuronVoxelFormat.md §12.4: the asymmetric L lands with every coordinate, its size and its translation swapped
   // into the engine's axes. MagicaVoxel's voxel (1, 2, 3) is the engine's (1, 3, 2), and the translation 10 -20 30 is
   // (10, 30, -20), from which the origin takes floor((4, 5, 3) / 2).
   TEST_METHOD(ReadsOneModel)
@@ -411,7 +411,7 @@ public:
   TEST_METHOD(RefusesRotations)
   {
     // _r packs a signed permutation; 4 is the identity: row 0 picks x, row 1 picks y, and nothing is negated. The L is even
-    // in x, so the identity is the only rotation it may have (Design/NeuronVoxelFormat.md §6.1).
+    // in x, so the identity is the only rotation it may have (Design/Archive/NeuronVoxelFormat.md §6.1).
     const NeuronCore::VoxModel identity = ExpectAccepted(WithPlacement({}, 0, {{{"_t", "0 0 0"}, {"_r", "4"}}}), L"_r 4");
     Assert::AreEqual(std::size_t{1}, identity.instances.size());
 
@@ -426,7 +426,7 @@ public:
     ExpectRefusal(VoxError::UnsupportedRotation, VoxFile(chunks), L"_r on the root");
   }
 
-  // Design/NeuronVoxelFormat.md §6.1: a model odd in every dimension may be turned by any of the cube's 24 rotations,
+  // Design/Archive/NeuronVoxelFormat.md §6.1: a model odd in every dimension may be turned by any of the cube's 24 rotations,
   // which the reader conjugates into the engine's axes. A model with an even dimension may not, and a reflection or a
   // value that names one column twice is refused on either. All 128 values of the seven bits are tried.
   TEST_METHOD(TurnsOnlyModelsOddInEveryDimension)
@@ -505,7 +505,7 @@ public:
     ExpectRefusal(VoxError::UnsupportedRotation, VoxFile(chunks), L"a group turned");
   }
 
-  // Design/NeuronVoxelFormat.md §6.1: each model carries the _name of the transform that places it, which is how the
+  // Design/Archive/NeuronVoxelFormat.md §6.1: each model carries the _name of the transform that places it, which is how the
   // importer tells parts from markers. A name on a transform above a group names no model, and is not read.
   TEST_METHOD(ReadsTheNamesOfPlacingNodes)
   {
@@ -537,7 +537,7 @@ public:
     }
   }
 
-  // Design/NeuronVoxelFormat.md §9: an asymmetric model with a voxel only at MagicaVoxel's (1, 2, 3), and a marker turned
+  // Design/Archive/NeuronVoxelFormat.md §9: an asymmetric model with a voxel only at MagicaVoxel's (1, 2, 3), and a marker turned
   // to point along +X. The voxel lands at the engine's (1, 3, 2) and the marker's forward, +Z in its own frame, at +X.
   TEST_METHOD(ReadsAMarkerInTheEnginesAxes)
   {

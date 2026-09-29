@@ -1,6 +1,6 @@
 #pragma once
 
-// pose(i, t) of the detonation (Design/SpaceScene.md §5.5, §7.7, Design/ADR/ADR-013, ADR-014): where a voxel is, and how
+// pose(i, t) of the detonation (Design/Archive/SpaceScene.md §5.5, §7.7, Design/ADR/ADR-013, ADR-014): where a voxel is, and how
 // it is turned, some time after the detonation. The C++ twin is NeuronCore/Explosion.h and .cpp (R15), function for
 // function; the envelope is the CPU's alone, since no shader needs it.
 

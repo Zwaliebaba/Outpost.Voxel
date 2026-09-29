@@ -135,7 +135,7 @@ using NeuronCore::Placement;
 
 } // namespace
 
-// Design/SpaceScene.md §7: placements, the boxes they draw, their ids, the lookup from an id, and their spheres.
+// Design/Archive/SpaceScene.md §7: placements, the boxes they draw, their ids, the lookup from an id, and their spheres.
 TEST_CLASS(PlacementTests)
 {
 public:

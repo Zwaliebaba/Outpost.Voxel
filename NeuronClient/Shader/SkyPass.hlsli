@@ -1,6 +1,6 @@
 #pragma once
 
-// The sky pass (Design/SpaceScene.md §11.5): one triangle at the far plane that writes the galaxy and the sun into every
+// The sky pass (Design/Archive/SpaceScene.md §11.5): one triangle at the far plane that writes the galaxy and the sun into every
 // pixel no voxel covers, then one quad a star, added. Both lie at the far plane and test the view's depth, bound
 // read-only, for equality with it (§9), so that neither reaches a pixel a voxel covers; neither writes depth, so the
 // early depth test keeps the galaxy's noise off those pixels.

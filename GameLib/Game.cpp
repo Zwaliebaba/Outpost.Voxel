@@ -155,7 +155,7 @@ struct Camera
 };
 
 // The GPU's figures over one title interval (§8, §13): the mean of each pass over the frames that ran it, of the whole
-// frame, and of the view splat's pixel-shader invocations; and the latest frame's draw counts (Design/SpaceScene.md §7.4).
+// frame, and of the view splat's pixel-shader invocations; and the latest frame's draw counts (Design/Archive/SpaceScene.md §7.4).
 struct GpuFigures
 {
   std::array<double, NeuronClient::GPU_PASS_COUNT> passMilliseconds{};
@@ -566,7 +566,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::ClientSession session(std::move(_transport), _options.modelDirectory);
   AwaitWorld(session, now);
 
-  // The world's lighting and sky, from the welcome (Design/SpaceScene.md §11, §12.1).
+  // The world's lighting and sky, from the welcome (Design/Archive/SpaceScene.md §11, §12.1).
   const NeuronCore::WorldSettings settings = session.Settings();
   const std::vector<NeuronCore::StarRecord> stars =
     NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);

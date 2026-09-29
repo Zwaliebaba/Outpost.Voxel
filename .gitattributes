@@ -105,5 +105,5 @@
 *.rc            -text
 *.rc2           -text
 
-# NVF models are binary (Design/NeuronVoxelFormat.md §3). NvfImport --dump prints one as text for review.
+# NVF models are binary (Design/Archive/NeuronVoxelFormat.md §3). NvfImport --dump prints one as text for review.
 *.nvf           binary

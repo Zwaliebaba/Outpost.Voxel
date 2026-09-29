@@ -48,7 +48,7 @@ struct RendererDesc
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
   NeuronCore::OrthographicView shadowView;       // the sun's, fitted to the scene (§10); its size is the shadow map's
-  std::span<const NeuronCore::StarRecord> stars; // the world's catalog (Design/SpaceScene.md §11.2), copied once
+  std::span<const NeuronCore::StarRecord> stars; // the world's catalog (Design/Archive/SpaceScene.md §11.2), copied once
 };
 
 // What a frame shows (§11, §13), and what it measures besides (§9.3, §14).
@@ -56,18 +56,18 @@ struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
   NeuronCore::LightingParameters lighting;
-  NeuronCore::SkyParameters sky; // Design/SpaceScene.md §11
+  NeuronCore::SkyParameters sky; // Design/Archive/SpaceScene.md §11
   float exposure;
   bool vsync;
   bool plainDepth;    // the view splat writes SV_Depth rather than conservative depth (§9.3); the overdraw view overrides it
   bool countCoverage; // counts the pixels a voxel covers (§14)
 };
 
-// The frame of Design/Archive/SampleRenderer.md §8 and Design/SpaceScene.md §8: the shadow splat into the shadow map and the
+// The frame of Design/Archive/SampleRenderer.md §8 and Design/Archive/SpaceScene.md §8: the shadow splat into the shadow map and the
 // view splat into the depth and visibility buffers, then the lighting into HDR color, the sky over every pixel no voxel
 // covers, bloom's chain from it and the tone map into the back buffer, or a debug view in their place, and last the
 // canvas over it all (§13). What the splats draw is the frame's placements
-// (Design/SpaceScene.md §7): each view culls them by their spheres and draws each it keeps with one draw, through the
+// (Design/Archive/SpaceScene.md §7): each view culls them by their spheres and draws each it keeps with one draw, through the
 // aligned permutation when it is whole and turned by a symmetry of the cube and the oriented one otherwise, the camera
 // nearest first (§7.4). Two frames are in flight, each with its own allocator, constants, fence value and slot of
 // queries: every pass is timed and the view splat's pipeline statistics taken, and a frame's measurements and draw
@@ -90,13 +90,13 @@ public:
   void Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels);
 
   // Moves the sun's view from the next Render on. The space scene fits one view to its whole layout until S-M7's
-  // cascades, and moves it only when something reaches beyond it (Design/SpaceScene.md §10). Throws
+  // cascades, and moves it only when something reaches beyond it (Design/Archive/SpaceScene.md §10). Throws
   // std::invalid_argument for a view of another size than the shadow map.
   void SetShadowView(const NeuronCore::OrthographicView& _view);
 
   // Renders and presents one frame of _placements, whose ids NeuronCore::AssignVoxelIds gave them. _view must be the size
   // the renderer was last resized to. Throws std::invalid_argument, before recording anything, for a placement that names
-  // records or a palette the scene lacks, or ids that fall back, overlap or reach NO_VOXEL (Design/SpaceScene.md §7.3).
+  // records or a palette the scene lacks, or ids that fall back, overlap or reach NO_VOXEL (Design/Archive/SpaceScene.md §7.3).
   // On a failure, the catch block adds Device().DescribeRemoval() to its message while the device still exists (§13).
   void Render(const NeuronCore::PerspectiveView& _view, std::span<const NeuronCore::Placement> _placements, const FrameSettings& _settings);
 

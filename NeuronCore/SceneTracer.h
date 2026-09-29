@@ -15,7 +15,7 @@
 namespace NeuronCore
 {
 
-// The reference tracer for a frame of placements (Design/SpaceScene.md §15): what the view and shadow passes resolve for
+// The reference tracer for a frame of placements (Design/Archive/SpaceScene.md §15): what the view and shadow passes resolve for
 // a ray when they draw the placements, as ids. Like VoxelGrid, it walks each whole placement's grid, in its part's space,
 // and tests the occupied cells the ray passes near with the box the GPU draws, in the world, through the same
 // permutation; a detonated placement's posed boxes it tests one by one, as TraceBoxes does.

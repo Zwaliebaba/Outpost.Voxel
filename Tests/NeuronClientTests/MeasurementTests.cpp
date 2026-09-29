@@ -129,7 +129,7 @@ public:
   // §11: a pixel shader with a UAV side effect runs for every fragment, before any depth test, so the overdraw variant
   // counts every rectangle over each pixel's centre. The twin's rectangles bound the count from both sides, for the
   // intact station, for the station turned any way about its middle, which draws oriented, and for the explosion
-  // (Design/SpaceScene.md §15).
+  // (Design/Archive/SpaceScene.md §15).
   TEST_METHOD(OverdrawCountsEveryRectangleOverThePixel)
   {
     RunGpuTest(

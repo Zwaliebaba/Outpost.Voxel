@@ -152,7 +152,7 @@ void ExpectSameHit(const NeuronCore::TraceHit& _expected, const NeuronCore::Trac
 
 } // namespace
 
-// Design/SpaceScene.md §15: the scene tracer against brute force over every placed box.
+// Design/Archive/SpaceScene.md §15: the scene tracer against brute force over every placed box.
 TEST_CLASS(SceneTracerTests)
 {
 public:

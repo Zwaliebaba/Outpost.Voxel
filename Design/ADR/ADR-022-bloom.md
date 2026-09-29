@@ -1,6 +1,6 @@
 # ADR-022 — Bloom
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M5 of [`Design/SpaceScene.md`](../SpaceScene.md) (§12.2, §15) · **Refines:** §12.2, on how the taps are read and how the levels come back up the chain; §15, on the constant image, which truncation can take a step off
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M5 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§12.2, §15) · **Refines:** §12.2, on how the taps are read and how the levels come back up the chain; §15, on the constant image, which truncation can take a step off
 
 ## Context
 
@@ -39,6 +39,7 @@
 - **CPU tests.** A constant image comes back from the chain as above, at an odd 257 × 129, and every positive half is tried as a gray at the first halving. A bright texel's spread mirrors with its mirror image and with its transpose. A dim texel's light keeps its centre, at column 45.497 for 45.5, and its sum within 2 %: 0.015396 of 0.015625, as measured by `SpreadsABrightTexelSymmetrically`.
 - **WARP tests.** `BloomPassTests` compares every texel of every level against the twin, on the way down from an HDR color the test writes, and on the way up from the levels the GPU wrote going down. It then compares the tone map's output with the twin's mix of the first level the GPU holds. It logs, level by level, how many texels match the twin to the bit and the most halves any other strays, and the most the tone map strays.
 - **Measured.** On the run of 75273a9, the first with the truncating twin, every texel of all three levels matched the twin to the bit, on the way down and on the way up, and the tone map's output matched the twin's exactly. The bounds, four steps and a floor near zero, stay as headroom for a GPU that sums a texel's taps in another order.
+- **On hardware.** The owner has seen bloom on hardware, as S-M5's done-when asks (SpaceScene §16), and confirmed it on 2026-09-29. The share stays 4 %, to be judged with the rest of the look in S-M6 (§12.1).
 
 ## Consequences
 

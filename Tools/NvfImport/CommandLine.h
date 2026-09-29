@@ -10,7 +10,7 @@
 namespace NvfImport
 {
 
-// What the command line asks for (Design/NeuronVoxelFormat.md §6.3).
+// What the command line asks for (Design/Archive/NeuronVoxelFormat.md §6.3).
 enum class Mode : std::uint8_t
 {
   Import,  // write the .nvf from the .vox, merging with the .nvf already there

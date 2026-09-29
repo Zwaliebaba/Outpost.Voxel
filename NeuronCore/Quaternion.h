@@ -5,7 +5,7 @@
 namespace NeuronCore
 {
 
-// A rotation as an entity and NVF store one (Design/SpaceScene.md §5.1, §6.2): x, y and z are the axis times
+// A rotation as an entity and NVF store one (Design/Archive/SpaceScene.md §5.1, §6.2): x, y and z are the axis times
 // sin(θ / 2), and w is cos(θ / 2). An entity's rotation turns its model into the world.
 struct Quaternion
 {
@@ -39,8 +39,8 @@ struct Quaternion
   return {{1.0f - (yy + zz), xy + wz, xz - wy}, {xy - wz, 1.0f - (xx + zz), yz + wx}, {xz + wy, yz - wx, 1.0f - (xx + yy)}};
 }
 
-// How far from unit length a stored rotation may be: NVF's tolerance (Design/NeuronVoxelFormat.md), which the protocol
-// takes over for an entity's rotation (Design/SpaceScene.md §6.2).
+// How far from unit length a stored rotation may be: NVF's tolerance (Design/Archive/NeuronVoxelFormat.md), which the protocol
+// takes over for an entity's rotation (Design/Archive/SpaceScene.md §6.2).
 inline constexpr float UNIT_ROTATION_TOLERANCE = 1.0e-4f;
 
 // The quaternion of _rotation, which must be a rotation: Shepperd's method, from the largest of the four diagonal sums,

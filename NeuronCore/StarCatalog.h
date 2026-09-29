@@ -10,7 +10,7 @@
 namespace NeuronCore
 {
 
-// The stars (Design/SpaceScene.md §11.2): a catalog generated from the world's sky seed, on the CPU only, and the
+// The stars (Design/Archive/SpaceScene.md §11.2): a catalog generated from the world's sky seed, on the CPU only, and the
 // record the sky pass draws each star from.
 
 // §11.2: 20,000 stars by default (§17).

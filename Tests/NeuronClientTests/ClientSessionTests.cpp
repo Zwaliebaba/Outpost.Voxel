@@ -106,7 +106,7 @@ void ExpectRefusal(Link& _link, NeuronClient::SessionRefusal _refusal, const cha
 
 } // namespace
 
-// Design/SpaceScene.md §6.1 and §6.2: the client's handshake, its models by name and hash, its snapshots, its commands,
+// Design/Archive/SpaceScene.md §6.1 and §6.2: the client's handshake, its models by name and hash, its snapshots, its commands,
 // and every refusal by name. The test speaks for the server, byte for byte.
 TEST_CLASS(ClientSessionTests)
 {

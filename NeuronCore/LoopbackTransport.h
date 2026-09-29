@@ -13,7 +13,7 @@ namespace NeuronCore
 
 struct LoopbackLink;
 
-// One end of a transport within one process (Design/SpaceScene.md §6.1, §6.3): two queues between two ends, each behind
+// One end of a transport within one process (Design/Archive/SpaceScene.md §6.1, §6.3): two queues between two ends, each behind
 // a mutex, so that the two threads share nothing else. It is reliable and ordered, and copies bytes in and out.
 // MakeLoopbackPair makes the two ends.
 class LoopbackTransport final : public Transport
