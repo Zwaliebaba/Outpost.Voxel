@@ -108,7 +108,7 @@ WarningsAsErrors: '*'
 # The pattern matches headers sitting DIRECTLY in a project folder, which is every hand-written
 # one: C++ is flat, and only HLSL lives below a project folder, in Shader (AGENTS.md §2). A bare `.*` would also match build output and the
 # Windows SDK, and most of what it reported would be from headers nobody here wrote.
-HeaderFilterRegex: '(NeuronCore|NeuronClient|NeuronServer|GameLogic|GameLib|Outpost|NvfImport|[A-Za-z0-9]+Tests)[/\\][A-Za-z0-9]+\.h$'
+HeaderFilterRegex: '(NeuronCore|NeuronClient|NeuronServer|GameCore|GameLogic|GameLib|Outpost|NvfImport|[A-Za-z0-9]+Tests)[/\\][A-Za-z0-9]+\.h$'
 
 # A `Resource.h` is written by the Visual Studio resource editor, not by hand. Its
 # `#define IDC_STATIC -1` trips bugprone-macro-parentheses, and the fix would be undone the next

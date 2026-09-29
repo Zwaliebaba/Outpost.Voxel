@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="TestSupport.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CatalogueTests.cpp" />
+    <ClCompile Include="DesignTests.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="ProfileTests.cpp" />
+    <ClCompile Include="TestSupport.cpp" />
+  </ItemGroup>
+</Project>
