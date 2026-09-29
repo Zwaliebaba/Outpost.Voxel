@@ -1,4 +1,4 @@
-"""The golden model, built field by field: the Python twin of NeuronCoreTests/NvfGolden.cpp.
+"""The golden model, built field by field: the Python twin of Tests/NeuronCoreTests/NvfGolden.cpp.
 
 Tools/Golden/Golden.nvf is what both implementations write for it, byte for byte (Design/NeuronVoxelFormat.md §9). A
 float is spelled as the C++ spells it, and passed through as_single where single precision does not hold the decimal.
@@ -16,7 +16,7 @@ from NvfFormat import NvfHardpoint, NvfModel, NvfPart, PaletteEntry, as_single, 
 
 GOLDEN_NVF_PATH = 'Tools/Golden/Golden.nvf'
 
-# The EGA colors, as NeuronCoreTests/VoxFile.h spells them and the three assets hold them.
+# The EGA colors, as Tests/NeuronCoreTests/VoxFile.h spells them and the three assets hold them.
 EGA_PALETTE = (
   (0, 0, 0, 255),
   (0, 0, 170, 255),
