@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{2A584D41-F090-4054-860D-F44707EAAC6D}</ProjectGuid>
-    <RootNamespace>GameLogicTests</RootNamespace>
+    <ProjectGuid>{B6F9C408-D369-4128-90CA-4275E64CC79C}</ProjectGuid>
+    <RootNamespace>NeuronCoreTests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectSubType>NativeUnitTestProject</ProjectSubType>
   </PropertyGroup>
@@ -94,7 +94,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)GameLogic;$(SolutionDir)NeuronServer;$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
@@ -122,7 +122,7 @@
       <EnableEnhancedInstructionSet>CPUExtensionRequirementsARMv87</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)GameLogic;$(SolutionDir)NeuronServer;$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
@@ -150,7 +150,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)GameLogic;$(SolutionDir)NeuronServer;$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -178,7 +178,7 @@
       <EnableEnhancedInstructionSet>CPUExtensionRequirementsARMv87</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)GameLogic;$(SolutionDir)NeuronServer;$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)NeuronCore;$(VCInstallDir)Auxiliary\VS\UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -194,26 +194,48 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CubeSymmetry.h" />
+    <ClInclude Include="NvfGolden.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="TestSupport.h" />
+    <ClInclude Include="PinnedStation.h" />
+    <ClInclude Include="RepositoryFile.h" />
+    <ClInclude Include="SeededRandom.h" />
+    <ClInclude Include="VoxFile.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomTests.cpp" />
+    <ClCompile Include="BoxTests.cpp" />
+    <ClCompile Include="CullingTests.cpp" />
+    <ClCompile Include="DebugViewTests.cpp" />
+    <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="HalfTests.cpp" />
+    <ClCompile Include="LightingTests.cpp" />
+    <ClCompile Include="LoopbackTransportTests.cpp" />
+    <ClCompile Include="MessageTests.cpp" />
+    <ClCompile Include="MilitaryStationTests.cpp" />
+    <ClCompile Include="NvfGolden.cpp" />
+    <ClCompile Include="NvfImportTests.cpp" />
+    <ClCompile Include="NvfModelTests.cpp" />
+    <ClCompile Include="PackingTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="RouteTests.cpp" />
-    <ClCompile Include="SectorTests.cpp" />
-    <ClCompile Include="TestSupport.cpp" />
+    <ClCompile Include="PlacementTests.cpp" />
+    <ClCompile Include="RepositoryFile.cpp" />
+    <ClCompile Include="RigidTransformTests.cpp" />
+    <ClCompile Include="SceneTracerTests.cpp" />
+    <ClCompile Include="SkyTests.cpp" />
+    <ClCompile Include="SplatBoundsTests.cpp" />
+    <ClCompile Include="StarCatalogTests.cpp" />
+    <ClCompile Include="ToneMapTests.cpp" />
+    <ClCompile Include="ViewTests.cpp" />
+    <ClCompile Include="VoxelGridTests.cpp" />
+    <ClCompile Include="VoxFile.cpp" />
+    <ClCompile Include="VoxModelTests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GameLogic\GameLogic.vcxproj">
-      <Project>{49C10099-F3BF-439C-AF42-575FEBBEC087}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\NeuronServer\NeuronServer.vcxproj">
-      <Project>{A87D3250-87B4-4DCF-9CAC-258165E44AC4}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
-      <Project>{6F240CD6-124F-489C-B8CF-1BABEBC02F72}</Project>
+    <ProjectReference Include="..\..\NeuronCore\NeuronCore.vcxproj">
+      <Project>{6f240cd6-124f-489c-b8cf-1babebc02f72}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
