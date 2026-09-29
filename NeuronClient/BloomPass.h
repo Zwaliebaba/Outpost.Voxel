@@ -13,7 +13,7 @@ class BloomChain;
 class GraphicsDevice;
 class ViewTargets;
 
-// Bloom (Design/SpaceScene.md §12.2): one compute dispatch a level, down the chain from the HDR color and back up it, so
+// Bloom (Design/Archive/SpaceScene.md §12.2): one compute dispatch a level, down the chain from the HDR color and back up it, so
 // that the chain's first level holds what the tone map mixes in. Each level is written as a UAV and then read as an SRV
 // by the next dispatch, with a transition between.
 class BloomPass

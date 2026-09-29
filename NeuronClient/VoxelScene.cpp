@@ -16,7 +16,7 @@ namespace NeuronClient
 VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models)
 {
   // The .vox reader accepts a turned model only for a marker, which the renderer does not draw: a marker becomes a
-  // hardpoint in the .nvf (Design/NeuronVoxelFormat.md §6.1).
+  // hardpoint in the .nvf (Design/Archive/NeuronVoxelFormat.md §6.1).
   for (const NeuronCore::VoxModel& model : _models)
   {
     for (const NeuronCore::ModelInstance& instance : model.instances)

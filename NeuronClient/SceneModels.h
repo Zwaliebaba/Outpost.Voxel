@@ -14,7 +14,7 @@
 namespace NeuronClient
 {
 
-// The models a welcome names, measured for drawing its entities (Design/SpaceScene.md §5.1, §7). An entity stands where
+// The models a welcome names, measured for drawing its entities (Design/Archive/SpaceScene.md §5.1, §7). An entity stands where
 // the middle of its model's box is, turned by its rotation, and draws as one placement for each part of its model, with
 // the part's origin folded into the placement's transform (§7.1, §7.2). A detonated one draws its parts' debris, blasted
 // from the mean of its model's voxels with the entity's velocity at the event and the event's seed, at the time since

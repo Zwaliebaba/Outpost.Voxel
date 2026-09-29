@@ -12,7 +12,7 @@
 namespace NeuronCore
 {
 
-// The sky (Design/SpaceScene.md §11): the galaxy and the sun, which one full-screen triangle at the far plane writes
+// The sky (Design/Archive/SpaceScene.md §11): the galaxy and the sun, which one full-screen triangle at the far plane writes
 // into every pixel no voxel covers, and the stars, which one quad each adds (§11.5). These are the twins of
 // Shader/Sky.hlsli (R15); StarCatalog.h makes the stars they draw.
 

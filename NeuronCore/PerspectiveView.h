@@ -51,7 +51,7 @@ inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
   return _depth > _than;
 }
 
-// The sky's test (Design/SpaceScene.md §9): a direction at infinity has the far plane's depth exactly, so a pixel shows
+// The sky's test (Design/Archive/SpaceScene.md §9): a direction at infinity has the far plane's depth exactly, so a pixel shows
 // the sky exactly where no voxel moved its depth off the value the view is cleared to. No epsilon: the sky pass tests
 // for equality.
 [[nodiscard]] constexpr bool IsFarPerspectiveDepth(float _depth) noexcept
@@ -67,7 +67,7 @@ inline constexpr float PERSPECTIVE_FAR_DEPTH = 0.0f;
 // case +Z stands in: a sun straight overhead still gets a basis.
 void MakeViewBasis(Float3 _forward, Float3 _worldUp, Float3& _right, Float3& _up) noexcept;
 
-// Whether _view keeps _sphere (Design/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN behind
+// Whether _view keeps _sphere (Design/Archive/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN behind
 // the near plane or beyond one of the four sides. The far plane is at infinity. A sphere that touches the frustum is
 // kept, and so is one that lies just outside a corner, since each plane is tested on its own.
 [[nodiscard]] bool IsInView(const PerspectiveView& _view, const Sphere& _sphere) noexcept;

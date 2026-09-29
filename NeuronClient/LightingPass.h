@@ -16,7 +16,7 @@ class VoxelScene;
 
 // The lighting pass (Design/Archive/SampleRenderer.md §8, §11): one compute dispatch that shades every pixel of the view from the
 // depth and visibility buffers, the shadow map and the palettes, into the HDR color of ViewTargets. A pixel's voxel id
-// leads to its record and palette through the frame's placements (Design/SpaceScene.md §7.3).
+// leads to its record and palette through the frame's placements (Design/Archive/SpaceScene.md §7.3).
 class LightingPass
 {
 public:

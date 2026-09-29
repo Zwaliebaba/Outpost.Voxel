@@ -22,7 +22,7 @@
 namespace
 {
 
-// What the process tells its caller (Design/NeuronVoxelFormat.md §6.3): CI's --check fails on anything but 0.
+// What the process tells its caller (Design/Archive/NeuronVoxelFormat.md §6.3): CI's --check fails on anything but 0.
 constexpr int UP_TO_DATE = 0;
 constexpr int STALE = 1;
 constexpr int REFUSED = 2;
@@ -157,7 +157,7 @@ constexpr int REFUSED = 2;
 
 } // namespace
 
-// NvfImport: a .vox into an .nvf, or an .nvf as text (Design/NeuronVoxelFormat.md §6). wmain, the console entry point's
+// NvfImport: a .vox into an .nvf, or an .nvf as text (Design/Archive/NeuronVoxelFormat.md §6). wmain, the console entry point's
 // wide form, because a path may hold what the ANSI code page cannot.
 int wmain(int _argumentCount, wchar_t** _arguments)
 {

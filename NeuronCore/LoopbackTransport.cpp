@@ -12,7 +12,7 @@ namespace NeuronCore
 
 // One direction of a loopback: its messages, and whether the loopback is closed, both behind the one mutex. Nothing
 // crosses between the ends through an atomic: ARM64 orders memory more weakly than x64, and CI runs x64 alone
-// (Design/SpaceScene.md §6.3).
+// (Design/Archive/SpaceScene.md §6.3).
 struct LoopbackQueue
 {
   std::mutex mutex;

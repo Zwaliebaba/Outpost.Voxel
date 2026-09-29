@@ -153,7 +153,7 @@ void ExpectLevels(const std::vector<BloomImage>& _expected, const std::vector<Bl
 
 } // namespace
 
-// Bloom against its twin (Design/SpaceScene.md §12.2, §15, R15): the chain texel by texel at every level, on the way down
+// Bloom against its twin (Design/Archive/SpaceScene.md §12.2, §15, R15): the chain texel by texel at every level, on the way down
 // from an HDR color the test writes and on the way back up from what the GPU wrote going down; and the tone map's mix,
 // from the HDR color and the first level the GPU holds.
 TEST_CLASS(BloomPassTests)

@@ -45,7 +45,7 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 // multiplies it. An entry that is not emissive has none.
 [[nodiscard]] float EmissiveScale(const PaletteEntry& _entry) noexcept;
 
-// The lighting the world's settings describe (Design/SpaceScene.md §12.1), with the emissive gain the viewer chose: the
+// The lighting the world's settings describe (Design/Archive/SpaceScene.md §12.1), with the emissive gain the viewer chose: the
 // sun, and the hemisphere's two colors as they are, over a black background that the sky covers (§11.5).
 [[nodiscard]] LightingParameters MakeLightingParameters(const WorldSettings& _settings, float _emissiveGain) noexcept;
 

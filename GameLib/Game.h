@@ -12,7 +12,7 @@
 namespace GameLib
 {
 
-// How the client runs, from the command line (Design/SpaceScene.md §13).
+// How the client runs, from the command line (Design/Archive/SpaceScene.md §13).
 struct GameOptions
 {
   std::filesystem::path modelDirectory;               // where the client reads the models the server's welcome names (§6.2)

@@ -1,6 +1,6 @@
 #pragma once
 
-// Bloom's filters (Design/SpaceScene.md §12.2): Jimenez's 13-tap halving, with Karis's average in the first, and the
+// Bloom's filters (Design/Archive/SpaceScene.md §12.2): Jimenez's 13-tap halving, with Karis's average in the first, and the
 // 3 × 3 tent that carries each level up the chain and into the tone map. Every tap is bilinear, on a texel corner or a
 // quarter of the way between texel centres, and is read here with explicit loads and its exact weights, so that no
 // sampler's rounding stands between the GPU and the twins in NeuronCore/Bloom.h (R15).

@@ -5,7 +5,7 @@
 namespace NeuronCoreTests
 {
 
-// Where the golden file lies, from the repository's root (Design/NeuronVoxelFormat.md §9).
+// Where the golden file lies, from the repository's root (Design/Archive/NeuronVoxelFormat.md §9).
 inline constexpr const char* GOLDEN_NVF_PATH = "Tools/Golden/Golden.nvf";
 
 // The model Tools/Golden/Golden.nvf holds, built field by field. It uses every field of the format: three parts, two

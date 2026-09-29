@@ -80,7 +80,7 @@ public:
     Assert::AreEqual(0.0f, NeuronCore::EmissiveScale({255, 255, 85, 255, false, 0.6f, 2.0f}), L"not emissive");
   }
 
-  // Design/SpaceScene.md §12.1: the world's sun and hemisphere as they are, over a black background, with the viewer's
+  // Design/Archive/SpaceScene.md §12.1: the world's sun and hemisphere as they are, over a black background, with the viewer's
   // gain.
   TEST_METHOD(ParametersComeFromTheWorld)
   {

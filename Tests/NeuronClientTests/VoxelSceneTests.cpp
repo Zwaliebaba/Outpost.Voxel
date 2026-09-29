@@ -19,7 +19,7 @@ namespace NeuronClientTests
 TEST_CLASS(VoxelSceneTests)
 {
 public:
-  // Design/NeuronVoxelFormat.md §6.1: the .vox reader accepts a turned model only for a marker, and the renderer, which
+  // Design/Archive/NeuronVoxelFormat.md §6.1: the .vox reader accepts a turned model only for a marker, and the renderer, which
   // never draws one, refuses a scene that holds one, by the model's name, rather than drawing it unturned.
   TEST_METHOD(RefusesTurnedModels)
   {

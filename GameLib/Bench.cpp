@@ -322,7 +322,7 @@ struct Bench::Run
   std::unique_ptr<NeuronClient::Renderer> renderer;
   std::uint32_t station = 0; // the entity the camera orbits and the bench detonates
   float startYawRadians = 0.0f;
-  // The world's sky, made with the scene (Design/SpaceScene.md §11).
+  // The world's sky, made with the scene (Design/Archive/SpaceScene.md §11).
   std::vector<NeuronCore::StarRecord> stars;
   NeuronCore::SkyParameters sky{};
   // The run's progress: the shots drawn so far, warm-up included.

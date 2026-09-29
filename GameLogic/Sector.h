@@ -23,7 +23,7 @@
 namespace GameLogic
 {
 
-// The world's parameters, with their defaults (Design/SpaceScene.md §5.2, §5.4, Design/ADR/ADR-017).
+// The world's parameters, with their defaults (Design/Archive/SpaceScene.md §5.2, §5.4, Design/ADR/ADR-017).
 struct SectorParameters
 {
   std::uint32_t seed = 1;

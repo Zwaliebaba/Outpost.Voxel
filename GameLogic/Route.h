@@ -10,7 +10,7 @@
 namespace GameLogic
 {
 
-// A circle a route flies around a station (Design/SpaceScene.md §5.2): about its center, in the plane square to its
+// A circle a route flies around a station (Design/Archive/SpaceScene.md §5.2): about its center, in the plane square to its
 // normal, some whole laps before it leaves, turning counterclockwise about the normal or clockwise.
 struct Orbit
 {

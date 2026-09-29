@@ -11,7 +11,7 @@ namespace NeuronClient
 {
 
 // A placement's detonation as the oriented splat shaders read it: the parameter block, the time since the detonation, and
-// the model-local index its voxels' hashes count from (R16, Design/Archive/SampleRenderer.md §7.4, Design/SpaceScene.md
+// the model-local index its voxels' hashes count from (R16, Design/Archive/SampleRenderer.md §7.4, Design/Archive/SpaceScene.md
 // §5.5, §7.7). This struct is the truth; Shader/ExplosionConstants.hlsli mirrors it, and the layout echo in
 // NeuronClientTests proves the two agree. Each float3 shares 16 bytes with a scalar, so there is no padding.
 struct ExplosionConstants

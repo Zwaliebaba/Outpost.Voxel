@@ -23,7 +23,7 @@ namespace
 using NeuronCore::Float3;
 using NeuronCore::Sphere;
 
-// A camera somewhere in the world's bound (Design/SpaceScene.md §7.5), looking anywhere, with a field of view from 20 to
+// A camera somewhere in the world's bound (Design/Archive/SpaceScene.md §7.5), looking anywhere, with a field of view from 20 to
 // 120 degrees, a random aspect and a random near plane. Each number is drawn in its own statement, so that every
 // compiler draws them in the same order.
 [[nodiscard]] NeuronCore::PerspectiveView RandomCamera(SeededRandom& _random)
@@ -56,7 +56,7 @@ using NeuronCore::Sphere;
 
 } // namespace
 
-// Design/SpaceScene.md §7.4 and §15: culling keeps every sphere that touches a view, and the camera's draws run nearest
+// Design/Archive/SpaceScene.md §7.4 and §15: culling keeps every sphere that touches a view, and the camera's draws run nearest
 // first.
 TEST_CLASS(CullingTests)
 {

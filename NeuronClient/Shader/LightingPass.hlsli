@@ -2,7 +2,7 @@
 
 // The lighting pass (Design/Archive/SampleRenderer.md §8, §11): a thread per pixel in 8 × 8 groups, from the view splat's depth
 // and visibility and the shadow map into the HDR color target. A pixel's voxel id leads through its placement to its
-// record and its model's palette (Design/SpaceScene.md §7.3).
+// record and its model's palette (Design/Archive/SpaceScene.md §7.3).
 
 #include "Lighting.hlsli"
 #include "PaletteConstants.hlsli"

@@ -18,7 +18,7 @@
 namespace NeuronCore
 {
 
-// The Neuron Voxel Format, the game's own voxel model format (Design/NeuronVoxelFormat.md §4, Design/ADR/ADR-019). A
+// The Neuron Voxel Format, the game's own voxel model format (Design/Archive/NeuronVoxelFormat.md §4, Design/ADR/ADR-019). A
 // model is a tree of rigid parts, each a voxel grid in the R14 record, sharing one 16-entry palette, plus named
 // hardpoints. Model space is the engine's, Direct3D's: left-handed, +Y up, +Z forward, one unit per voxel edge (N9).
 // This is the C++ implementation; the Blender extension's NvfFormat.py is the other, and Tools/Golden/Golden.nvf holds

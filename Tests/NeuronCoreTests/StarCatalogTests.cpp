@@ -52,7 +52,7 @@ constexpr std::uint32_t KELVIN_STEPS = 110;
 
 } // namespace
 
-// The star catalog of Design/SpaceScene.md §11.2, which runs only on the CPU, against §15's list.
+// The star catalog of Design/Archive/SpaceScene.md §11.2, which runs only on the CPU, against §15's list.
 TEST_CLASS(StarCatalogTests)
 {
 public:

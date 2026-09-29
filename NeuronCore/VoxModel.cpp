@@ -30,7 +30,7 @@ constexpr std::int32_t MAX_SCENE_DEPTH = 64;
 constexpr std::uint32_t ROTATION_BITS = 0x7Fu;
 
 // MagicaVoxel's axes are right-handed with +Z up; the engine's are Direct3D's, left-handed with +Y up and +Z forward
-// (Design/NeuronVoxelFormat.md §4.1). Swapping y and z converts either way. This reader is the one place the engine
+// (Design/Archive/NeuronVoxelFormat.md §4.1). Swapping y and z converts either way. This reader is the one place the engine
 // does it, before anything else sees a coordinate: every size, voxel and translation is swapped as it is read.
 [[nodiscard]] constexpr Int3 FromMagicaVoxelAxes(Int3 _vector) noexcept
 {
@@ -252,7 +252,7 @@ struct SceneParts
 }
 
 // A rotation as _r stores it, in MagicaVoxel's axes, conjugated into the engine's: P R P, where P swaps y and z
-// (Design/NeuronVoxelFormat.md §4.1). One of the cube's 24 rotations; nothing for a reflection, or for text that is not
+// (Design/Archive/NeuronVoxelFormat.md §4.1). One of the cube's 24 rotations; nothing for a reflection, or for text that is not
 // one of the 128 values _r can hold, or that names one column twice.
 [[nodiscard]] std::optional<Rotation> ParseRotation(std::string_view _text) noexcept
 {
@@ -598,7 +598,7 @@ struct Placement
 };
 
 // What a transform hands to the model it places. A group hands nothing on: a name or a rotation belongs to the transform
-// directly above a model (Design/NeuronVoxelFormat.md §5, §6.1).
+// directly above a model (Design/Archive/NeuronVoxelFormat.md §5, §6.1).
 struct Placing
 {
   std::string_view name;

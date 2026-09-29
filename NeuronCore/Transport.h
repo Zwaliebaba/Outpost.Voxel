@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// A pipe of whole messages between a client and a server (Design/SpaceScene.md §6.1, Design/ADR/ADR-015): what crosses
+// A pipe of whole messages between a client and a server (Design/Archive/SpaceScene.md §6.1, Design/ADR/ADR-015): what crosses
 // is bytes, never an object. Send takes one message's bytes, and Receive returns the next whole message, or nothing
 // when none has arrived. Each end belongs to one thread at a time.
 class Transport

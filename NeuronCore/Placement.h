@@ -19,7 +19,7 @@ namespace NeuronCore
 // What FindPlacement gives for an id that no placement holds.
 inline constexpr std::uint32_t NO_PLACEMENT = 0xFFFFFFFFu;
 
-// What a detonated placement adds (Design/SpaceScene.md §7.7): the detonation, in its part's space, and the time since.
+// What a detonated placement adds (Design/Archive/SpaceScene.md §7.7): the detonation, in its part's space, and the time since.
 struct PlacementDetonation
 {
   ExplosionParameters parameters; // in the part's space: the blast origin, and the inherited velocity turned into it

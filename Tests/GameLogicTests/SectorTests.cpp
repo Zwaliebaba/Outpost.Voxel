@@ -44,7 +44,7 @@ namespace
 using Bytes = std::vector<std::uint8_t>;
 using NeuronCore::Float3;
 
-// Ten simulated minutes at the default tick rate (Design/SpaceScene.md §15).
+// Ten simulated minutes at the default tick rate (Design/Archive/SpaceScene.md §15).
 constexpr std::uint64_t TEN_MINUTES = 18'000;
 
 // How far over its class's limit a tick's motion may measure: the snapshot's floats, not play in the flight. The widest
@@ -320,7 +320,7 @@ struct Client
 
 } // namespace
 
-// Design/SpaceScene.md §5 and §15: the default sector, its layout, its repeatability, its flight over ten minutes with and
+// Design/Archive/SpaceScene.md §5 and §15: the default sector, its layout, its repeatability, its flight over ten minutes with and
 // without detonations, the rules of Design/ADR/ADR-017 for a flight whose ships detonate and are restored, detonations
 // through the host to every client, debris's lifetime, and the refusals.
 TEST_CLASS(SectorTests)
@@ -461,7 +461,7 @@ public:
     Assert::IsTrue(first[1] != other[1], L"and lays out another sector");
   }
 
-  // Design/SpaceScene.md §5.3 and §15: over ten minutes no ship enters a keep-out sphere, every tick keeps within its
+  // Design/Archive/SpaceScene.md §5.3 and §15: over ten minutes no ship enters a keep-out sphere, every tick keeps within its
   // class's speed, acceleration and turn rate, its attitude turns no faster than its turn and roll together, and
   // wingmen hold their slots within a bound.
   TEST_METHOD(FliesTenMinutesWithinItsLimits)
@@ -664,7 +664,7 @@ public:
     }
   }
 
-  // Design/SpaceScene.md §5.5: with a lifetime, a detonated entity and its event leave the snapshot on the tick the
+  // Design/Archive/SpaceScene.md §5.5: with a lifetime, a detonated entity and its event leave the snapshot on the tick the
   // lifetime runs out, for good; its id is not reused, and its flight goes on without it.
   TEST_METHOD(DebrisLeavesOnTheTickItsLifetimeRunsOut)
   {

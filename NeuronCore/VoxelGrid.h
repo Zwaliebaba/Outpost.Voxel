@@ -28,7 +28,7 @@ public:
   explicit VoxelGrid(const VoxModel& _model);
 
   // A grid over one part's records, in the part's own space, where a record's cell is the one whose minimum corner is
-  // its coordinates: a cell holds the record's index in _records (Design/SpaceScene.md §15).
+  // its coordinates: a cell holds the record's index in _records (Design/Archive/SpaceScene.md §15).
   explicit VoxelGrid(std::span<const std::uint32_t> _records);
 
   // The position of the grid's minimum corner, and its extent in cells: the tight bounds of its voxels.
@@ -74,7 +74,7 @@ struct GridStep
 
 // VoxelGrid's walk along a ray, a cell at a time from the nearest, for a caller that tests the occupied cells its own
 // way. Trace is one; the scene tracer is another, which walks a placement's grid in its part's space and tests each
-// cell with the box the GPU draws, in the world (Design/SpaceScene.md §15). The ray is in double precision and in the
+// cell with the box the GPU draws, in the world (Design/Archive/SpaceScene.md §15). The ray is in double precision and in the
 // grid's space, and its parameter is the caller's: a rigid transform leaves it unchanged.
 class GridWalk
 {

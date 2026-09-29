@@ -148,7 +148,7 @@ struct Client
 
 } // namespace
 
-// Design/SpaceScene.md §6 and §15: the handshake and a refused version, a snapshot a step with consecutive ticks, the
+// Design/Archive/SpaceScene.md §6 and §15: the handshake and a refused version, a snapshot a step with consecutive ticks, the
 // same bytes to every client, pause and resume, detonate and restore, and a thread that starts and stops cleanly. No
 // test times the thread.
 TEST_CLASS(ServerHostTests)

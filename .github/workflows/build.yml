@@ -181,7 +181,7 @@ jobs:
           & $vstest $suites /Platform:x64 /Logger:trx /ResultsDirectory:TestResults
           if ($LASTEXITCODE -ne 0) { throw "vstest reported failures." }
 
-      # Every model's .nvf must be what importing its .vox gives (Design/NeuronVoxelFormat.md §9): an
+      # Every model's .nvf must be what importing its .vox gives (Design/Archive/NeuronVoxelFormat.md §9): an
       # .nvf stale against its .vox, a .vox without one, or a .vox NvfImport refuses fails here. --check
       # merges with the .nvf as an import would, so the hardpoints Blender authored are part of what is
       # compared, and it writes nothing.
@@ -242,7 +242,7 @@ jobs:
       - name: Check formatting
         run: python3 Build/CheckFormat.py --clang-format clang-format-18
 
-      # The Blender extension's Python, on the system Python (Design/NeuronVoxelFormat.md §9). NvfFormat.py, the twin of
+      # The Blender extension's Python, on the system Python (Design/Archive/NeuronVoxelFormat.md §9). NvfFormat.py, the twin of
       # NeuronCore's NVF reader and writer (AGENTS.md R20), and Geometry.py and Rebuild.py, which hold what the extension
       # decides, import nothing from Blender. NvfFormat.py's tests write and read the golden file, corrupt it as
       # NvfModelTests.cpp does, and read NvfError's names from NvfModel.h, so a drift between the two implementations

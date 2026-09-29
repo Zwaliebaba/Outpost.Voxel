@@ -94,7 +94,7 @@ constexpr float POSITION_ROUNDING = 1.0e-6f;
 }
 
 // A parameter block well beyond the defaults, around a blast origin in _lower-_upper, with an inherited velocity and a
-// seed (Design/SpaceScene.md §7.7). Each number is drawn in its own statement or list element, so that every compiler
+// seed (Design/Archive/SpaceScene.md §7.7). Each number is drawn in its own statement or list element, so that every compiler
 // draws them in the same order.
 [[nodiscard]] NeuronCore::ExplosionParameters RandomParameters(SeededRandom& _random, Float3 _lower, Float3 _upper)
 {
@@ -139,7 +139,7 @@ struct RandomVoxels
 
 } // namespace
 
-// The detonation's motion (Design/SpaceScene.md §5.5, Design/ADR/ADR-013) on synthetic voxels and random parameter
+// The detonation's motion (Design/Archive/SpaceScene.md §5.5, Design/ADR/ADR-013) on synthetic voxels and random parameter
 // blocks; the station under the defaults is MilitaryStationTests'.
 TEST_CLASS(ExplosionTests)
 {
@@ -214,7 +214,7 @@ public:
     }
   }
 
-  // Design/SpaceScene.md §7.7: a detonation's seed changes every voxel's randomness, and the same seed repeats it (D3).
+  // Design/Archive/SpaceScene.md §7.7: a detonation's seed changes every voxel's randomness, and the same seed repeats it (D3).
   TEST_METHOD(SeedsGiveDifferentDebris)
   {
     const NeuronCore::ExplosionParameters first = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 0.0f});

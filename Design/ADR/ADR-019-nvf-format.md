@@ -1,6 +1,6 @@
 # ADR-019 — The Neuron Voxel Format as it is read and written
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M1 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and its Python twin with N-M3 · **Implements:** that design's §4, and settles what §4 left open, each point written back into §4 in the same commit
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M1 of [`Design/Archive/NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) (§10), and its Python twin with N-M3 · **Implements:** that design's §4, and settles what §4 left open, each point written back into §4 in the same commit
 
 ## Context
 

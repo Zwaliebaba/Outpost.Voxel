@@ -1,6 +1,6 @@
 # ADR-016 — The server side's test suites
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§15, §16, §18) · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, and its note that `NeuronServer` and `GameLogic` have no suite yet · **Amended by:** [ADR-023](ADR-023-tests-and-tools-folders.md), which moves every suite into `Tests/`
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§15, §16, §18) · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, and its note that `NeuronServer` and `GameLogic` have no suite yet · **Amended by:** [ADR-023](ADR-023-tests-and-tools-folders.md), which moves every suite into `Tests/`
 
 ## Context
 

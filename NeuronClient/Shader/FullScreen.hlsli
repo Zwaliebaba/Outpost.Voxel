@@ -3,7 +3,7 @@
 // One triangle over the viewport, at the far plane of reversed Z, for the passes that write every pixel of their target:
 // the tone map and the debug views (Design/Archive/SampleRenderer.md §8, §11); for the coverage count, which writes none
 // but tests every one against the view's depth (§14); and for the sky, which writes the pixels still at the far plane
-// (Design/SpaceScene.md §9, §11.5).
+// (Design/Archive/SpaceScene.md §9, §11.5).
 
 struct FullScreenVaryings
 {

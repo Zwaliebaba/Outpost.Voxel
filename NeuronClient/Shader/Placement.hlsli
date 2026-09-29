@@ -1,6 +1,6 @@
 #pragma once
 
-// Placements (Design/SpaceScene.md §7): how the splat takes a part's voxels into the world, and how the lighting pass and
+// Placements (Design/Archive/SpaceScene.md §7): how the splat takes a part's voxels into the world, and how the lighting pass and
 // the debug views find the record and palette of a pixel's voxel from its id. The C++ twins are in
 // NeuronCore/RigidTransform.h and NeuronCore/Placement.h (R15).
 

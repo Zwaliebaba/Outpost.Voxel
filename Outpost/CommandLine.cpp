@@ -31,7 +31,7 @@ constexpr std::wstring_view USAGE =
 constexpr std::uint32_t BENCH_SECONDS_MAXIMUM = 3600;
 
 // The most of each the command line takes: far more stations than the world's bound holds, which the sector refuses by
-// name (Design/SpaceScene.md §5.2), and fewer ships than would fill memory before anything is drawn.
+// name (Design/Archive/SpaceScene.md §5.2), and fewer ships than would fill memory before anything is drawn.
 constexpr std::uint32_t STATIONS_MAXIMUM = 1024;
 constexpr std::uint32_t SHIPS_MAXIMUM = 100000;
 
@@ -98,7 +98,7 @@ constexpr float DEBRIS_LIFETIME_MAXIMUM_SECONDS = 86400.0f;
 
 std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstring> _arguments)
 {
-  // The client and the server read the same GameData until they are separate programs (Design/SpaceScene.md §6.2).
+  // The client and the server read the same GameData until they are separate programs (Design/Archive/SpaceScene.md §6.2).
   Options options{{ExecutableFolder() / L"GameData", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}}, {}, std::nullopt};
   std::optional<std::wstring_view> worldOption; // the first option that shapes the world beyond its seed
   for (std::size_t i = 0; i < _arguments.size(); ++i)

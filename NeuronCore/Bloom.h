@@ -8,7 +8,7 @@
 namespace NeuronCore
 {
 
-// Bloom (Design/SpaceScene.md §12.2): a fixed share of every pixel's light, spread over a wide, smooth kernel built as
+// Bloom (Design/Archive/SpaceScene.md §12.2): a fixed share of every pixel's light, spread over a wide, smooth kernel built as
 // Jimenez built it for Call of Duty: Advanced Warfare. The view's HDR color is halved level by level, each texel of a
 // level a 13-tap filter over the level above it. Then each level, from the second smallest up, is blended with a 3 × 3
 // tent over the level below it, so that it ends as the average of its own blur and every smaller one's; and the tone

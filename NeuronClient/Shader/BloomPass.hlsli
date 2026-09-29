@@ -1,6 +1,6 @@
 #pragma once
 
-// Bloom's chain (Design/SpaceScene.md §12.2): a thread per texel of the level written, in 8 × 8 groups. On the way down,
+// Bloom's chain (Design/Archive/SpaceScene.md §12.2): a thread per texel of the level written, in 8 × 8 groups. On the way down,
 // a level is the halving of the one above it, the HDR color for the first; on the way up, a level is blended in place
 // with the tent over the one below it.
 

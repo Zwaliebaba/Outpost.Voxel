@@ -50,7 +50,7 @@ inline constexpr float ORTHOGRAPHIC_FAR_DEPTH = 1.0f;
 }
 
 // The sun's view of §10: 4096 texels across a 1,024-unit square, four to a voxel's edge. The detonation's defaults keep
-// its envelope inside the square (Design/SpaceScene.md §5.5).
+// its envelope inside the square (Design/Archive/SpaceScene.md §5.5).
 inline constexpr std::uint32_t SHADOW_MAP_PIXELS = 4096;
 inline constexpr float SHADOW_HALF_EXTENT = 512.0f;
 
@@ -60,7 +60,7 @@ inline constexpr float SHADOW_HALF_EXTENT = 512.0f;
 [[nodiscard]] OrthographicView MakeShadowView(Float3 _toSun, Float3 _center, float _halfExtent, Float3 _lower, Float3 _upper,
                                               std::uint32_t _sizePixels) noexcept;
 
-// Whether _view keeps _sphere (Design/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN beyond
+// Whether _view keeps _sphere (Design/Archive/SpaceScene.md §7.4): false only when the sphere lies more than CULL_MARGIN beyond
 // one of the box's six faces. A sphere that touches the box is kept.
 [[nodiscard]] bool IsInView(const OrthographicView& _view, const Sphere& _sphere) noexcept;
 

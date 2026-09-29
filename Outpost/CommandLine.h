@@ -13,7 +13,7 @@
 namespace Outpost
 {
 
-// What the command line asks for (Design/SpaceScene.md §13, §14): how the client runs, the world the server simulates,
+// What the command line asks for (Design/Archive/SpaceScene.md §13, §14): how the client runs, the world the server simulates,
 // and --bench, which runs the one-station preset in place of the world the other options describe.
 struct Options
 {

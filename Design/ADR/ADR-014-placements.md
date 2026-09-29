@@ -1,6 +1,6 @@
 # ADR-014 — Placements, scene-wide ids and culling
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M2 of [`Design/SpaceScene.md`](../SpaceScene.md) (§7, §15, §16) · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s record index per drawn voxel, [ADR-006](ADR-006-depth-conventions.md)'s tie rule across placements, and [ADR-013](ADR-013-zero-gravity-detonation.md)'s parameter block, randomness and envelope
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M2 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§7, §15, §16) · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s record index per drawn voxel, [ADR-006](ADR-006-depth-conventions.md)'s tie rule across placements, and [ADR-013](ADR-013-zero-gravity-detonation.md)'s parameter block, randomness and envelope
 
 ## Context
 

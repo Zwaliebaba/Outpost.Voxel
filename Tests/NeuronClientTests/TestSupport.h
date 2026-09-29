@@ -35,7 +35,7 @@ namespace NeuronClientTests
 // The GameData folder LoadGameData finds its files in, where a client session reads the models a welcome names.
 [[nodiscard]] std::filesystem::path GameDataDirectory();
 
-// _model's parts drawn whole, each unturned at its origin, as the application draws its scene (Design/SpaceScene.md §7):
+// _model's parts drawn whole, each unturned at its origin, as the application draws its scene (Design/Archive/SpaceScene.md §7):
 // the one model of a scene, so that every voxel's id is its record's index, and its box the one RecordBox gives.
 [[nodiscard]] std::vector<NeuronCore::Placement> WholePlacements(const NeuronCore::VoxModel& _model);
 
@@ -74,7 +74,7 @@ struct SplatImage
 };
 
 // How a test draws its placements: each through the permutation it calls for, as the renderer does, or every one through
-// the oriented permutation, a whole one at rest. Design/SpaceScene.md §15 holds the two to the same image where a
+// the oriented permutation, a whole one at rest. Design/Archive/SpaceScene.md §15 holds the two to the same image where a
 // placement is whole and turned by a symmetry of the cube.
 enum class Permutations : std::uint8_t
 {
@@ -119,7 +119,7 @@ void WriteTexture2D(NeuronClient::GraphicsDevice& _device, ID3D12Resource* _text
                     std::span<const std::byte> _pixels, std::uint32_t _bytesPerPixel);
 
 // A world lit as the station's file lit the station until the lighting came from the world (Design/ADR/ADR-008,
-// Design/SpaceScene.md §12.1): a white sun at 50 and 50 degrees at 0.7, and a hemisphere from the ground's sRGB 80 at
+// Design/Archive/SpaceScene.md §12.1): a white sun at 50 and 50 degrees at 0.7, and a hemisphere from the ground's sRGB 80 at
 // 0.7 below to white at 0.7 above, brighter than the space scene's so that the ambient shows; with the sector's sun
 // size, galactic plane and seed.
 [[nodiscard]] NeuronCore::WorldSettings TestWorld() noexcept;

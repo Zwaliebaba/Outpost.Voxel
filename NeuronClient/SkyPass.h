@@ -14,7 +14,7 @@ namespace NeuronClient
 
 class GraphicsDevice;
 
-// The sky pass (Design/SpaceScene.md §11.5): one triangle at the far plane that writes the galaxy and the sun into every
+// The sky pass (Design/Archive/SpaceScene.md §11.5): one triangle at the far plane that writes the galaxy and the sun into every
 // pixel of the HDR color no voxel covers, then one quad a star from the world's catalog, blended additively. Both test
 // the view's depth, bound read-only, for equality with the far plane (§9), and write none.
 class SkyPass

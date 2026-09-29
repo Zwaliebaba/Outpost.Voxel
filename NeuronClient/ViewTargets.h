@@ -13,7 +13,7 @@ class DescriptorHeap;
 class GraphicsDevice;
 
 // The targets at the size of the view (Design/Archive/SampleRenderer.md §7.3, §8): the view splat's reversed-Z depth and
-// visibility buffer of voxel index and packed normal, the HDR color the lighting and the sky write (Design/SpaceScene.md
+// visibility buffer of voxel index and packed normal, the HDR color the lighting and the sky write (Design/Archive/SpaceScene.md
 // §11.5), and the overdraw count the view splat's overdraw variant keeps (§11). Between frames every one of them rests
 // readable by every shader stage.
 class ViewTargets
@@ -47,7 +47,7 @@ public:
   void EndLighting(ID3D12GraphicsCommandList* _list) const;
 
   // Binds the HDR color as the sky's render target and the depth read-only, for its test against the far plane
-  // (Design/SpaceScene.md §9), with a viewport over the whole view; afterwards, both are readable by every shader stage
+  // (Design/Archive/SpaceScene.md §9), with a viewport over the whole view; afterwards, both are readable by every shader stage
   // again.
   void BeginSky(ID3D12GraphicsCommandList* _list) const;
   void EndSky(ID3D12GraphicsCommandList* _list) const;

@@ -1,6 +1,6 @@
 # ADR-015 — The client/server boundary
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick · **Amended by:** [ADR-018](ADR-018-client.md), with the client's time
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick · **Amended by:** [ADR-018](ADR-018-client.md), with the client's time
 
 ## Context
 

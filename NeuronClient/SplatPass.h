@@ -17,7 +17,7 @@ class GraphicsDevice;
 class UploadRing;
 class VoxelScene;
 
-// One placement's draw (Design/SpaceScene.md §7.4).
+// One placement's draw (Design/Archive/SpaceScene.md §7.4).
 struct SplatDraw
 {
   std::uint32_t placement; // its index in the frame's structured buffer of placements
@@ -45,7 +45,7 @@ struct SplatPlacements
 // intersected per pixel with its box. The view splat writes reversed-Z depth and the visibility buffer
 // ViewTargets::BeginSplat has bound; the shadow splat writes standard-Z depth alone into the map ShadowMap::BeginSplat has
 // bound. A pass holds both permutations: the aligned one, for a whole placement turned by a symmetry of the cube, and the
-// oriented one, for any other, whose boxes turn with the placement and its detonation poses (Design/SpaceScene.md §7.2,
+// oriented one, for any other, whose boxes turn with the placement and its detonation poses (Design/Archive/SpaceScene.md §7.2,
 // §7.7).
 class SplatPass
 {
@@ -73,7 +73,7 @@ public:
 
   // One DrawIndexedInstanced per draw, in _draws' order, each through the permutation it names; within a draw the records
   // go in order, so that a tie in depth goes to the lower one (§4.2), and between draws to the first drawn
-  // (Design/SpaceScene.md §7.3). _viewConstants are the ViewConstants or ShadowViewConstants the kind reads, and
+  // (Design/Archive/SpaceScene.md §7.3). _viewConstants are the ViewConstants or ShadowViewConstants the kind reads, and
   // _placements the structured buffer PushSplatPlacements made. The overdraw variant counts into the RWTexture2D<uint> of
   // _overdrawTable, which the others ignore.
   void Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,

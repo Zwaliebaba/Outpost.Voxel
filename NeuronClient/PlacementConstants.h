@@ -10,7 +10,7 @@ namespace NeuronClient
 {
 
 // One placement as the shaders read it, an element of the frame's structured buffer of placements (R16,
-// Design/SpaceScene.md §7.2, §7.3): its rigid transform, the records it draws, the id of its first voxel and its palette.
+// Design/Archive/SpaceScene.md §7.2, §7.3): its rigid transform, the records it draws, the id of its first voxel and its palette.
 // This struct is the truth; Shader/PlacementConstants.hlsli mirrors it, and the layout echo in NeuronClientTests proves
 // the two agree. Each float3 shares 16 bytes with a word, so there is no padding and the stride is 64 bytes.
 struct PlacementConstants

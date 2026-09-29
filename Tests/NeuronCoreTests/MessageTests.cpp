@@ -30,7 +30,7 @@ using NeuronCore::Message;
 using NeuronCore::ProtocolError;
 using Bytes = std::vector<std::uint8_t>;
 
-// Where the layout of Design/SpaceScene.md §6.2 puts the fields the refusals below change.
+// Where the layout of Design/Archive/SpaceScene.md §6.2 puts the fields the refusals below change.
 constexpr std::size_t TYPE_OFFSET = 0;
 constexpr std::size_t VERSION_OFFSET = 2;
 constexpr std::size_t SIZE_OFFSET = 4;
@@ -217,7 +217,7 @@ void ExpectRefusal(ProtocolError _expected, const Bytes& _bytes, const std::wstr
 
 } // namespace
 
-// Design/SpaceScene.md §6.2 and §15: the messages round-trip, every truncation and every refusal is refused by name,
+// Design/Archive/SpaceScene.md §6.2 and §15: the messages round-trip, every truncation and every refusal is refused by name,
 // and one message of each type is pinned to its bytes.
 TEST_CLASS(MessageTests)
 {
@@ -475,7 +475,7 @@ public:
     }
   }
 
-  // NVF's rule: unit length within 1e-4, and w >= 0 (Design/NeuronVoxelFormat.md).
+  // NVF's rule: unit length within 1e-4, and w >= 0 (Design/Archive/NeuronVoxelFormat.md).
   TEST_METHOD(RefusesRotationsThatAreNotUnit)
   {
     {
