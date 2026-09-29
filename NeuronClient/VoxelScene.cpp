@@ -5,7 +5,6 @@
 #include "GpuResources.h"
 #include "GraphicsDevice.h"
 
-#include "Fragmentation.h"
 #include "Placement.h"
 
 #include <stdexcept>
@@ -14,7 +13,7 @@
 namespace NeuronClient
 {
 
-VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models)
+VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments)
 {
   // The .vox reader accepts a turned model only for a marker, which the renderer does not draw: a marker becomes a
   // hardpoint in the .nvf (Design/Archive/NeuronVoxelFormat.md §6.1).
@@ -45,10 +44,19 @@ VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxM
   }
   m_palettes = CreateStaticBuffer(_device, std::as_bytes(std::span(m_paletteValues)), L"Palettes");
 
-  const NeuronCore::SceneFragments fragments(_models);
-  m_fragmentCount = static_cast<std::uint32_t>(fragments.Fragments().size());
-  m_fragmentOf = CreateStaticBuffer(_device, std::as_bytes(fragments.FragmentOf()), L"Fragment of each record");
-  m_fragments = CreateStaticBuffer(_device, std::as_bytes(fragments.Fragments()), L"Fragments");
+  // The shaders index the fragments by record, so a record without its fragment would read past the buffer.
+  if (_fragments.FragmentOf().size() != records.size() || _fragments.Fragments().empty())
+  {
+    throw std::invalid_argument("The scene's fragments are not of its models' records.");
+  }
+  m_fragmentCount = static_cast<std::uint32_t>(_fragments.Fragments().size());
+  m_fragmentOf = CreateStaticBuffer(_device, std::as_bytes(_fragments.FragmentOf()), L"Fragment of each record");
+  m_fragments = CreateStaticBuffer(_device, std::as_bytes(_fragments.Fragments()), L"Fragments");
+}
+
+VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models)
+  : VoxelScene(_device, _models, NeuronCore::SceneFragments(_models))
+{
 }
 
 } // namespace NeuronClient

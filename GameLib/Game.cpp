@@ -583,7 +583,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
   NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
-                                  scene.Models().Models());
+                                  scene.Models().Models(), scene.Models().Fragments());
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.

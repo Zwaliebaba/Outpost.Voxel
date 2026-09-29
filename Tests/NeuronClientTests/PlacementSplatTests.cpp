@@ -481,8 +481,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const ThreeModels three = LoadThreeModels();
-        const NeuronClient::VoxelScene scene(_device, three.models);
         const NeuronCore::SceneFragments fragments(three.models);
+        const NeuronClient::VoxelScene scene(_device, three.models, fragments);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const std::vector<Placement> detonated =
           DetonatePlacements(whole, three.models, fragments, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
@@ -508,8 +508,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const ThreeModels three = LoadThreeModels();
-        const NeuronClient::VoxelScene scene(_device, three.models);
         const NeuronCore::SceneFragments fragments(three.models);
+        const NeuronClient::VoxelScene scene(_device, three.models, fragments);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const NeuronClient::SplatPass standard(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,

@@ -37,10 +37,12 @@ D3 stands. pose(*i*, *t*) is a pure function of a voxel's index, its rest positi
 | Parameter | Default | Meaning |
 |---|---|---|
 | `blastOrigin` | the model's voxel centroid | Where the model shatters finest: where its detonation's blast comes from (§5.5) |
-| `shatterDistance` | 0.08 × the farthest voxel centre from the centroid, at least 3 voxels | A voxel this far out starts a fragment with chance ½ |
-| `growthSteps` | 10 | The most face steps a fragment grows from its start |
+| `shatterDistance` | 0.06 × the farthest voxel centre from the centroid, at least 2.5 voxels | A voxel this far out starts a fragment with chance ½ |
+| `growthSteps` | 12 | The most face steps a fragment grows from its start |
 
-The shatter distance is relative to the model's size, and was first absolute. At 12 voxels, which suits the station, the frigate went to 1,181 voxels in 902 fragments: a bubble again. At 0.08 of its size, the frigate's core was 1.3 voxels, and it broke into 40 chunks with 5 lone voxels. The floor of 3 gives it 194 fragments.
+The shatter distance is relative to the model's size, and was first absolute. At 12 voxels, which suits the station, the frigate went to 1,181 voxels in 902 fragments: a bubble again. At 0.08 of its size, the frigate's core was 1.3 voxels, and it broke into 40 chunks with 5 lone voxels. A floor of 3 gave it 194 fragments.
+
+The first cut, 0.08 of the size, a floor of 3 and 10 steps, broke the station into 8,346 fragments. On 2026-09-29 the owner asked for somewhat bigger fragments. The present defaults break it into 4,834, so a station fragment averages 47 voxels where it averaged 27. The capital ship goes from 456 fragments to 267, and the frigate from 194 to 131.
 
 **The motion** (`ExplosionPose`, per voxel, as part of its fragment *f* with pivot *p* and size scale *s*).
 - **The blast travels.** The fragment starts once the blast has crossed the model to its pivot: a delay of |*p* − origin| / `shockSpeed`. Before that it is exactly intact. So the model visibly tears outward from the blast point.
@@ -85,7 +87,7 @@ The launch speed fell from 350 to 180 to keep the envelope inside the shadow map
 - **No seed.** The envelope does not depend on the seed. So `SceneModels::Reach` still bounds a detonation before it happens, and `PlacementEnvelope` bounds one placement's.
 
 **On the GPU.**
-- **Two buffers, uploaded once** by `VoxelScene` beside the records:
+- **Two buffers, uploaded once** by `VoxelScene` beside the records, from the `SceneFragments` the client poses with:
   - `g_fragmentOf`: each record's fragment within its model, a `StructuredBuffer<uint>` parallel to the records;
   - `g_fragments`: every model's fragments, model after model, a `StructuredBuffer<Fragment>`.
 - **`Fragment`**, 16 bytes (R16): `pivot` at 0, `sizeScale` at 12. The truth is `NeuronCore/Fragmentation.h`, the mirror is `Shader/Fragment.hlsli`, and the layout echo covers it.
@@ -96,42 +98,47 @@ The launch speed fell from 350 to 180 to keep the envelope inside the shadow map
 **On the CPU.**
 - `PlacementDetonation` carries a `PartFragments`: views of its part's fragment indices and its model's fragments, with the model's first fragment in the scene and the part's radius.
 - `SceneFragments` builds them for a scene, model after model, as `SceneRecords` lays out the records. `SceneModels` holds one, and `PlacedVoxelBox` poses through it, so the scene tracer and every test pose exactly as the shader does.
+- **One breaking per scene.** The renderer takes the `SceneModels`' `SceneFragments` and uploads it, so a scene is broken once, when it loads. `VoxelScene` refuses fragments that are not of its records. A scene built without them, as in the GPU tests that pose nothing, breaks its models itself.
 
 **The station and the ships under the defaults.** Measured by a throwaway probe that ran the C++ twin over every voxel, built with GCC 13.3 at `-O2` for x86-64 in the session's Linux container. The suite logs the same figures.
 
 | | Station | Capital ship | Frigate |
 |---|---|---|---|
 | Voxels | 225,048 | 10,747 | 1,181 |
-| Fragments | 8,346 | 456 | 194 |
-| Lone voxels | 1,450 | 76 | 62 |
+| Fragments | 4,834 | 267 | 131 |
+| Lone voxels | 968 | 43 | 30 |
 | Fragments over 50 voxels | 1,294 | 54 | 4 |
-| Largest fragment | 476 | 377 | 97 |
-| Part radius *R* | 12.02 | 8.92 | 8.57 |
-| Breaking it, once at load | 72 ms | 2.1 ms | 0.2 ms |
-| Envelope radius | 455.62 | 452.51 | 452.16 |
-| Stop time | 40.40 s | 39.74 s | 39.64 s |
-| The blast crosses it in | 0.40 s | 0.10 s | 0.04 s |
-| Median displacement, all voxels | 63 | 76 | 109 |
-| Median displacement, lone voxels | 141 | 173 | 185 |
-| Median displacement, fragments of 2–50 | 85 | 99 | 116 |
-| Median displacement, fragments over 50 | 54 | 68 | 91 |
-| Launch speed at its start, 10th / 50th / 90th percentile / most | 16 / 30 / 68 / 354 | 17 / 34 / 80 / 352 | 43 / 68 / 139 / 388 |
-| Motion made by 1 s, median | 33 % | 36 % | 47 % |
-| Motion made by 5 s, median | 90 % | 90 % | 96 % |
+| Largest fragment | 765 | 632 | 118 |
+| Part radius *R* | 13.88 | 10.02 | 9.19 |
+| Breaking it, once at load | 83 ms | 2.3 ms | 0.4 ms |
+| Envelope radius | 457.47 | 453.61 | 452.79 |
+| Stop time | 40.53 s | 39.82 s | 39.69 s |
+| The blast crosses it in | 0.40 s | 0.09 s | 0.04 s |
+| Median displacement, all voxels | 57 | 75 | 103 |
+| Median displacement, lone voxels | 138 | 191 | 202 |
+| Median displacement, fragments of 2–50 | 86 | 105 | 106 |
+| Median displacement, fragments over 50 | 53 | 71 | 52 |
+| Launch speed at its start, 10th / 50th / 90th percentile / most | 14 / 25 / 52 / 342 | 20 / 32 / 64 / 332 | 23 / 59 / 122 / 390 |
+| Motion made by 1 s, median | 31 % | 33 % | 44 % |
+| Motion made by 5 s, median | 88 % | 88 % | 94 % |
 
-- **Station, by distance.** The mean size of a voxel's fragment, by eighth of the station's extent out from the blast, is 3.9, 23.3, 86.8, 149.6, 172.0, 178.0, 103.4 and 33.6 voxels. It shatters at the core and breaks into chunks farther out. The outer eighth is smaller because a thin structure there has fewer neighbours to take.
-- **Against ADR-013.** ADR-013's station debris ended 137 to 410 voxels from where it started, with a median of 250. Here the median is 63. The big chunks drift off slowly and the dust flies far, rather than every voxel riding one shell. Whether that is enough violence is the owner's call on hardware. `launchSpeed` scales all of it.
-- **The shadow map.** The station's envelope sits at 35.29 + 455.62 = 490.91 of the map's 512. `ExplosionStaysInsideItsEnvelope` holds the defaults to that.
-- **How loose the bound is.** The followed voxels reached 292 of the 455.62. The bound takes every fragment at the tail of its variation, e^(3*σ*), which few reach. It is honest, and 36 % loose.
+- **Station, by distance.** The mean size of a voxel's fragment, by eighth of the station's extent out from the blast, is 7.4, 54.1, 179.9, 253.2, 260.7, 236.7, 147.6 and 40.3 voxels. It shatters at the core and breaks into chunks farther out. The outer eighth is smaller because a thin structure there has fewer neighbours to take.
+- **Against ADR-013.** ADR-013's station debris ended 137 to 410 voxels from where it started, with a median of 250. Here the median is 57, and it was 63 with the first cut's smaller fragments. The big chunks drift off slowly and the dust flies far, rather than every voxel riding one shell. Whether that is enough violence is the owner's call on hardware. `launchSpeed` scales all of it.
+- **The shadow map.** The station's envelope sits at 35.29 + 457.47 = 492.77 of the map's 512. `ExplosionStaysInsideItsEnvelope` holds the defaults to that.
+- **How loose the bound is.** The followed voxels reached 300 of the 457.47. The bound takes every fragment at the tail of its variation, e^(3*σ*), which few reach. It is honest, and 34 % loose.
 - **How loose the stop time is.** The stop time is set by the heaviest fragments at `minDrag` 0.3, and by 1/256 of a voxel. So nine tenths of the motion is made by 5 s, and the rest to 40 s is sub-voxel creep. ADR-013's stop was 11.61 s. E and R run the clock to it, so reassembly from a full stop takes up to 40 s at normal speed.
-- **GPU memory.** 4 bytes per record, plus 16 per fragment. For the three models, 236,976 records and 8,996 fragments, that is 948 KB and 144 KB, uploaded once.
-- **Loading.** `VoxelScene` and `SceneModels` each break the models, so a scene is broken twice when it loads: about 150 ms for the station, on the probe's build. Sharing one `SceneFragments` between them is a follow-up.
+- **GPU memory.** 4 bytes per record, plus 16 per fragment. For the three models, 236,976 records and 5,232 fragments, that is 948 KB and 84 KB, uploaded once.
+- **Loading.** A scene is broken once, when it loads: 83 ms for the station, on the probe's build.
 
 **Verification in this change.**
 - **`NeuronCoreTests`**, 212 tests with `FragmentationTests` new, and **`GameLogicTests`** pass under GCC 13.3 against a throwaway stand-in for the test framework.
 - **Every shader** in `NeuronClient` and `NeuronClientTests` compiles with dxc for Linux at Shader Model 6.7, warnings as errors.
 - **clang-tidy 18** finds nothing in the changed NeuronCore and test sources.
-- **Not verified here:** the MSVC build, the ARM64 build and the WARP suites (the splat against its twin, and the layout echo), which need Windows. CI runs the Debug|x64 build and WARP. The splat tests' tolerances were set when ADR-013's motion found no pixel apart. The pose now reads two buffers and runs through Rodrigues rather than quarter turns, and CI will measure whether the tolerances still hold.
+- **On WARP in CI,** MSVC's Debug|x64 build, on 2026-09-29, with the first cut's fragments:
+  - all 286 tests passed, clang-tidy included;
+  - the oriented splats drew the block exactly as the twin poses it, at 0.1, 0.4 and 1 s and at its stop time, whole and turned, in the view and the sun's map: no pixel differed, not even on an edge;
+  - the layout echo read every field of the new `ExplosionConstants` and `Fragment` where the structs put them.
+- **Not verified:** the ARM64 and Release builds. The bigger fragments and the shared breaking had not yet been through CI when this was written.
 
 **Tests.**
 - **`FragmentationTests`:**

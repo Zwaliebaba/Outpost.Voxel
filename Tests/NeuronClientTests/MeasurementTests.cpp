@@ -137,8 +137,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         const NeuronCore::PerspectiveView view = ThreeQuarterView();
         const NeuronCore::ExplosionParameters explosion = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
         const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);

@@ -5,6 +5,8 @@
 #include <d3d12.h>
 
 #include "PaletteConstants.h"
+
+#include "Fragmentation.h"
 #include "VoxModel.h"
 
 #include <cstdint>
@@ -24,8 +26,12 @@ class GraphicsDevice;
 class VoxelScene
 {
 public:
-  // Throws std::invalid_argument for no voxel at all, and for a turned model, which the renderer never draws
-  // (Design/Archive/NeuronVoxelFormat.md §6.1).
+  // _fragments are _models' own, which the client also poses its detonated placements with, so that they are broken once.
+  // Throws std::invalid_argument for no voxel at all, for a turned model, which the renderer never draws
+  // (Design/Archive/NeuronVoxelFormat.md §6.1), and for fragments that are not of these models' records.
+  VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments);
+
+  // A scene that breaks _models itself, for one that nothing else poses.
   VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models);
 
   // The records as one StructuredBuffer<uint>.

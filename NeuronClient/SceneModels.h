@@ -33,6 +33,12 @@ public:
     return m_models;
   }
 
+  // What the models break into when they detonate, which the renderer uploads and the placements' detonations view.
+  [[nodiscard]] const NeuronCore::SceneFragments& Fragments() const noexcept
+  {
+    return m_fragments;
+  }
+
   // Appends the placements that draw _entity, one per part of its model in the order of its parts. Their ids are
   // NeuronCore::AssignVoxelIds's to give. Throws std::out_of_range for a model the welcome did not name.
   void Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements) const;

@@ -225,7 +225,7 @@ public:
     Assert::AreEqual(models.Radius(0), intact.radius, L"whole, its model's sphere");
     Assert::IsTrue(Holds(reach, intact), L"the reach holds the whole station");
 
-    // Through the flight to past the stop, 40.4 s (ADR-024).
+    // Through the flight to past the stop, 40.5 s (ADR-024).
     for (const float seconds : {0.0f, 0.5f, 2.0f, 6.0f, 12.0f, 60.0f})
     {
       entity.detonation = SampledDetonation{{1, 99u, 12, {0.0f, 0.0f, 0.0f}}, seconds};

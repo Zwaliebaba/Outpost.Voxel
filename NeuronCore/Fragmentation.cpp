@@ -27,9 +27,9 @@ constexpr std::uint32_t SITE_SALT = 0x6A09E667u;
 
 // ADR-024's defaults: the shatter distance as a fraction of the farthest a voxel center lies from the centroid, never
 // below a few voxels, and the growth steps.
-constexpr float SHATTER_FRACTION = 0.08f;
-constexpr float MIN_SHATTER_DISTANCE = 3.0f;
-constexpr std::uint32_t GROWTH_STEPS = 10u;
+constexpr float SHATTER_FRACTION = 0.06f;
+constexpr float MIN_SHATTER_DISTANCE = 2.5f;
+constexpr std::uint32_t GROWTH_STEPS = 12u;
 
 // The six face neighbors of a cell.
 constexpr std::array<std::array<std::int32_t, 3>, 6> FACE_STEPS{{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};

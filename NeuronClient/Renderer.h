@@ -23,6 +23,7 @@
 #include "VoxelScene.h"
 
 #include "DebugView.h"
+#include "Fragmentation.h"
 #include "Lighting.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
@@ -77,8 +78,9 @@ class Renderer
 public:
   static constexpr std::uint32_t FRAMES_IN_FLIGHT = 2;
 
-  // _models are the scene's, whose records and palettes the placements name (NeuronCore::SceneRecords).
-  Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models);
+  // _models are the scene's, whose records and palettes the placements name (NeuronCore::SceneRecords), and _fragments
+  // what they break into, the ones the placements' detonations view (Design/ADR/ADR-024).
+  Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;

@@ -283,8 +283,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         const std::vector<NeuronCore::Placement> whole = WholePlacements(model);
         const std::vector<NeuronCore::Placement> intact =
           DetonatePlacements(whole, {&model, 1}, fragments, NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model)), 0.0f);
@@ -318,8 +318,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
         const NeuronCore::ExplosionEnvelope envelope =
           NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f}, fragments.Part(0, 0).radius);
@@ -354,8 +354,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         std::vector<NeuronCore::Placement> whole{
           PlaceCentered(model, 0, 0, 0, NeuronCore::RotationOf({-0.4f, 0.1f, 0.3f, 0.86f}), {30.0f, -12.0f, 55.0f})};
         Assert::IsTrue(NeuronCore::AssignVoxelIds(whole));
@@ -398,8 +398,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = RandomBlock();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
         const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         const NeuronCore::ExplosionParameters parameters = BlockExplosion(model);
         const NeuronCore::ExplosionEnvelope envelope =
           NeuronCore::BoundExplosion(parameters, {0.0f, 0.0f, 0.0f}, {8.0f, 8.0f, 8.0f}, fragments.Part(0, 0).radius);

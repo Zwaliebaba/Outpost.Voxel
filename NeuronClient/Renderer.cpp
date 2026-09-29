@@ -108,7 +108,7 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
 
 } // namespace
 
-Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models)
+Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments)
   : m_device(_desc.device),
     m_rtvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, RTV_CAPACITY, false, L"Render target views"),
     m_dsvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DSV_CAPACITY, false, L"Depth stencil views"),
@@ -118,7 +118,7 @@ Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxMod
     m_targets(m_rtvHeap, m_dsvHeap, m_shaderHeap, m_cpuHeap),
     m_shadowView(_desc.shadowView),
     m_shadowMap(m_device, m_dsvHeap, m_shaderHeap, _desc.shadowView.widthPixels),
-    m_scene(m_device, _models),
+    m_scene(m_device, _models, _fragments),
     m_shadowSplat(m_device, SplatPass::Kind::Shadow),
     m_viewSplat(m_device, SplatPass::Kind::View),
     m_viewSplatPlainDepth(m_device, SplatPass::Kind::View, SplatPass::Variant::PlainDepth),

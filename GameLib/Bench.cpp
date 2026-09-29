@@ -384,7 +384,7 @@ struct Bench::Run
     scene->FitShadowView(sample);
     renderer = std::make_unique<NeuronClient::Renderer>(
       NeuronClient::RendererDesc{device, window.Handle(), BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, scene->ShadowView(), stars},
-      scene->Models().Models());
+      scene->Models().Models(), scene->Models().Fragments());
   }
 
   // Draws shot _step: frame _index of the timeline with _depth, and a measured shot unless it is a warm-up one.
