@@ -10,7 +10,7 @@
 namespace GameLogic
 {
 
-// What a class of ship can do (Design/SpaceScene.md §5.3, Design/ADR/ADR-017). The speeds are in units a second, the
+// What a class of ship can do (Design/Archive/SpaceScene.md §5.3, Design/ADR/ADR-017). The speeds are in units a second, the
 // acceleration in units a second squared, and the rates in radians a second.
 struct ShipClass
 {
@@ -47,7 +47,7 @@ struct ShipMotion
   float progress;
 };
 
-// The ship's rotation, from model space, where +Z is forward and +Y up (Design/NeuronVoxelFormat.md §12), into the
+// The ship's rotation, from model space, where +Z is forward and +Y up (Design/Archive/NeuronVoxelFormat.md §12), into the
 // world.
 [[nodiscard]] NeuronCore::Rotation ShipRotation(const ShipMotion& _motion) noexcept;
 

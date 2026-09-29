@@ -1,6 +1,6 @@
 #pragma once
 
-// The HLSL mirror of NeuronClient/PlacementConstants.h (R16, Design/SpaceScene.md §7.2, §7.3): an element of the frame's
+// The HLSL mirror of NeuronClient/PlacementConstants.h (R16, Design/Archive/SpaceScene.md §7.2, §7.3): an element of the frame's
 // structured buffer of placements. The C++ struct is the truth, and the layout echo in NeuronClientTests proves that the
 // two agree.
 struct PlacementConstants

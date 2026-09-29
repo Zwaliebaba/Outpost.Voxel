@@ -1,6 +1,6 @@
 #pragma once
 
-// The sky's functions (Design/SpaceScene.md §11): the galaxy and the sun as functions of a direction, and a star's
+// The sky's functions (Design/Archive/SpaceScene.md §11): the galaxy and the sun as functions of a direction, and a star's
 // point-spread function over a pixel. The C++ twins are in NeuronCore/Sky.h (R15), and hold the same constants.
 
 #include "Hash.hlsli"

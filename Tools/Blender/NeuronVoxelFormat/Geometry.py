@@ -1,10 +1,10 @@
 """What the Blender extension works out without Blender: NVF's axes against Blender's, the cube's 24 turns, snapping
 to the voxel grid, and the surface the preview draws.
 
-NVF is left-handed, +Y up and +Z forward (Design/NeuronVoxelFormat.md §4.1); Blender is right-handed and +Z up. A point
-(x, y, z) in one is (x, z, y) in the other, and the swap is its own inverse. The import and export operators convert
-through this module, and nothing else converts (§7). It imports nothing from Blender, so the Linux CI job tests it with
-NvfFormat.py (Design/ADR/ADR-020).
+NVF is left-handed, +Y up and +Z forward (Design/Archive/NeuronVoxelFormat.md §4.1); Blender is right-handed and +Z up.
+A point (x, y, z) in one is (x, z, y) in the other, and the swap is its own inverse. The import and export operators
+convert through this module, and nothing else converts (§7). It imports nothing from Blender, so the Linux CI job tests
+it with NvfFormat.py (Design/ADR/ADR-020).
 
 Rotations here are quaternions spelled (x, y, z, w), as NVF stores them, except where a name says Blender's order,
 (w, x, y, z).

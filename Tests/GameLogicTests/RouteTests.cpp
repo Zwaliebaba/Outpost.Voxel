@@ -46,7 +46,7 @@ constexpr float JOINT_TOLERANCE = 0.01f;
 
 } // namespace
 
-// Design/SpaceScene.md §5.2 and §15: every route closes, and keeps its flights clear of the stations; and the route's
+// Design/Archive/SpaceScene.md §5.2 and §15: every route closes, and keeps its flights clear of the stations; and the route's
 // geometry that the flight reads (Design/ADR/ADR-017): its direction, how a ship is tracked along it, and how far apart
 // two points of it lie.
 TEST_CLASS(RouteTests)

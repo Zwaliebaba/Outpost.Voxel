@@ -1,6 +1,6 @@
 # ADR-020 — NvfImport: the importer, its project, and `Tools/`
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10), and the Blender extension in `Tools/` with N-M4 · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game · **Amended by:** [ADR-023](ADR-023-tests-and-tools-folders.md), which moves `NvfImport` into `Tools/` and lets C++ live there in a tool's own folder
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M2 of [`Design/Archive/NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) (§10), and the Blender extension in `Tools/` with N-M4 · **Amends:** [ADR-002](ADR-002-voxel-record-and-palette.md)'s refusal of every rotation; [ADR-003](ADR-003-engine-and-game-layout.md)'s table of projects, which gains a tool beside the game · **Amended by:** [ADR-023](ADR-023-tests-and-tools-folders.md), which moves `NvfImport` into `Tools/` and lets C++ live there in a tool's own folder
 
 ## Context
 
@@ -121,6 +121,8 @@ The assets' previews, and how long Blender 4.2 took to import each one:
 - Imported again, both hardpoints were there.
 
 **The checklist, headless, on the frigate.** Blender 4.2.23 without its interface ran every step of `Checklist.md` on a copy of the frigate, with the extension installed from its zip as a user installs it. All 27 checks passed. The 3D cursor was placed by casting a ray onto the hull, as Shift and a right-click does. A headless run cannot look at the viewport, the panel or the dialogs, so the checklist by hand stays the owner's.
+
+**The checklist, by hand.** The owner has run `Checklist.md` by hand on the frigate and on the capital ship, and it passed, which is N-M4's done-when (NeuronVoxelFormat.md §9, §10); the owner confirmed it on 2026-09-29. The confirmation did not give the Blender version, anything that surprised, or whether the station's preview kept the viewport responsive, which the checklist lists as worth a look (NeuronVoxelFormat.md §11), so none of them is recorded here.
 
 **N-M4 in CI.** Run 36472236316 built N-M4's last commit before main's game concept was merged:
 - the Linux job's system Python passes the extension's 59 tests, and skips the 7 that need `bpy`;

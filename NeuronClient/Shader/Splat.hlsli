@@ -2,7 +2,7 @@
 
 // The splat pass (Design/Archive/SampleRenderer.md §9, §10). SplatVertex bounds each voxel's projection with a screen-space
 // rectangle, and SplatPixel intersects the pixel's ray with the voxel's box, discards a miss and writes the hit's depth,
-// and in the view splat its id and normal. A draw is one placement (Design/SpaceScene.md §7): the root constant names it
+// and in the view splat its id and normal. A draw is one placement (Design/Archive/SpaceScene.md §7): the root constant names it
 // in the frame's structured buffer of placements. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is
 // the perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes for a whole placement
 // turned by a symmetry of the cube and oriented ones for any other, posed by its detonation once it has one (§7.2,
@@ -100,7 +100,7 @@ struct SplatTargets
 };
 #endif
 
-// The box voxel _local of _placement is drawn as, whose packed record is _record (Design/SpaceScene.md §7.2, §7.7). In
+// The box voxel _local of _placement is drawn as, whose packed record is _record (Design/Archive/SpaceScene.md §7.2, §7.7). In
 // the aligned permutation, its cell's center taken into the world, which a symmetry of the cube leaves axis-aligned. In
 // the oriented one, its pose in the part's space, taken into the world: at rest while the placement is whole or its
 // detonation's time is 0, and otherwise posed, its hash counting from the model-local hash base. Rest or posed, the center
@@ -160,7 +160,7 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   float x = (corner & 1u) != 0u ? bounds.maxNdc.x : bounds.minNdc.x;
   float y = (corner & 2u) != 0u ? bounds.maxNdc.y : bounds.minNdc.y;
   varyings.position = float4(x, y, bounds.depth, 1.0);
-  // Design/SpaceScene.md §7.3: a voxel's id is its placement's first voxel's plus its index in the placement.
+  // Design/Archive/SpaceScene.md §7.3: a voxel's id is its placement's first voxel's plus its index in the placement.
   varyings.voxel = placement.firstVoxel + local;
   varyings.center = box.center;
 #if ORIENTED

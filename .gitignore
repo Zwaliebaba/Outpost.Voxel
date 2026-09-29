@@ -33,7 +33,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
-# Blender's files are scratch: the .nvf and the .vox are the source (Design/NeuronVoxelFormat.md §3)
+# Blender's files are scratch: the .nvf and the .vox are the source (Design/Archive/NeuronVoxelFormat.md §3)
 *.blend
 *.blend1
 

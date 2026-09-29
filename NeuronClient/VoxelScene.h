@@ -16,7 +16,7 @@ namespace NeuronClient
 
 class GraphicsDevice;
 
-// The scene's models on the GPU (Design/SpaceScene.md §7.1): every model's voxel records in one buffer, model after
+// The scene's models on the GPU (Design/Archive/SpaceScene.md §7.1): every model's voxel records in one buffer, model after
 // model as NeuronCore::SceneRecords lays them out, and their palettes in another, one per model, uploaded once. A model's
 // records are stored once however many placements draw them. The buffers rest in the common state and are promoted by
 // each read.
@@ -24,7 +24,7 @@ class VoxelScene
 {
 public:
   // Throws std::invalid_argument for no voxel at all, and for a turned model, which the renderer never draws
-  // (Design/NeuronVoxelFormat.md §6.1).
+  // (Design/Archive/NeuronVoxelFormat.md §6.1).
   VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models);
 
   // The records as one StructuredBuffer<uint>.

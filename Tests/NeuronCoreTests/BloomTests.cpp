@@ -74,7 +74,7 @@ void AreCloseImages(const BloomImage& _expected, const BloomImage& _actual, cons
 
 } // namespace
 
-// Bloom's twin of Design/SpaceScene.md §12.2 against §15's list: the GPU side is compared with it, level by level, in
+// Bloom's twin of Design/Archive/SpaceScene.md §12.2 against §15's list: the GPU side is compared with it, level by level, in
 // NeuronClientTests.
 TEST_CLASS(BloomTests)
 {

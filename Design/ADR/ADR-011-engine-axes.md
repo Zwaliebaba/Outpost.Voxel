@@ -1,6 +1,6 @@
 # ADR-011 — The engine's axes: Direct3D's, converted from MagicaVoxel's by the reader alone
 
-**Status:** accepted, 2026-09-28 · **Lands with:** N-M0 of [`Design/NeuronVoxelFormat.md`](../NeuronVoxelFormat.md) (§10, §12) · **Amended by:** [ADR-013](ADR-013-zero-gravity-detonation.md), which retires the ground and the explosion's gravity, and with them the explosion's 13 pinned flights and the ground's half of the pinned column · **Amends:** the axes of [ADR-002](ADR-002-voxel-record-and-palette.md)'s figures, [ADR-008](ADR-008-lighting-from-the-file.md)'s sun, ambient and ground, and [ADR-009](ADR-009-explosion-motion.md)'s motion
+**Status:** accepted, 2026-09-28 · **Lands with:** N-M0 of [`Design/Archive/NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) (§10, §12) · **Amended by:** [ADR-013](ADR-013-zero-gravity-detonation.md), which retires the ground and the explosion's gravity, and with them the explosion's 13 pinned flights and the ground's half of the pinned column · **Amends:** the axes of [ADR-002](ADR-002-voxel-record-and-palette.md)'s figures, [ADR-008](ADR-008-lighting-from-the-file.md)'s sun, ambient and ground, and [ADR-009](ADR-009-explosion-motion.md)'s motion
 
 ## Context
 

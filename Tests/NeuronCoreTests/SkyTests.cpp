@@ -75,7 +75,7 @@ constexpr float RADIANS_PER_DEGREE = 0.0174532925f;
 
 } // namespace
 
-// The sky's twins of Design/SpaceScene.md §11 against §15's list: the GPU side is compared with them in NeuronClientTests.
+// The sky's twins of Design/Archive/SpaceScene.md §11 against §15's list: the GPU side is compared with them in NeuronClientTests.
 TEST_CLASS(SkyTests)
 {
 public:

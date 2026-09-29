@@ -267,11 +267,11 @@ void Report(const std::wstring& _image, const Comparison& _comparison)
 } // namespace
 
 // The oriented splat permutations, which draw the detonation (Design/Archive/SampleRenderer.md §9.2, §14;
-// Design/SpaceScene.md §5.5).
+// Design/Archive/SpaceScene.md §5.5).
 TEST_CLASS(ExplosionSplatTests)
 {
 public:
-  // §14, Design/SpaceScene.md §5.5: at time 0 every voxel is intact, and the oriented permutations draw what the aligned
+  // §14, Design/Archive/SpaceScene.md §5.5: at time 0 every voxel is intact, and the oriented permutations draw what the aligned
   // ones do.
   TEST_METHOD(OrientedMatchesAlignedAtTimeZero)
   {
@@ -337,7 +337,7 @@ public:
       });
   }
 
-  // Design/SpaceScene.md §7.7, §15: the block turned any way and moved, detonated with a seed and an inherited velocity,
+  // Design/Archive/SpaceScene.md §7.7, §15: the block turned any way and moved, detonated with a seed and an inherited velocity,
   // against brute force over the boxes the twin poses in its part's space and takes into the world, in the view and the
   // sun's map, at several times.
   TEST_METHOD(TurnedDebrisMatchesTheTwin)

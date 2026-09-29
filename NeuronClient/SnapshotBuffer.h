@@ -13,7 +13,7 @@ namespace NeuronClient
 {
 
 // How far behind the server the client draws, in ticks of the server's clock: three, 100 ms at the default 30 a second
-// (Design/SpaceScene.md §6.4, §17 question 13). A snapshot late by less than this is drawn as if it had come on time.
+// (Design/Archive/SpaceScene.md §6.4, §17 question 13). A snapshot late by less than this is drawn as if it had come on time.
 inline constexpr double INTERPOLATION_DELAY_TICKS = 3.0;
 
 // How far back the buffer looks, in seconds: the clock's offset is the smallest over the arrivals of this long, which

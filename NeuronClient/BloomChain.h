@@ -16,7 +16,7 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// Bloom's chain (Design/SpaceScene.md §12.2): its levels, the first half the view's size and each after it half the one
+// Bloom's chain (Design/Archive/SpaceScene.md §12.2): its levels, the first half the view's size and each after it half the one
 // above, rounded up, as many as NeuronCore::BloomLevelCount gives, in the HDR color's format: about 5.5 MB at 1080p.
 // Between frames every level rests readable by every shader stage.
 class BloomChain

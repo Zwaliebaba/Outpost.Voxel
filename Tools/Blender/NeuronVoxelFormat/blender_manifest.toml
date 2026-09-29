@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
-# Outpost.Voxel's model format in Blender (Design/NeuronVoxelFormat.md §7): import an .nvf, author its hardpoints and
-# pivots, export it again.
+# Outpost.Voxel's model format in Blender (Design/Archive/NeuronVoxelFormat.md §7): import an .nvf, author its
+# hardpoints and pivots, export it again.
 id = "neuron_voxel_format"
 version = "1.0.0"
 name = "Neuron Voxel Format"

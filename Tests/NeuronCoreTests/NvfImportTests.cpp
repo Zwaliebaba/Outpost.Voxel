@@ -318,7 +318,7 @@ public:
     Assert::IsTrue(NeuronCore::SerializeNvfModel(model).has_value(), L"the model is one the writer takes");
   }
 
-  // Design/NeuronVoxelFormat.md §9: every one of the 24 proper _r values reaches the table's quaternion, which turns the
+  // Design/Archive/NeuronVoxelFormat.md §9: every one of the 24 proper _r values reaches the table's quaternion, which turns the
   // hardpoint's forward, +Z, to where MagicaVoxel's matrix, swapped into the engine's axes, sends MagicaVoxel's +Y. The
   // reader refuses the 24 reflections (VoxModelTests).
   TEST_METHOD(MapsEveryRotationThroughTheTable)
@@ -573,7 +573,7 @@ hardpoints: 4
     }
   }
 
-  // Design/NeuronVoxelFormat.md §9: each of the assets, imported over its committed .nvf, gives that file byte for byte,
+  // Design/Archive/NeuronVoxelFormat.md §9: each of the assets, imported over its committed .nvf, gives that file byte for byte,
   // so an .nvf stale against its .vox fails here as well as in CI's --check.
   TEST_METHOD(ImportsTheAssetsAsCommitted)
   {

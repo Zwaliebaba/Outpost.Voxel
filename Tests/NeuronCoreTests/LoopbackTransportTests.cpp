@@ -47,7 +47,7 @@ void ReceiveNumbered(NeuronCore::Transport& _transport, std::uint32_t _count, bo
 
 } // namespace
 
-// Design/SpaceScene.md §6.1, §6.3 and §15: the loopback delivers every message, whole and in order, both ways; closing
+// Design/Archive/SpaceScene.md §6.1, §6.3 and §15: the loopback delivers every message, whole and in order, both ways; closing
 // either end closes both; and two threads can use its ends at once.
 TEST_CLASS(LoopbackTransportTests)
 {

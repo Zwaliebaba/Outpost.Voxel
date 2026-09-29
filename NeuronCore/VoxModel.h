@@ -65,7 +65,7 @@ struct PaletteEntry
 // One placed model: a range of the record buffer, and where it sits (§3, §7.5). A model turns about its centre voxel,
 // the voxel floor(size / 2), which stays in the cell origin + floor(size / 2) however it is turned: voxel v lies in the
 // cell origin + floor(size / 2) + rotation(v - floor(size / 2)). Only a model odd in every dimension can be turned, since
-// only then is its centre voxel its middle (Design/NeuronVoxelFormat.md §5, §6.1).
+// only then is its centre voxel its middle (Design/Archive/NeuronVoxelFormat.md §5, §6.1).
 struct ModelInstance
 {
   Int3 origin; // world position of the minimum corner of voxel (0, 0, 0) as the model lies unturned: the translation minus
@@ -78,7 +78,7 @@ struct ModelInstance
 };
 
 // A validated MagicaVoxel scene, flattened into what the renderer draws. Its voxels, sizes and origins are in the
-// engine's axes, Direct3D's, left-handed with +Y up (Design/NeuronVoxelFormat.md §12): the reader swaps MagicaVoxel's
+// engine's axes, Direct3D's, left-handed with +Y up (Design/Archive/NeuronVoxelFormat.md §12): the reader swaps MagicaVoxel's
 // y and z as it reads, and keeps the records in the file's order.
 struct VoxModel
 {
@@ -97,7 +97,7 @@ struct VoxModel
 // model further than MAX_TRANSLATION from the origin, and any size or count that disagrees with its chunk.
 [[nodiscard]] std::expected<VoxModel, VoxError> ParseVoxModel(std::span<const std::uint8_t> _bytes);
 
-// A .vox file's bytes, whole: what ParseVoxModel reads, and what a welcome's manifest hashes (Design/SpaceScene.md §6.2).
+// A .vox file's bytes, whole: what ParseVoxModel reads, and what a welcome's manifest hashes (Design/Archive/SpaceScene.md §6.2).
 [[nodiscard]] std::expected<std::vector<std::uint8_t>, VoxError> ReadVoxFile(const std::filesystem::path& _path);
 
 [[nodiscard]] std::expected<VoxModel, VoxError> LoadVoxModel(const std::filesystem::path& _path);
@@ -106,11 +106,11 @@ struct VoxModel
 [[nodiscard]] Box CellBox(Int3 _minCorner) noexcept;
 
 // The box that _record, a packed record of _instance, is drawn as while the model is intact. _instance is unturned: the
-// renderer draws no turned instance (Design/NeuronVoxelFormat.md §6.1).
+// renderer draws no turned instance (Design/Archive/NeuronVoxelFormat.md §6.1).
 [[nodiscard]] Box VoxelBox(const ModelInstance& _instance, std::uint32_t _record) noexcept;
 
 // The box around every voxel of a model, in the model's own space: each voxel is the unit cell at its minimum corner, its
-// part's origin and turn included. An entity stands where the middle of its model's box is (Design/SpaceScene.md §5.1), so the
+// part's origin and turn included. An entity stands where the middle of its model's box is (Design/Archive/SpaceScene.md §5.1), so the
 // server that places it and the client that draws it measure the box through this one function.
 struct VoxelBounds
 {

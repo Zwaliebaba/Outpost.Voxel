@@ -2,7 +2,7 @@
 
 // The debug view pass (Design/Archive/SampleRenderer.md §11): one triangle over the viewport, and for each pixel the color the
 // chosen view gives it: DebugViewColor of its entry in the visibility buffer, the shadow map, or the overdraw count. A
-// pixel's voxel id leads through its placement to its record and its model's palette (Design/SpaceScene.md §7.3).
+// pixel's voxel id leads through its placement to its record and its model's palette (Design/Archive/SpaceScene.md §7.3).
 
 #include "DebugView.hlsli"
 #include "FullScreen.hlsli"

@@ -44,7 +44,7 @@ namespace
 
   if (_options.benchSeconds)
   {
-    // The bench owns time (Design/SpaceScene.md §14): the server takes a step only when the next frame needs one, and no
+    // The bench owns time (Design/Archive/SpaceScene.md §14): the server takes a step only when the next frame needs one, and no
     // thread runs.
     GameLib::Bench bench(_options.game, *_options.benchSeconds, std::format("the one-station preset, seed {}", _options.world.seed),
                          std::move(link.client));

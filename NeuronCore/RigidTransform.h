@@ -6,7 +6,7 @@ namespace NeuronCore
 {
 
 // A rotation as the images of the three unit axes: the columns of its matrix, as a Box holds its own axes
-// (Design/SpaceScene.md §7.2).
+// (Design/Archive/SpaceScene.md §7.2).
 struct Rotation
 {
   Float3 axisX;

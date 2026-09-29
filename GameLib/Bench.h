@@ -17,7 +17,7 @@ namespace GameLib
 inline constexpr std::uint32_t BENCH_WIDTH_PIXELS = 1920;
 inline constexpr std::uint32_t BENCH_HEIGHT_PIXELS = 1080;
 
-// --bench <seconds> (Design/SpaceScene.md §14), on the one-station preset until S-M8's space bench: one station and no
+// --bench <seconds> (Design/Archive/SpaceScene.md §14), on the one-station preset until S-M8's space bench: one station and no
 // ships, the camera orbiting the station at the default framing, once round over the run. The bench owns time. Frame i
 // of the timeline is at i / 60 s however long a frame takes, and before it is drawn, whoever runs the server steps it
 // until it has sent the tick the frame needs (TickNeeded). No thread runs and no wall clock enters, so every run of one

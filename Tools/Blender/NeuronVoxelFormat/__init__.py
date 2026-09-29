@@ -1,5 +1,5 @@
 """The Neuron Voxel Format in Blender: import an .nvf, author its hardpoints and pivots, and export it again
-(Design/NeuronVoxelFormat.md §7).
+(Design/Archive/NeuronVoxelFormat.md §7).
 
 Blender edits hardpoints and pivots only. The voxels, the colors and the part tree come from the file and go back to it
 unchanged (N5). NvfFormat.py is the format, the Python twin of NeuronCore's (AGENTS.md R20); Geometry.py and

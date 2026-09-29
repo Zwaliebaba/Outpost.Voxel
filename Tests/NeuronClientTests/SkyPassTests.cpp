@@ -45,7 +45,7 @@ using NeuronCore::Float2;
 using NeuronCore::Float3;
 
 // The HDR color is stored in half precision, 11 significant bits, truncated as the twin truncates it; but the GPU's exp,
-// log and sqrt differ from the CPU's by a few ulps (Design/SpaceScene.md §17), so a pixel within a float's rounding of a
+// log and sqrt differ from the CPU's by a few ulps (Design/Archive/SpaceScene.md §17), so a pixel within a float's rounding of a
 // half may be stored one step the other way, and each star it adds may add another. Four steps, and a floor for the
 // faintest galaxy; the test logs the most any pixel strays.
 constexpr float RELATIVE_TOLERANCE = 2.0e-3f;
@@ -111,7 +111,7 @@ constexpr std::array<float, 4> UNDER_THE_SKY{0.25f, 0.5f, 0.75f, 1.0f};
 
 } // namespace
 
-// The sky pass against its twins (Design/SpaceScene.md §11, §15, R15), on the depth the view splat itself wrote: the galaxy
+// The sky pass against its twins (Design/Archive/SpaceScene.md §11, §15, R15), on the depth the view splat itself wrote: the galaxy
 // and the sun in every pixel no voxel covers, the catalog's stars added over them, a bright star a voxel hides left out,
 // and every pixel a voxel covers left as it was.
 TEST_CLASS(SkyPassTests)

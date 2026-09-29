@@ -14,7 +14,7 @@
 namespace NeuronCore
 {
 
-// The messages that cross between server and client, and their encoding (Design/SpaceScene.md §6.2, Design/ADR/ADR-015).
+// The messages that cross between server and client, and their encoding (Design/Archive/SpaceScene.md §6.2, Design/ADR/ADR-015).
 // Client and server share these bytes and nothing else: every message is little-endian, and starts with a header of
 // its type, its layout's version and its whole size in bytes.
 

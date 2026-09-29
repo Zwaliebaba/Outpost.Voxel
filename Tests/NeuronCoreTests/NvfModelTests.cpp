@@ -335,7 +335,7 @@ void AreSameBytes(std::span<const std::uint8_t> _expected, std::span<const std::
 TEST_CLASS(NvfModelTests)
 {
 public:
-  // Design/NeuronVoxelFormat.md §9: the model built in code serializes to the committed golden file, byte for byte.
+  // Design/Archive/NeuronVoxelFormat.md §9: the model built in code serializes to the committed golden file, byte for byte.
   // NvfFormat.py's tests read and write the same file, so if either implementation drifts, its test fails.
   TEST_METHOD(WritesTheGoldenFile)
   {

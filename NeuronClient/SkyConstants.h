@@ -9,7 +9,7 @@
 namespace NeuronClient
 {
 
-// What the sky pass knows besides the view (R16, Design/SpaceScene.md §11.5): the sun, the galaxy's frame and noise, and
+// What the sky pass knows besides the view (R16, Design/Archive/SpaceScene.md §11.5): the sun, the galaxy's frame and noise, and
 // the two gains. This struct is the truth; Shader/SkyConstants.hlsli mirrors it, and the layout echo in NeuronClientTests
 // proves the two agree. Each float3 shares 16 bytes with a scalar, so there is no padding.
 struct SkyConstants

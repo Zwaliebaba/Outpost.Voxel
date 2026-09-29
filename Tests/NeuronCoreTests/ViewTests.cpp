@@ -30,7 +30,7 @@ void ExpectOrthonormalLeftHanded(Float3 _right, Float3 _up, Float3 _forward, con
   Assert::AreEqual(0.0f, NeuronCore::Dot(_right, _up), 1.0e-6f, _what);
   Assert::AreEqual(0.0f, NeuronCore::Dot(_right, _forward), 1.0e-6f, _what);
   Assert::AreEqual(0.0f, NeuronCore::Dot(_up, _forward), 1.0e-6f, _what);
-  // Direct3D's convention, left-handed: right × up = +forward (Design/NeuronVoxelFormat.md §12).
+  // Direct3D's convention, left-handed: right × up = +forward (Design/Archive/NeuronVoxelFormat.md §12).
   const Float3 ahead = NeuronCore::Cross(_right, _up);
   Assert::AreEqual(_forward.x, ahead.x, 1.0e-6f, _what);
   Assert::AreEqual(_forward.y, ahead.y, 1.0e-6f, _what);
@@ -101,7 +101,7 @@ public:
     }
   }
 
-  // Design/NeuronVoxelFormat.md §12.4: a camera looking along +Z with +Y up sees a voxel at +X in the right half of its
+  // Design/Archive/NeuronVoxelFormat.md §12.4: a camera looking along +Z with +Y up sees a voxel at +X in the right half of its
   // image and one at +Y in the top half. Cross products in the wrong order mirror every image, and no test that compares
   // the GPU with its twin can see that, since the two share one basis (§12.3).
   TEST_METHOD(ImagesAreNotMirrored)

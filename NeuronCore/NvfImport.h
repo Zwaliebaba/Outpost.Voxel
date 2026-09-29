@@ -14,7 +14,7 @@
 namespace NeuronCore
 {
 
-// Why a .vox could not become an .nvf (Design/NeuronVoxelFormat.md §5, §6.2, Design/ADR/ADR-019). Each refusal names
+// Why a .vox could not become an .nvf (Design/Archive/NeuronVoxelFormat.md §5, §6.2, Design/ADR/ADR-019). Each refusal names
 // the node, or for a merge the hardpoint, that it is about.
 enum class NvfImportRefusal : std::uint8_t
 {

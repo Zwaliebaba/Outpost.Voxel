@@ -6,7 +6,7 @@
 namespace NeuronClient
 {
 
-// What one dispatch of bloom's chain knows (R16, Design/SpaceScene.md §12.2), as root constants: the size of the level
+// What one dispatch of bloom's chain knows (R16, Design/Archive/SpaceScene.md §12.2), as root constants: the size of the level
 // it writes, whether it takes Karis's average, as the first halving does, and on the way up the share of the tent over
 // the level below. This struct is the truth; Shader/BloomConstants.hlsli mirrors it, and the layout echo in
 // NeuronClientTests proves the two agree.

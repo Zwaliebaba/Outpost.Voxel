@@ -7,7 +7,7 @@ namespace NeuronCore
 {
 
 // The PCG hash of Jarzynski and Olano, "Hash Functions for GPU Rendering", JCGT 9(3), 2020: the voxel index view's colors
-// and the detonation's randomness (Design/Archive/SampleRenderer.md §11, Design/SpaceScene.md §5.5). The twin of PcgHash
+// and the detonation's randomness (Design/Archive/SampleRenderer.md §11, Design/Archive/SpaceScene.md §5.5). The twin of PcgHash
 // in Shader/Hash.hlsli (R15).
 [[nodiscard]] constexpr std::uint32_t PcgHash(std::uint32_t _value) noexcept
 {
@@ -17,7 +17,7 @@ namespace NeuronCore
 }
 
 // 64-bit FNV-1a over _bytes: the hash a welcome's manifest gives each model's file, which a client checks against its
-// own file's (Design/SpaceScene.md §6.2). Not a cryptographic hash: it catches two copies of a file that differ, not an
+// own file's (Design/Archive/SpaceScene.md §6.2). Not a cryptographic hash: it catches two copies of a file that differ, not an
 // attacker.
 [[nodiscard]] constexpr std::uint64_t Fnv1aHash64(std::span<const std::uint8_t> _bytes) noexcept
 {

@@ -32,7 +32,7 @@ constexpr std::uint32_t SHADER_CAPACITY = 16 + 2 * NeuronCore::BLOOM_MAX_LEVELS;
 constexpr std::uint32_t CPU_CAPACITY = 4;
 
 // Per-frame constants to start with: a handful of 256-byte pieces and a thousand placements. A frame that needs more
-// grows its ring (Design/SpaceScene.md §7.4).
+// grows its ring (Design/Archive/SpaceScene.md §7.4).
 constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
 
 // The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, besides the placements.
@@ -44,7 +44,7 @@ static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGN
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
 // no bound: records beyond the scene's, a palette it lacks, and ids that fall back, overlap or reach NO_VOXEL, which the
-// binary search over them and the visibility buffer rely on (Design/SpaceScene.md §7.3).
+// binary search over them and the visibility buffer rely on (Design/Archive/SpaceScene.md §7.3).
 void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Placement> _placements)
 {
   std::uint64_t nextVoxel = 0;
@@ -188,7 +188,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   winrt::check_hresult(m_list->Reset(frame.allocator.get(), nullptr));
 
   // The frame's constants grow with its placements, at 64 bytes each and an aligned piece for each detonation
-  // (Design/SpaceScene.md §7.4). The GPU has finished with this slot's ring, so a larger one can take its place.
+  // (Design/Archive/SpaceScene.md §7.4). The GPU has finished with this slot's ring, so a larger one can take its place.
   const std::uint64_t neededBytes = FIXED_CONSTANTS_BYTES + SplatPlacementBytes(_placements);
   if (neededBytes > frame.constants->CapacityBytes())
   {

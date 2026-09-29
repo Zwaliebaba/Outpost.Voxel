@@ -11,7 +11,7 @@
 namespace NeuronCoreTests
 {
 
-// The station as NeuronCore drew and lit it before the engine moved to Direct3D's axes (Design/NeuronVoxelFormat.md
+// The station as NeuronCore drew and lit it before the engine moved to Direct3D's axes (Design/Archive/NeuronVoxelFormat.md
 // §12.4): pinned once, and compared ever after. Everything here is in MagicaVoxel's axes, right-handed with +Z up, as
 // the engine used them then; the tests swap it into the engine's. A throwaway program generated it from the tree at
 // 3c7dc2b with NeuronCore's tracer, explosion and lighting, compiled by GCC 13.3 at -O2 for x86-64. The explosion's
@@ -19,7 +19,7 @@ namespace NeuronCoreTests
 // they pinned (Design/ADR/ADR-013), and what is left is as it was generated.
 
 // The station's lighting, as its file's render objects gave it until the lighting came from the world
-// (Design/ADR/ADR-008, Design/SpaceScene.md §12.1), and as the pins were taken under it: a white sun at _angle 50 50 and
+// (Design/ADR/ADR-008, Design/Archive/SpaceScene.md §12.1), and as the pins were taken under it: a white sun at _angle 50 50 and
 // _i 0.7, a white sky at _i 0.7, the ground's sRGB 80 as the ambient's lower color, and a black background.
 [[nodiscard]] inline NeuronCore::LightingParameters StationLighting(float _emissiveGain) noexcept
 {

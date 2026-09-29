@@ -72,7 +72,7 @@ The box is the model's, grown by that reach and the bounding radius, from the gr
 - The title shows *t*, a scale other than 1, and "paused".
 - Fly mode's rise and sink move from E and Q, which M2 used, to Page Up and Page Down, because the design's E detonates.
 
-**Axes.** The model is written in today's axes, +Z up (§7.5). `Design/NeuronVoxelFormat.md` §12.2 lists what N-M0 converts: gravity, the contacts, the lift and the envelope's height.
+**Axes.** The model is written in today's axes, +Z up (§7.5). `Design/Archive/NeuronVoxelFormat.md` §12.2 lists what N-M0 converts: gravity, the contacts, the lift and the envelope's height.
 
 ## What this forecloses
 

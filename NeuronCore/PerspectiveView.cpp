@@ -12,7 +12,7 @@ namespace NeuronCore
 void MakeViewBasis(Float3 _forward, Float3 _worldUp, Float3& _right, Float3& _up) noexcept
 {
   // Left-handed: right × up is +forward. The cross products run in this order for that; the other order would mirror
-  // every image, and no test that compares the GPU with its twin could see it (Design/NeuronVoxelFormat.md §12.3).
+  // every image, and no test that compares the GPU with its twin could see it (Design/Archive/NeuronVoxelFormat.md §12.3).
   Float3 side = Cross(_worldUp, _forward);
   if (Dot(side, side) < 1.0e-12f)
   {

@@ -1,7 +1,8 @@
 """The golden model, built field by field: the Python twin of Tests/NeuronCoreTests/NvfGolden.cpp.
 
-Tools/Golden/Golden.nvf is what both implementations write for it, byte for byte (Design/NeuronVoxelFormat.md §9). A
-float is spelled as the C++ spells it, and passed through as_single where single precision does not hold the decimal.
+Tools/Golden/Golden.nvf is what both implementations write for it, byte for byte (Design/Archive/NeuronVoxelFormat.md
+§9). A float is spelled as the C++ spells it, and passed through as_single where single precision does not hold the
+decimal.
 """
 
 import sys
