@@ -118,7 +118,7 @@ The overlay has no depth test, so a mark shows through what stands in front of i
 - **An observer** selects, and orders nothing.
 
 **The HUD's first panels** (`GameLib::DrawHud`), on the interface. The text is Segoe UI at 15 pixels on a 96 DPI monitor, and larger in proportion on a denser one, as ADR-010's figures are. The HUD's sizes are taken as the game starts.
-- **The top bar**, across the top, shows the side, its whole ships, the world's time in minutes and seconds, and "paused" while paused.
+- **The top bar**, across the top, shows the side, its whole ships, the world's time in minutes and seconds, which stops while the world is paused, and "paused" while it is.
 - **The selection panel**, in the bottom-left corner, says how many are selected. It gives a row to each of the first 8: its composite's name and its id, then "idle", "moving" or "holding" for a ship of the side's, or "debris". With more than 8, the last row says how many more there are. A click on a row selects that entity alone.
 - **The order bar**, centred along the bottom, has five buttons: Move (M), Stop (S), Hold (H), Attack (A) and Mine (G). G is Mine's key because M is Move's.
   - Move, Stop and Hold are disabled, with "Select ships of yours first", until the selection holds a ship of the side's.

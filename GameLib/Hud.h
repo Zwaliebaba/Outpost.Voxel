@@ -25,7 +25,7 @@ struct HudFigures
 {
   std::wstring side;   // the side the session plays, by number and name, or that it observes
   std::size_t ships;   // the side's whole ships
-  double worldSeconds; // the world's time, drawn
+  double worldSeconds; // the world's time, which stops while it is paused
   bool paused;
 };
 

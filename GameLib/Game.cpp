@@ -961,10 +961,10 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
   // The HUD.
   const std::vector<SelectionRow> rows = SelectionRows(selection, _sample, _names, _states, _command.ships, side);
   _command.widgets.Begin(_hud, _input);
-  const HudRequest request =
-    DrawHud(_command.widgets, static_cast<float>(_size.widthPixels), static_cast<float>(_size.heightPixels),
-            {_sideName, orderable.size(), _sample.renderTick / static_cast<double>(_session.Buffer().TickRate()), newest.paused}, rows,
-            !observing && !_command.inspecting, canOrder, _command.commander.IsMoveArmed());
+  const HudRequest request = DrawHud(
+    _command.widgets, static_cast<float>(_size.widthPixels), static_cast<float>(_size.heightPixels),
+    {_sideName, orderable.size(), static_cast<double>(newest.worldTick) / static_cast<double>(_session.Buffer().TickRate()), newest.paused},
+    rows, !observing && !_command.inspecting, canOrder, _command.commander.IsMoveArmed());
   _command.widgets.End();
   const bool pointerIsWorlds = !_command.widgets.OwnsPointer();
   if (request.chosen.has_value())
