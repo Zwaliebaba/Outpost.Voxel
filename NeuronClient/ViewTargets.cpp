@@ -20,7 +20,9 @@ ViewTargets::ViewTargets(DescriptorHeap& _rtvHeap, DescriptorHeap& _dsvHeap, Des
     m_shaderHeap(_shaderHeap),
     m_cpuHeap(_cpuHeap),
     m_visibilityRtv(_rtvHeap.Allocate()),
+    m_hdrColorRtv(_rtvHeap.Allocate()),
     m_depthDsv(_dsvHeap.Allocate()),
+    m_depthReadOnlyDsv(_dsvHeap.Allocate()),
     m_visibilitySrv(_shaderHeap.Allocate()),
     m_visibilityUav(_shaderHeap.Allocate()),
     m_visibilityCpuUav(_cpuHeap.Allocate()),
@@ -48,8 +50,9 @@ void ViewTargets::Resize(const GraphicsDevice& _device, std::uint32_t _widthPixe
   depthClear.DepthStencil = {NeuronCore::PERSPECTIVE_FAR_DEPTH, 0};
   m_depth = CreateTexture2D(_device, DXGI_FORMAT_R32_TYPELESS, _widthPixels, _heightPixels, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
                             READABLE, &depthClear, L"View depth");
-  m_hdrColor = CreateTexture2D(_device, HDR_FORMAT, _widthPixels, _heightPixels, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, L"HDR color");
+  m_hdrColor =
+    CreateTexture2D(_device, HDR_FORMAT, _widthPixels, _heightPixels,
+                    D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, READABLE, nullptr, L"HDR color");
   m_overdraw = CreateTexture2D(_device, OVERDRAW_FORMAT, _widthPixels, _heightPixels, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, READABLE,
                                nullptr, L"Overdraw");
 
@@ -58,6 +61,8 @@ void ViewTargets::Resize(const GraphicsDevice& _device, std::uint32_t _widthPixe
   rtv.Format = VISIBILITY_FORMAT;
   rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
   device->CreateRenderTargetView(m_visibility.get(), &rtv, m_rtvHeap.Cpu(m_visibilityRtv));
+  rtv.Format = HDR_FORMAT;
+  device->CreateRenderTargetView(m_hdrColor.get(), &rtv, m_rtvHeap.Cpu(m_hdrColorRtv));
 
   D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
   srv.Format = VISIBILITY_FORMAT;
@@ -87,6 +92,8 @@ void ViewTargets::Resize(const GraphicsDevice& _device, std::uint32_t _widthPixe
   dsv.Format = DEPTH_FORMAT;
   dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
   device->CreateDepthStencilView(m_depth.get(), &dsv, m_dsvHeap.Cpu(m_depthDsv));
+  dsv.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH;
+  device->CreateDepthStencilView(m_depth.get(), &dsv, m_dsvHeap.Cpu(m_depthReadOnlyDsv));
 }
 
 void ViewTargets::BeginSplat(ID3D12GraphicsCommandList* _list) const
@@ -120,16 +127,35 @@ void ViewTargets::EndSplat(ID3D12GraphicsCommandList* _list) const
 
 void ViewTargets::BeginLighting(ID3D12GraphicsCommandList* _list) const
 {
-  const D3D12_RESOURCE_BARRIER toWrite =
-    Transition(m_hdrColor.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  const D3D12_RESOURCE_BARRIER toWrite = Transition(m_hdrColor.get(), READABLE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   _list->ResourceBarrier(1, &toWrite);
 }
 
 void ViewTargets::EndLighting(ID3D12GraphicsCommandList* _list) const
 {
-  const D3D12_RESOURCE_BARRIER toRead =
-    Transition(m_hdrColor.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  const D3D12_RESOURCE_BARRIER toRead = Transition(m_hdrColor.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, READABLE);
   _list->ResourceBarrier(1, &toRead);
+}
+
+void ViewTargets::BeginSky(ID3D12GraphicsCommandList* _list) const
+{
+  const std::array<D3D12_RESOURCE_BARRIER, 2> toDraw{Transition(m_hdrColor.get(), READABLE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+                                                     Transition(m_depth.get(), READABLE, READABLE | D3D12_RESOURCE_STATE_DEPTH_READ)};
+  _list->ResourceBarrier(static_cast<UINT>(toDraw.size()), toDraw.data());
+  const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_rtvHeap.Cpu(m_hdrColorRtv);
+  const D3D12_CPU_DESCRIPTOR_HANDLE dsv = m_dsvHeap.Cpu(m_depthReadOnlyDsv);
+  _list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+  const D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(m_widthPixels), static_cast<float>(m_heightPixels), 0.0f, 1.0f};
+  const D3D12_RECT scissor{0, 0, static_cast<LONG>(m_widthPixels), static_cast<LONG>(m_heightPixels)};
+  _list->RSSetViewports(1, &viewport);
+  _list->RSSetScissorRects(1, &scissor);
+}
+
+void ViewTargets::EndSky(ID3D12GraphicsCommandList* _list) const
+{
+  const std::array<D3D12_RESOURCE_BARRIER, 2> toRead{Transition(m_hdrColor.get(), D3D12_RESOURCE_STATE_RENDER_TARGET, READABLE),
+                                                     Transition(m_depth.get(), READABLE | D3D12_RESOURCE_STATE_DEPTH_READ, READABLE)};
+  _list->ResourceBarrier(static_cast<UINT>(toRead.size()), toRead.data());
 }
 
 void ViewTargets::BeginOverdraw(ID3D12GraphicsCommandList* _list) const

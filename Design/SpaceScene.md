@@ -1,6 +1,6 @@
 # Outpost.Voxel — Space Scene Design
 
-**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md`, the eighth adding D14 and the last by [`GameConcept.md`](GameConcept.md); S-M0, N-M0, S-M1, S-M2 and S-M3 are done, and the game concept, which the owner accepted on 2026-09-28, defers S-M5, S-M6 and S-M7 until after its slice and takes S-M8 and S-M9 into its G-M3 (§16) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; the questions of §17 are answered, the seventh revising D4 of `SampleRenderer.md`, the eighth adding D14 and the twenty-fifth by [`GameConcept.md`](GameConcept.md); S-M0, N-M0, S-M1, S-M2, S-M3 and S-M4 are done, and S-M5 is built and waits for the owner's check on hardware; the game concept, which the owner accepted on 2026-09-28, defers S-M6 and S-M7 until after its slice, as it did S-M5 until the owner chose to finish it first, and takes S-M8 and S-M9 into its G-M3 (§16) · **Date:** 2026-09-28
 **Builds on:** [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md), the renderer, and [`Archive/SampleRendererPerformance.md`](Archive/SampleRendererPerformance.md), its measured performance (§3.3); [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md) §12, the move to Direct3D's axes (N-M0, landed as [ADR-011](ADR/ADR-011-engine-axes.md)); [ADR-003](ADR/ADR-003-engine-and-game-layout.md), the client/server layout; [ADR-012](ADR/ADR-012-arm64-platform.md), ARM64 beside x64 · **Assets:** `GameData/MilitaryStation.vox`, `CapitalShip.vox`, `Frigate.vox`
 
 This document says what the space scene is and in what order it is built; `AGENTS.md` says how the code is written. The engineering decisions below land as ADRs in the commits that implement them (§18). `SampleRenderer.md` is archived as the record of what M0 to M5 built, so it is not rewritten: what this design changes there is said here (§3), and the archive's status line points to it.
@@ -327,6 +327,8 @@ The galaxy is a function of direction in the galaxy's own frame, which the welco
 
 A gain, tuned by eye, keeps it faint: a spread in the background, not a source of light.
 
+As built, the dust's lanes are clumps where its noise rises above a threshold, drawn out along the band, rather than a ridged noise, whose dust read as one even lane on the twins' renderings (ADR-021).
+
 ### 11.4 The sun
 
 The sun is a disc at the welcome's sun direction and angular radius (0.27° by default), at the sun's radiance, which the tone map clips to white. It has limb darkening, and its edge is antialiased over one pixel's angle; its glare is bloom's (§12.2). It is the same sun the lighting uses (§12.1).
@@ -359,6 +361,8 @@ On 2026-09-28 the owner asked for bloom, and revised D4 so that nothing in the l
 **The kernel** is built as Jimenez built it for *Call of Duty: Advanced Warfare* (2014). The HDR image is halved, six times at 1080p, each halving a 13-tap filter; the levels are then added back up the chain, each step a 3 × 3 tent filter, and the tone map mixes the result into the image by the share. The first halving weights its taps by 1 / (1 + luminance), Karis's average, so that one brilliant texel, a sub-pixel engine glow or a star, cannot flare and flicker as it crosses pixels. That matters until S-M6 steadies the image (§12.3), and after it too, since a flare in one frame would smear into the history.
 
 **The twin.** Every tap lands on a texel corner or a quarter of the way between texel centers, where bilinear weights are exact in the sampler's eight bits of subtexel precision. A CPU twin filtering the same image (R15) therefore agrees with the GPU to rounding, and a WARP test compares the two, texel by texel, at every level.
+
+As built (ADR-022), the taps are explicit loads, four texels with exact weights each, rather than the sampler's, whose normalized coordinates can round a tap off its corner. The levels are averaged back up the chain rather than added, so that no sum passes a half's largest value. And the twin stores every texel as Direct3D does, rounded toward zero.
 
 **The cost.** The chain is `R16G16B16A16_FLOAT` from half the view's size down, about 5.5 MB at 1080p by arithmetic. Bloom is timed as a pass of its own (§13, §14).
 
@@ -457,7 +461,7 @@ What it takes from the look is some softness where history is rejected or clampe
 | S-M1 | The retirement (§3.1): the ground gone, the explosion without gravity (§5.5), the bench's phases under the new motion, and the pins of the retired behaviors retired with them; the archived `SampleRenderer.md`'s status line pointing to what replaces its parts (§3.1); ADR-009 superseded by the detonation's ADR, and ADR-008 and ADR-011 amended | Done on 2026-09-28 (ADR-013): every suite green, and the owner has seen the station lit without a floor, detonated in zero gravity and restored |
 | S-M2 | Placements: models and palettes, rigid transforms, aligned and oriented placements, detonated placements, ids, culling and order, the scene tracer; the placements ADR | Done on 2026-09-28 (ADR-014): §15's placement tests green, and the owner has seen the station render, detonate and be restored as before, through one placement |
 | S-M3 | The messages, the transports, `ServerHost`, and `Sector` with its flight and its detonations; the two new suites; the ADR for the client/server boundary, and the layout ADR for the suites | Done on 2026-09-28 (ADR-015, ADR-016 and ADR-017): `NeuronCoreTests`, `NeuronServerTests` and `GameLogicTests` green on x64 in CI, and on ARM64 and x64 on the owner's machines |
-| S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots and events, the camera, keys, figures and command line; the space scene replaces the station sample | The owner has flown among the ships, confirmed their facing and detonated a station |
+| S-M4 | `ClientSession`, `SnapshotBuffer`, placements made from snapshots and events, the camera, keys, figures and command line; the space scene replaces the station sample | Done on 2026-09-28 (ADR-018): every suite green in CI, and the owner has flown among the ships, confirmed their facing and detonated a station |
 | S-M5 | The sky, bloom and the lighting in space; the sky ADR and the bloom ADR; ADR-008 superseded | The sky and bloom tests green; the owner has seen them on hardware |
 | S-M6 | Temporal anti-aliasing; its ADR | The resolve tests green; the owner accepts the look: lighting, sky, bloom and anti-aliasing together |
 | S-M7 | Cascades; the cascades ADR | The cascade tests green; no swimming on hardware |
@@ -466,7 +470,7 @@ What it takes from the look is some softness where history is rejected or clampe
 
 S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3 and S-M4. Bloom depends on nothing this plan adds, so it may land earlier still, even before S-M1, if the owner wants to see it sooner.
 
-**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, and with it a new order (its G22 and §12.1). S-M4 still ends with the owner's check. S-M5, S-M6 and S-M7, the look, wait until after the concept's slice, which plays without them. S-M8 and S-M9 move into its G-M3, revised: the bench measures a battle, and the levers hold on damaged placements, where §7.6 has them give way. The rows above say what each milestone delivers; the concept says when.
+**Re-planned by the game concept.** The owner accepted [`GameConcept.md`](GameConcept.md) on 2026-09-28, and with it a new order (its G22 and §12.1). S-M4 ended with the owner's check, on 2026-09-28. S-M6 and S-M7 wait until after the concept's slice, which plays without them. S-M5 was deferred with them, and the owner chose the same day, while it was being built, to finish it first (§17, question 26). S-M8 and S-M9 move into its G-M3, revised: the bench measures a battle, and the levers hold on damaged placements, where §7.6 has them give way. The rows above say what each milestone delivers; the concept says when.
 
 ## 17. Risks and open questions
 
@@ -501,6 +505,11 @@ S-M5, S-M6 and S-M7 depend only on S-M2 and N-M0, so they may run alongside S-M3
 
 25. **How N and B find the flights' leaders (§13).** No flight crosses the wire (§5.1), so the client cannot tell a leader from a wingman. A flag in the entity record's reserved half-word would have said it, at the price of a new protocol version and a game concept on the wire (S13). The game concept answers it otherwise ([`GameConcept.md`](GameConcept.md) §12.1): selection replaces the cycling, and an entity's side crosses the wire in its protocol version 2. Until its G-M2, N and B cycle every entity in the order of their ids (ADR-018).
 
+**Answered by the owner while S-M5 was built, on 2026-09-28:**
+
+26. **S-M5 runs before the game concept's slice.** The concept had deferred it with S-M6 and S-M7 (§16). The owner chose to finish it first, and S-M6 and S-M7 still wait. ADR-021 records it.
+27. **The sky uses no textures, and bloom stays the frame's only glow (§11.1, §12.2).** The owner added two sprites to `GameData/Textures`, a glow and a starburst, and asked whether the sky needs textures. It does not, and the owner kept the design; no code reads them. ADR-021 records it.
+
 No question is open.
 
 **Risks:**
@@ -515,13 +524,13 @@ No question is open.
 
 ## 18. Expected ADRs and changes to `AGENTS.md`
 
-ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation, ADR-014 to S-M2's placements, ADR-015 to ADR-017 to S-M3's boundary, suites and sector, and ADR-018 to S-M4's client, so the next free number is ADR-019.
+ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to ARM64, ADR-013 to S-M1's detonation, ADR-014 to S-M2's placements, ADR-015 to ADR-017 to S-M3's boundary, suites and sector, and ADR-018 to S-M4's client. ADR-019 and ADR-020 went to NeuronVoxelFormat's N-M1 and N-M2, and ADR-021 and ADR-022 to S-M5's sky and bloom, so the next free number is ADR-023.
 
 - **S-M1, the retirement and the detonation:** the ground gone, and the explosion without gravity, superseding ADR-009 and amending ADR-011's explosion row and ADR-008's ground; which of N-M0's pins retire with them, and why that is not re-pinning (§3.1).
 - **S-M2, placements:** rigid transforms and the choice between aligned and oriented; detonated placements; scene-wide ids, amending SampleRenderer §7.3 and ADR-006's tie rule across placements; per-model palettes; culling and order on the host; and the world's bound.
 - **S-M3, the client/server boundary** (ADR-015): the messages, the events and their validation, `Transport`, and the host's tick, threads and stepping. **The two new suites** (ADR-016), amending ADR-003's table; each has Debug and Release on x64 and ARM64, as ADR-012 requires of every project. **The sector** (ADR-017): its layout, routes, flight, formation and destruction, and their defaults.
 - **S-M4, the client's time** (ADR-018): `ClientSession` and `SnapshotBuffer`, amending ADR-015 (§6.4); with it the client's placements, the sun's view until S-M7, the camera and keys, the command line and the bench until S-M8.
-- **S-M5, the sky:** the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults. **Bloom:** the chain, its filters, the share and Karis's average, and their tuned defaults. Also the lighting from the world, superseding ADR-008.
+- **S-M5, the sky** (ADR-021): the catalog, the point-spread function, the galaxy, the sun, the pass, and their tuned defaults; with them the lighting from the world, superseding ADR-008. **Bloom** (ADR-022): the chain, its filters, the share and Karis's average, and their tuned defaults.
 - **S-M6, temporal anti-aliasing:** the jitter, the reprojection, the rejection, the resolve and its twin.
 - **S-M7, cascades:** amending SampleRenderer §10 and ADR-006's shadow section.
 - **S-M8:** whatever the numbers decide.
@@ -530,7 +539,7 @@ ADRs are numbered in order as they land. ADR-011 went to N-M0's axes, ADR-012 to
 `AGENTS.md`:
 
 - **§2's table:** `NeuronServer` and `GameLogic` say what they hold, and `NeuronServerTests` and `GameLogicTests` join the table. `.clang-tidy`'s `HeaderFilterRegex` already matches every `*Tests` folder, and CI finds suites by name, so neither changes.
-- **R15's list of twins:** the placement's pose joins the explosion's, now without gravity, and the sky's functions, the star's point-spread function, bloom's filters, the temporal resolve and the choice of cascade join them.
+- **R15's list of twins:** the placement's pose joins the explosion's, now without gravity, and the sky's functions, the star's point-spread function, bloom's filters, the temporal resolve and the choice of cascade join them. The sky's and bloom's joined with S-M5.
 - **A new rule,** accepted by the owner on 2026-09-28 (S20), added in S-M3's commit under the next free number (R18 unless NVF's has taken it): *Client and server share bytes, never objects: what the server knows reaches the client only as messages through a `Transport`, in one process as in two.* Its source is S3. Project references already keep `GameLib` away from `GameLogic`; the rule covers `Outpost`, the one project that links both.
 - **The paragraph that names the designs** names this one beside `NeuronVoxelFormat.md` as a design whose plan runs. That landed with the merge of 2026-09-28 that archived `SampleRenderer.md`.
 

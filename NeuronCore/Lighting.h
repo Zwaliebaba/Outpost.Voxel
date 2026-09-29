@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Float3.h"
+#include "Message.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
-#include "RenderSettings.h"
 #include "VoxModel.h"
 
 #include <cstdint>
@@ -17,9 +17,9 @@ namespace NeuronCore
 struct LightingParameters
 {
   Float3 toSun;       // unit, from a surface towards the sun
-  Float3 sunRadiance; // E_sun: _inf _i times the sun's color
+  Float3 sunRadiance; // E_sun: what a surface facing the sun receives
   Float3 skyColor;    // the ambient's upper end
-  float skyIntensity; // _uni _i
+  float skyIntensity; // scales both ends of the ambient
   Float3 groundColor; // the ambient's lower end
   Float3 background;  // what a ray that meets no voxel sees
   float emissiveGain; // multiplies every palette entry's emissive scale; tuned by eye (§7.2)
@@ -45,10 +45,11 @@ inline constexpr float SHADOW_NORMAL_OFFSET_TEXELS = 1.5f;
 // multiplies it. An entry that is not emissive has none.
 [[nodiscard]] float EmissiveScale(const PaletteEntry& _entry) noexcept;
 
-// The lighting a scene's settings describe, with the emissive gain the viewer chose.
-[[nodiscard]] LightingParameters MakeLightingParameters(const RenderSettings& _settings, float _emissiveGain) noexcept;
+// The lighting the world's settings describe (Design/SpaceScene.md §12.1), with the emissive gain the viewer chose: the
+// sun, and the hemisphere's two colors as they are, over a black background that the sky covers (§11.5).
+[[nodiscard]] LightingParameters MakeLightingParameters(const WorldSettings& _settings, float _emissiveGain) noexcept;
 
-// §11's hemisphere: _uni _i × lerp(ground color, sky color, ½ + ½ N.y).
+// §11's hemisphere: the intensity × lerp(lower color, upper color, ½ + ½ N.y).
 [[nodiscard]] Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept;
 
 // §11: C = albedo × (E_sun × max(0, N·S) × shadow + ambient(N)) + albedo × emissive, with the emissive scale times the

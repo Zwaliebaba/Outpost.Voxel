@@ -21,6 +21,12 @@ namespace NeuronClient
 [[nodiscard]] D3D12_SHADER_BYTECODE ViewSplatAlignedOverdrawPixelShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE ViewSplatOrientedOverdrawPixelShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE LightingComputeShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE SkyVertexShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE SkyPixelShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE StarVertexShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE StarPixelShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE BloomDownComputeShader() noexcept;
+[[nodiscard]] D3D12_SHADER_BYTECODE BloomUpComputeShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE ToneMapVertexShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE ToneMapPixelShader() noexcept;
 [[nodiscard]] D3D12_SHADER_BYTECODE DebugViewVertexShader() noexcept;

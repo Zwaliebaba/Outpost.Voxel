@@ -1,6 +1,6 @@
 # ADR-017 — The sector: layout, routes, flight and destruction
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§5, §15, §16) · **Amends:** SpaceScene §5, with what §5 left to the world's ADR, and the name of its world
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/SpaceScene.md`](../SpaceScene.md) (§5, §15, §16) · **Amends:** SpaceScene §5, with what §5 left to the world's ADR, and the name of its world · **Amended by:** [ADR-021](ADR-021-sky.md), which keeps the settings' placeholders as the sky's and the lighting's defaults
 
 ## Context
 
@@ -103,7 +103,7 @@ On the default sector's seed:
 | Frigate | 60 units/s | 30 to 75 units/s | 30 units/s² | 45°/s | 45° | 60°/s |
 | Capital ship | 20 units/s | 10 to 25 units/s | 5 units/s² | 8°/s | 15° | 10°/s |
 
-These are §5.3's defaults, with a wingman's range of half its cruise to a quarter over it, and bank rates of this ADR's own. S-M4 tunes them by eye and amends this table.
+These are §5.3's defaults, with a wingman's range of half its cruise to a quarter over it, and bank rates of this ADR's own. S-M4 was to tune them by eye and amend this table. The owner flew among the ships on 2026-09-28 and asked for no change, so they stand.
 
 **Formation.**
 - **Slots.** A flight's slots lie in its leader's frame, banked, in widths *D* of its ship, twice its sphere:

@@ -5,6 +5,7 @@
 #include "GpuResources.h"
 #include "LightingConstants.h"
 #include "ShadowViewConstants.h"
+#include "SkyConstants.h"
 #include "ViewConstants.h"
 
 #include "Sphere.h"
@@ -20,24 +21,26 @@ namespace NeuronClient
 namespace
 {
 
-// Descriptors the renderer needs, with room to spare: the visibility RTV and the back buffers; the view's and the
-// shadow map's DSVs; the visibility SRV and UAV, the depth SRV, the HDR color's SRV and UAV, the overdraw count's SRV
-// and UAV, the shadow map's SRV and the glyph atlas's SRV; and the CPU-only twins of the visibility's and the overdraw
-// count's UAVs, for their clears.
+// Descriptors the renderer needs, with room to spare: the visibility's and the HDR color's RTVs and the back buffers;
+// the view's DSV, read-write and read-only, and the shadow map's; the visibility SRV and UAV, the depth SRV, the HDR
+// color's SRV and UAV, the overdraw count's SRV and UAV, the shadow map's SRV, the glyph atlas's SRV, and an SRV and a
+// UAV for every level bloom's chain can have; and the CPU-only twins of the visibility's and the overdraw count's UAVs,
+// for their clears.
 constexpr std::uint32_t RTV_CAPACITY = 8;
 constexpr std::uint32_t DSV_CAPACITY = 4;
-constexpr std::uint32_t SHADER_CAPACITY = 16;
+constexpr std::uint32_t SHADER_CAPACITY = 16 + 2 * NeuronCore::BLOOM_MAX_LEVELS;
 constexpr std::uint32_t CPU_CAPACITY = 4;
 
 // Per-frame constants to start with: a handful of 256-byte pieces and a thousand placements. A frame that needs more
 // grows its ring (Design/SpaceScene.md §7.4).
 constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
 
-// The view's, the sun's and the lighting's constants, one aligned piece each, besides the placements.
-constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{3} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+// The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, besides the placements.
+constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{4} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
 // no bound: records beyond the scene's, a palette it lacks, and ids that fall back, overlap or reach NO_VOXEL, which the
@@ -111,12 +114,16 @@ Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxMod
     m_viewSplatOverdraw(m_device, SplatPass::Kind::View, SplatPass::Variant::Overdraw),
     m_coverage(m_device),
     m_lighting(m_device),
+    m_sky(m_device, _desc.stars),
+    m_bloomChain(m_shaderHeap),
+    m_bloom(m_device),
     m_toneMap(m_device, SwapChain::VIEW_FORMAT),
     m_debugView(m_device, SwapChain::VIEW_FORMAT),
     m_canvas(m_device, m_shaderHeap, SwapChain::VIEW_FORMAT, FRAMES_IN_FLIGHT),
     m_queries(m_device, FRAMES_IN_FLIGHT)
 {
   m_targets.Resize(m_device, _desc.widthPixels, _desc.heightPixels);
+  m_bloomChain.Resize(m_device, _desc.widthPixels, _desc.heightPixels);
   for (Frame& frame : m_frames)
   {
     winrt::check_hresult(m_device.Device()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(frame.allocator.put())));
@@ -151,6 +158,7 @@ void Renderer::Resize(std::uint32_t _widthPixels, std::uint32_t _heightPixels)
   m_device.Flush();
   m_swapChain.Resize(m_device, _widthPixels, _heightPixels);
   m_targets.Resize(m_device, _widthPixels, _heightPixels);
+  m_bloomChain.Resize(m_device, _widthPixels, _heightPixels);
 }
 
 void Renderer::SetShadowView(const NeuronCore::OrthographicView& _view)
@@ -193,6 +201,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   const D3D12_GPU_VIRTUAL_ADDRESS shadowViewConstants = frame.constants->Push(MakeShadowViewConstants(m_shadowView));
   const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants =
     frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView, placementCount));
+  const D3D12_GPU_VIRTUAL_ADDRESS skyConstants = frame.constants->Push(MakeSkyConstants(_settings.sky));
   const SplatPlacements placements = PushSplatPlacements(*frame.constants, _placements);
 
   // Each view culls the placements by their spheres; the camera draws what it keeps nearest first, and the sun in their
@@ -256,6 +265,12 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
     m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants, placements.constants);
     m_queries.EndPass(list, m_frameIndex, GpuPass::Lighting);
     m_targets.EndLighting(list);
+    m_targets.BeginSky(list);
+    m_sky.Record(list, viewConstants, skyConstants);
+    m_queries.EndPass(list, m_frameIndex, GpuPass::Sky);
+    m_targets.EndSky(list);
+    m_bloom.Record(list, m_targets, m_bloomChain);
+    m_queries.EndPass(list, m_frameIndex, GpuPass::Bloom);
   }
 
   ID3D12Resource* backBuffer = m_swapChain.CurrentBuffer();
@@ -270,7 +285,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   }
   else
   {
-    m_toneMap.Record(list, m_targets, _settings.exposure);
+    m_toneMap.Record(list, m_targets, m_bloomChain, _settings.exposure);
     m_queries.EndPass(list, m_frameIndex, GpuPass::ToneMap);
   }
   m_canvas.Record(list, m_frameIndex, WidthPixels(), HeightPixels());

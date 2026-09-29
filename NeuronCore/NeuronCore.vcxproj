@@ -157,11 +157,13 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Bloom.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
     <ClInclude Include="Explosion.h" />
     <ClInclude Include="Float3.h" />
+    <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="LoopbackTransport.h" />
@@ -175,11 +177,12 @@
     <ClInclude Include="Placement.h" />
     <ClInclude Include="Quaternion.h" />
     <ClInclude Include="Ray.h" />
-    <ClInclude Include="RenderSettings.h" />
     <ClInclude Include="RigidTransform.h" />
     <ClInclude Include="SceneTracer.h" />
+    <ClInclude Include="Sky.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="SplatBounds.h" />
+    <ClInclude Include="StarCatalog.h" />
     <ClInclude Include="ToneMap.h" />
     <ClInclude Include="TraceHit.h" />
     <ClInclude Include="Transport.h" />
@@ -188,9 +191,11 @@
     <ClInclude Include="VoxModel.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
     <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Half.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="LoopbackTransport.cpp" />
     <ClCompile Include="Message.cpp" />
@@ -204,10 +209,11 @@
     <ClCompile Include="PerspectiveView.cpp" />
     <ClCompile Include="Placement.cpp" />
     <ClCompile Include="Quaternion.cpp" />
-    <ClCompile Include="RenderSettings.cpp" />
     <ClCompile Include="RigidTransform.cpp" />
     <ClCompile Include="SceneTracer.cpp" />
+    <ClCompile Include="Sky.cpp" />
     <ClCompile Include="SplatBounds.cpp" />
+    <ClCompile Include="StarCatalog.cpp" />
     <ClCompile Include="ToneMap.cpp" />
     <ClCompile Include="VoxelGrid.cpp" />
     <ClCompile Include="VoxModel.cpp" />

@@ -7,7 +7,6 @@
 #include "PerspectiveView.h"
 #include "PinnedStation.h"
 #include "Placement.h"
-#include "RenderSettings.h"
 #include "RigidTransform.h"
 #include "SceneTracer.h"
 #include "TraceHit.h"
@@ -327,12 +326,11 @@ void ExpectPinnedImage(const wchar_t* _name, std::span<const PinnedPixel> _pinne
 }
 
 // The sun's view of the station's box that the pins were taken with.
-[[nodiscard]] NeuronCore::OrthographicView PinnedSunView(const NeuronCore::VoxModel& _model, const NeuronCore::VoxelGrid& _grid)
+[[nodiscard]] NeuronCore::OrthographicView PinnedSunView(const NeuronCore::VoxelGrid& _grid)
 {
-  const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(_model.renderObjects);
   const auto [lower, upper] = GridBox(_grid);
-  return NeuronCore::MakeShadowView(NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians),
-                                    FromPinnedAxes(PINNED_TARGET), PINNED_SUN_HALF_EXTENT, lower, upper, PINNED_SUN_PIXELS);
+  return NeuronCore::MakeShadowView(StationLighting(1.0f).toSun, FromPinnedAxes(PINNED_TARGET), PINNED_SUN_HALF_EXTENT, lower, upper,
+                                    PINNED_SUN_PIXELS);
 }
 
 void ExpectColor(Float3 _expected, Float3 _actual, const std::wstring& _what)
@@ -416,24 +414,7 @@ public:
     }
   }
 
-  // Design/Archive/SampleRenderer.md §11: the lighting reads the file's own settings, which the defaults repeat.
-  TEST_METHOD(LightsAsItsSettingsSay)
-  {
-    const NeuronCore::VoxModel model = LoadMilitaryStation();
-    const NeuronCore::RenderSettings settings = NeuronCore::ReadRenderSettings(model.renderObjects);
-    const NeuronCore::RenderSettings defaults = NeuronCore::DefaultRenderSettings();
-    Assert::AreEqual(defaults.sunElevationRadians, settings.sunElevationRadians, L"_angle 50 50");
-    Assert::AreEqual(defaults.sunAzimuthRadians, settings.sunAzimuthRadians);
-    Assert::AreEqual(0.7f, settings.sunIntensity, L"_inf _i");
-    Assert::AreEqual(0.7f, settings.skyIntensity, L"_uni _i");
-    Assert::AreEqual(1.0f, settings.sunColor.x, L"a white sun");
-    Assert::AreEqual(1.0f, settings.skyColor.z, L"a white sky");
-    Assert::AreEqual(0.0802198203f, settings.groundColor.y, 1.0e-7f, L"_ground 80 80 80, decoded");
-    Assert::AreEqual(0.0f, settings.backgroundColor.x, L"_bg 0 0 0");
-    Assert::AreEqual(1.0f, settings.exposure, L"_film _expo");
-  }
-
-  TEST_METHOD(KeepsTheRenderSettings)
+  TEST_METHOD(KeepsItsRenderObjects)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     Assert::AreEqual(std::size_t{15}, model.renderObjects.size());
@@ -700,7 +681,7 @@ public:
         camera.name, camera.pixels, grid, centers, [&view](std::uint32_t _x, std::uint32_t _y)
         { return NeuronCore::PerspectiveRay(view, _x, _y); }, view.nearPlane, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
     }
-    const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);
+    const NeuronCore::OrthographicView sun = PinnedSunView(grid);
     ExpectPinnedImage(
       L"from the sun", PINNED_FROM_THE_SUN, grid, centers, [&sun](std::uint32_t _x, std::uint32_t _y)
       { return NeuronCore::OrthographicRay(sun, _x, _y); }, 0.0f, PINNED_SUN_PIXELS, PINNED_SUN_PIXELS);
@@ -738,7 +719,7 @@ public:
         }
       }
     }
-    const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);
+    const NeuronCore::OrthographicView sun = PinnedSunView(grid);
     for (std::uint32_t y = 0; y < PINNED_SUN_PIXELS; ++y)
     {
       for (std::uint32_t x = 0; x < PINNED_SUN_PIXELS; ++x)
@@ -759,8 +740,7 @@ public:
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const NeuronCore::VoxelGrid grid(model);
-    const NeuronCore::LightingParameters lighting =
-      NeuronCore::MakeLightingParameters(NeuronCore::ReadRenderSettings(model.renderObjects), 1.0f);
+    const NeuronCore::LightingParameters lighting = StationLighting(1.0f);
     for (const PinnedShade& shade : PINNED_SHADES)
     {
       ExpectColor(shade.color, NeuronCore::ShadeSurface({1.0f, 1.0f, 1.0f}, 0.0f, FromPinnedAxes(shade.normal), 1.0f, lighting),
@@ -772,7 +752,7 @@ public:
                                       PINNED_FOV_Y_RADIANS, PINNED_NEAR_PLANE, PINNED_WIDTH_PIXELS, PINNED_HEIGHT_PIXELS);
     const std::array<float, 1> unshadowed{NeuronCore::ORTHOGRAPHIC_FAR_DEPTH};
     const NeuronCore::ShadowMapImage map{1, 1, unshadowed};
-    const NeuronCore::OrthographicView sun = PinnedSunView(model, grid);
+    const NeuronCore::OrthographicView sun = PinnedSunView(grid);
     for (std::uint32_t y = 0; y < PINNED_SKY.size(); ++y)
     {
       // No voxel, so no normal, depth, albedo or emission.

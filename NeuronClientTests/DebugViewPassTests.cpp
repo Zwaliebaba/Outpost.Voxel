@@ -20,7 +20,6 @@
 #include "OctahedralNormal.h"
 #include "PerspectiveView.h"
 #include "Placement.h"
-#include "RenderSettings.h"
 #include "TraceHit.h"
 #include "VoxModel.h"
 #include "VoxelRecord.h"
@@ -72,12 +71,10 @@ public:
         const Float3 center{0.5f, 127.5f, 0.5f};
         const NeuronCore::PerspectiveView view = NeuronCore::MakePerspectiveView(
           center + Float3{-318.43f, 260.0f, -318.43f}, center, {0.0f, 1.0f, 0.0f}, TEST_FOV_Y_RADIANS, TEST_NEAR_PLANE, 161, 91);
-        const NeuronCore::RenderSettings settings = NeuronCore::DefaultRenderSettings();
-        const NeuronCore::OrthographicView shadowView = TestShadowView(
-          model, NeuronCore::SunDirection(settings.sunElevationRadians, settings.sunAzimuthRadians), 256.0f, SHADOW_MAP_PIXELS);
+        const NeuronCore::OrthographicView shadowView = TestShadowView(model, TestWorld().toSun, 256.0f, SHADOW_MAP_PIXELS);
 
-        NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false, L"Test render target views");
-        NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 2, false, L"Test depth stencil views");
+        NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 3, false, L"Test render target views");
+        NeuronClient::DescriptorHeap dsvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 3, false, L"Test depth stencil views");
         NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 12, true, L"Test shader views");
         NeuronClient::DescriptorHeap cpuHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2, false, L"Test CPU-only views");
         NeuronClient::ViewTargets targets(rtvHeap, dsvHeap, shaderHeap, cpuHeap);

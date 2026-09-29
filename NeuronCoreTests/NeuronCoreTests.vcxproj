@@ -203,10 +203,12 @@
     <ClInclude Include="VoxFile.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomTests.cpp" />
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="CullingTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="HalfTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
     <ClCompile Include="LoopbackTransportTests.cpp" />
     <ClCompile Include="MessageTests.cpp" />
@@ -219,11 +221,12 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="PlacementTests.cpp" />
-    <ClCompile Include="RenderSettingsTests.cpp" />
     <ClCompile Include="RepositoryFile.cpp" />
     <ClCompile Include="RigidTransformTests.cpp" />
     <ClCompile Include="SceneTracerTests.cpp" />
+    <ClCompile Include="SkyTests.cpp" />
     <ClCompile Include="SplatBoundsTests.cpp" />
+    <ClCompile Include="StarCatalogTests.cpp" />
     <ClCompile Include="ToneMapTests.cpp" />
     <ClCompile Include="ViewTests.cpp" />
     <ClCompile Include="VoxelGridTests.cpp" />

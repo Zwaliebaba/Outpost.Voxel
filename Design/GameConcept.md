@@ -1,6 +1,6 @@
 # Outpost.Voxel — Game Concept
 
-**Status:** accepted by the owner, 2026-09-28; G1 to G11 are the owner's answers of that day and G20 to G27 the proposals of §13 and §14 the owner took, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14); G-M0 is done (§12.2) · **Date:** 2026-09-28
+**Status:** accepted by the owner, 2026-09-28; G1 to G11 are the owner's answers of that day and G20 to G27 the proposals of §13 and §14 the owner took, G12 to G19 are derived here from those answers, and one question, the setting, is deferred to G-M4 (§14); G-M0 is done (§12.2); the owner amended G22 the same day, finishing SpaceScene's S-M5 before the slice (§12.1) · **Date:** 2026-09-28
 **Builds on:** [`SpaceScene.md`](SpaceScene.md), the world, the client/server boundary and the renderer; [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md), parts and hardpoints; [ADR-003](ADR/ADR-003-engine-and-game-layout.md), [ADR-014](ADR/ADR-014-placements.md), [ADR-015](ADR/ADR-015-client-server-boundary.md), [ADR-017](ADR/ADR-017-sector.md) and [ADR-018](ADR/ADR-018-client.md) · **Reference game:** Warzone 2100
 
 This document says what the game is: the player's role, the match, construction, stations, the economy, combat, command and the opponent, and in what order the next phase builds them (§12). It is the parent of the technical designs that follow, one for each of its milestones; each of those says how its part is built, and `AGENTS.md` says how the code is written. It changes no code. Where it departs from `SpaceScene.md` or `NeuronVoxelFormat.md` it says so (§13), and since the owner accepted it, those documents say so too.
@@ -34,7 +34,7 @@ The engine keeps what `SpaceScene.md` built: the authoritative server on a threa
 | G19 | Ore is the voxels of asteroids: mining removes them as damage removes a hull's, so fields are finite and shrink as they are mined. | §7.1 |
 | G20 | A side loses when its station core is destroyed. | Owner, 2026-09-28; §3 |
 | G21 | Fog of war is in the slice: each side's snapshots hold only what its sensors reach, which amends ADR-015. | Owner, 2026-09-28; §9 |
-| G22 | SpaceScene's S-M5, S-M6 and S-M7 wait until after the slice; S-M8 and S-M9 move into G-M3, revised for a battle and for damage. | Owner, 2026-09-28; §12.1 |
+| G22 | SpaceScene's S-M6 and S-M7 wait until after the slice, and S-M5, which was to wait with them, is finished first; S-M8 and S-M9 move into G-M3, revised for a battle and for damage. | Owner, 2026-09-28, amended the same day for S-M5; §12.1 |
 | G23 | The in-game designer is the phase's last milestone; until it lands, designs are authored in MagicaVoxel and imported. | Owner, 2026-09-28; §12.2 |
 | G24 | One palette entry of every design and every module shows the side's color. | Owner, 2026-09-28; §5.3 |
 | G25 | Traders cannot be attacked in the slice, and deal with a side only while it alone has a ship within their trade radius. | Owner, 2026-09-28; §7.3 |
@@ -260,7 +260,7 @@ So the load moves from voxels to placements and events. The renderer was built f
 
 ### 12.1 What happens to the plans that run
 
-**`SpaceScene.md`.** S-M4 is merged and waits for the owner's check (SpaceScene §16). S-M5, S-M6 and S-M7 (the sky, bloom, temporal anti-aliasing and the cascades) are the look, and the slice plays without them, so they wait until after it (G22). S-M8's bench and S-M9's levers are what a strategic camera needs most, since a view of a sector puts most of its voxels under a pixel (SpaceScene §17). So they move into G-M3, revised: the bench measures a battle, and the levers hold on damaged placements (§11.1).
+**`SpaceScene.md`.** S-M4 is merged, and the owner checked it on 2026-09-28 (SpaceScene §16). S-M5, S-M6 and S-M7 (the sky, bloom, temporal anti-aliasing and the cascades) are the look, and the slice plays without them, so they were to wait until after it (G22). The owner chose the same day, while S-M5 was being built, to finish it first ([ADR-021](ADR/ADR-021-sky.md)); S-M6 and S-M7 still wait. S-M8's bench and S-M9's levers are what a strategic camera needs most, since a view of a sector puts most of its voxels under a pixel (SpaceScene §17). So they move into G-M3, revised: the bench measures a battle, and the levers hold on damaged placements (§11.1).
 
 **`NeuronVoxelFormat.md`.** Designs and modules are `.nvf` files, so N-M1, the format, and N-M2, the importer and the converted assets, open G-M1, with the follow-up that has `Outpost.exe` load `.nvf` instead of `.vox` (NVF §10). N-M3 and N-M4, the Python twin and the Blender extension, were to wait, since mounts on the grid are what MagicaVoxel's markers already express (§5.2); they were built alongside this concept, and the owner kept them with N-M1 and N-M2 (NeuronVoxelFormat.md §11, question 12).
 
@@ -268,7 +268,7 @@ So the load moves from voxels to placements and events. The renderer was built f
 
 ### 12.2 Milestones
 
-Each milestone gets a technical design before its code, as `AGENTS.md` asks, and its ADRs land with its commits. The next free number is ADR-021: the owner reserved ADR-019 and ADR-020 for NVF's N-M1 and N-M2 (NeuronVoxelFormat.md §10).
+Each milestone gets a technical design before its code, as `AGENTS.md` asks, and its ADRs land with its commits. The next free number is ADR-023: ADR-019 and ADR-020 went to NVF's N-M1 and N-M2, for which the owner reserved them (NeuronVoxelFormat.md §10), and ADR-021 and ADR-022 to SpaceScene's S-M5.
 
 | | Delivers | Done when |
 |---|---|---|
@@ -309,7 +309,7 @@ The owner accepted this concept on 2026-09-28. G-M0 recorded it where it changes
 12. **A battle is dozens of ships a side (G11).**
 13. **Victory comes when a side's station core is destroyed (G20, §3),** rather than when every structure and every ship is gone.
 14. **Fog of war is in the slice (G21, §9),** through snapshots that differ by side, which amends ADR-015.
-15. **S-M5, S-M6 and S-M7 wait until after the slice, and S-M8 and S-M9 move into G-M3 (G22, §12.1).**
+15. **S-M5, S-M6 and S-M7 wait until after the slice, and S-M8 and S-M9 move into G-M3 (G22, §12.1).** The owner took S-M5 out of the wait the same day, and it is finished first.
 16. **The designer comes last in the phase (G23, §12.2),** with designs authored in MagicaVoxel until then.
 17. **Materials pair with palette entries (G13, §5.3),** sixteen pairs a design, and the record's spare bits stay zero.
 18. **The side's color takes one of a design's sixteen palette entries (G24, §5.3).**

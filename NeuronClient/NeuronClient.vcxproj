@@ -172,6 +172,9 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="BloomChain.h" />
+    <ClInclude Include="BloomConstants.h" />
+    <ClInclude Include="BloomPass.h" />
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="CanvasQuad.h" />
     <ClInclude Include="CanvasShading.h" />
@@ -197,6 +200,8 @@
     <ClInclude Include="Shaders.h" />
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="ShadowViewConstants.h" />
+    <ClInclude Include="SkyConstants.h" />
+    <ClInclude Include="SkyPass.h" />
     <ClInclude Include="SnapshotBuffer.h" />
     <ClInclude Include="SplatPass.h" />
     <ClInclude Include="SwapChain.h" />
@@ -209,6 +214,8 @@
     <ClInclude Include="WindowsSdk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BloomChain.cpp" />
+    <ClCompile Include="BloomPass.cpp" />
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="CanvasShading.cpp" />
     <ClCompile Include="ClientSession.cpp" />
@@ -234,6 +241,8 @@
     <ClCompile Include="Shaders.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="ShadowViewConstants.cpp" />
+    <ClCompile Include="SkyConstants.cpp" />
+    <ClCompile Include="SkyPass.cpp" />
     <ClCompile Include="SnapshotBuffer.cpp" />
     <ClCompile Include="SplatPass.cpp" />
     <ClCompile Include="SwapChain.cpp" />
@@ -245,6 +254,16 @@
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Shader\BloomDownCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <EntryPointName>BloomDown</EntryPointName>
+      <VariableName>BLOOM_DOWN_CS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\BloomUpCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <EntryPointName>BloomUp</EntryPointName>
+      <VariableName>BLOOM_UP_CS</VariableName>
+    </FxCompile>
     <FxCompile Include="Shader\CanvasPS.hlsl">
       <ShaderType>Pixel</ShaderType>
       <EntryPointName>CanvasPixel</EntryPointName>
@@ -294,6 +313,26 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>SplatVertex</EntryPointName>
       <VariableName>SHADOW_SPLAT_ORIENTED_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ShadeSky</EntryPointName>
+      <VariableName>SKY_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\SkyVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>FullScreenVertex</EntryPointName>
+      <VariableName>SKY_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\StarPS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ShadeStar</EntryPointName>
+      <VariableName>STAR_PS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\StarVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>StarVertex</EntryPointName>
+      <VariableName>STAR_VS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\ToneMapPS.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -353,6 +392,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Shader\Bloom.hlsli" />
+    <None Include="Shader\BloomConstants.hlsli" />
+    <None Include="Shader\BloomPass.hlsli" />
     <None Include="Shader\CanvasPass.hlsli" />
     <None Include="Shader\CanvasQuad.hlsli" />
     <None Include="Shader\CanvasShading.hlsli" />
@@ -374,8 +416,12 @@
     <None Include="Shader\Ray.hlsli" />
     <None Include="Shader\RayBox.hlsli" />
     <None Include="Shader\ShadowViewConstants.hlsli" />
+    <None Include="Shader\Sky.hlsli" />
+    <None Include="Shader\SkyConstants.hlsli" />
+    <None Include="Shader\SkyPass.hlsli" />
     <None Include="Shader\Splat.hlsli" />
     <None Include="Shader\SplatBounds.hlsli" />
+    <None Include="Shader\StarRecord.hlsli" />
     <None Include="Shader\ToneMap.hlsli" />
     <None Include="Shader\ToneMapPass.hlsli" />
     <None Include="Shader\ViewConstants.hlsli" />

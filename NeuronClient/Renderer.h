@@ -4,6 +4,8 @@
 
 #include <d3d12.h>
 
+#include "BloomChain.h"
+#include "BloomPass.h"
 #include "Canvas.h"
 #include "CoveragePass.h"
 #include "DebugViewPass.h"
@@ -12,6 +14,7 @@
 #include "GraphicsDevice.h"
 #include "LightingPass.h"
 #include "ShadowMap.h"
+#include "SkyPass.h"
 #include "SplatPass.h"
 #include "SwapChain.h"
 #include "ToneMapPass.h"
@@ -24,6 +27,8 @@
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
 #include "Placement.h"
+#include "Sky.h"
+#include "StarCatalog.h"
 #include "VoxModel.h"
 
 #include <array>
@@ -42,7 +47,8 @@ struct RendererDesc
   HWND window;
   std::uint32_t widthPixels;
   std::uint32_t heightPixels;
-  NeuronCore::OrthographicView shadowView; // the sun's, fitted to the scene (§10); its size is the shadow map's
+  NeuronCore::OrthographicView shadowView;       // the sun's, fitted to the scene (§10); its size is the shadow map's
+  std::span<const NeuronCore::StarRecord> stars; // the world's catalog (Design/SpaceScene.md §11.2), copied once
 };
 
 // What a frame shows (§11, §13), and what it measures besides (§9.3, §14).
@@ -50,15 +56,17 @@ struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
   NeuronCore::LightingParameters lighting;
+  NeuronCore::SkyParameters sky; // Design/SpaceScene.md §11
   float exposure;
   bool vsync;
   bool plainDepth;    // the view splat writes SV_Depth rather than conservative depth (§9.3); the overdraw view overrides it
   bool countCoverage; // counts the pixels a voxel covers (§14)
 };
 
-// The frame of Design/Archive/SampleRenderer.md §8: the shadow splat into the shadow map and the view splat into the depth and
-// visibility buffers, then the lighting into HDR color and the tone map into the back buffer, or a debug view in
-// their place, and last the canvas over it all (§13). What the splats draw is the frame's placements
+// The frame of Design/Archive/SampleRenderer.md §8 and Design/SpaceScene.md §8: the shadow splat into the shadow map and the
+// view splat into the depth and visibility buffers, then the lighting into HDR color, the sky over every pixel no voxel
+// covers, bloom's chain from it and the tone map into the back buffer, or a debug view in their place, and last the
+// canvas over it all (§13). What the splats draw is the frame's placements
 // (Design/SpaceScene.md §7): each view culls them by their spheres and draws each it keeps with one draw, through the
 // aligned permutation when it is whole and turned by a symmetry of the cube and the oriented one otherwise, the camera
 // nearest first (§7.4). Two frames are in flight, each with its own allocator, constants, fence value and slot of
@@ -153,6 +161,9 @@ private:
   SplatPass m_viewSplatOverdraw;
   CoveragePass m_coverage;
   LightingPass m_lighting;
+  SkyPass m_sky;
+  BloomChain m_bloomChain;
+  BloomPass m_bloom;
   ToneMapPass m_toneMap;
   DebugViewPass m_debugView;
   Canvas m_canvas;

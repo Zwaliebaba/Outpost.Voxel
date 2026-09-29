@@ -58,15 +58,9 @@ float EmissiveScale(const PaletteEntry& _entry) noexcept
   return _entry.emissive ? _entry.emit * std::exp2(_entry.flux) : 0.0f;
 }
 
-LightingParameters MakeLightingParameters(const RenderSettings& _settings, float _emissiveGain) noexcept
+LightingParameters MakeLightingParameters(const WorldSettings& _settings, float _emissiveGain) noexcept
 {
-  return {SunDirection(_settings.sunElevationRadians, _settings.sunAzimuthRadians),
-          _settings.sunColor * _settings.sunIntensity,
-          _settings.skyColor,
-          _settings.skyIntensity,
-          _settings.groundColor,
-          _settings.backgroundColor,
-          _emissiveGain};
+  return {_settings.toSun, _settings.sunRadiance, _settings.ambientUpper, 1.0f, _settings.ambientLower, {0.0f, 0.0f, 0.0f}, _emissiveGain};
 }
 
 Float3 Ambient(Float3 _normal, const LightingParameters& _lighting) noexcept
