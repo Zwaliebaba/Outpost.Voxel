@@ -453,7 +453,7 @@ struct Bench::Run
     const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(session.Settings(), 1.0f);
     const std::vector<NeuronCore::Blast> blasts = scene->Blasts(sample);
     renderer->Render(camera->View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS), placements,
-                     {std::nullopt, lighting, sky, EXPOSURE, false, _depth == Depth::Plain, true, blasts});
+                     {std::nullopt, lighting, sky, EXPOSURE, false, _depth == Depth::Plain, true, blasts, false});
   }
 
   void Frame()

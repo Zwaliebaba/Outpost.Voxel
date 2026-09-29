@@ -14,7 +14,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <format>
+#include <optional>
 #include <stdexcept>
+#include <utility>
 
 namespace NeuronClient
 {
@@ -44,6 +46,9 @@ static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIG
 static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
+// A captured frame's pixels are the swap chain's as they are (Design/ADR/ADR-031).
+static_assert(SwapChain::BUFFER_FORMAT == DXGI_FORMAT_R8G8B8A8_UNORM && CAPTURED_BYTES_PER_PIXEL == 4);
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
 // no bound: records beyond the scene's, a palette it lacks, a detonation's fragments beyond the scene's, and ids that
@@ -318,7 +323,18 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   }
   m_canvas.Record(list, m_frameIndex, WidthPixels(), HeightPixels());
   m_queries.EndPass(list, m_frameIndex, GpuPass::Canvas);
-  const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+  // A capture copies the frame as it will be presented, since the flip model discards the buffer's contents when it
+  // presents it (Design/ADR/ADR-031).
+  std::optional<TextureReadback> captured;
+  D3D12_RESOURCE_STATES finished = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  if (_settings.capture)
+  {
+    const D3D12_RESOURCE_BARRIER toCopy = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    list->ResourceBarrier(1, &toCopy);
+    captured = RecordTextureReadback(m_device, list, backBuffer);
+    finished = D3D12_RESOURCE_STATE_COPY_SOURCE;
+  }
+  const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, finished, D3D12_RESOURCE_STATE_PRESENT);
   list->ResourceBarrier(1, &toPresent);
   m_queries.Resolve(list, m_frameIndex);
   winrt::check_hresult(list->Close());
@@ -327,6 +343,10 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   m_device.Queue()->ExecuteCommandLists(static_cast<UINT>(lists.size()), lists.data());
   m_swapChain.Present(_settings.vsync);
   frame.fenceValue = m_device.Signal();
+  if (captured.has_value())
+  {
+    m_capture = PendingCapture{std::move(*captured), frame.fenceValue};
+  }
   ++m_frameNumber;
   m_frameIndex = (m_frameIndex + 1) % FRAMES_IN_FLIGHT;
 }
@@ -351,6 +371,19 @@ void Renderer::FinishFrames()
       m_statistics.push_back(*statistics);
     }
   }
+}
+
+std::optional<CapturedFrame> Renderer::TakeCapture()
+{
+  if (!m_capture.has_value())
+  {
+    return std::nullopt;
+  }
+  const PendingCapture capture = std::move(*m_capture);
+  m_capture.reset();
+  m_device.WaitFor(capture.fenceValue);
+  const D3D12_SUBRESOURCE_FOOTPRINT& footprint = capture.readback.footprint.Footprint;
+  return CapturedFrame{footprint.Width, footprint.Height, ReadTextureReadback(capture.readback, CAPTURED_BYTES_PER_PIXEL)};
 }
 
 const SplatPass& Renderer::ViewSplat(SplatPass::Variant _variant) const noexcept

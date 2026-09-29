@@ -178,8 +178,10 @@
     <ClInclude Include="Canvas.h" />
     <ClInclude Include="CanvasQuad.h" />
     <ClInclude Include="CanvasShading.h" />
+    <ClInclude Include="CapturedFrame.h" />
     <ClInclude Include="ClientSession.h" />
     <ClInclude Include="Clock.h" />
+    <ClInclude Include="ComApartment.h" />
     <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="DebugViewPass.h" />
     <ClInclude Include="DescriptorHeap.h" />
@@ -219,6 +221,7 @@
     <ClCompile Include="BloomPass.cpp" />
     <ClCompile Include="Canvas.cpp" />
     <ClCompile Include="CanvasShading.cpp" />
+    <ClCompile Include="CapturedFrame.cpp" />
     <ClCompile Include="ClientSession.cpp" />
     <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />

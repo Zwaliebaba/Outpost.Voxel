@@ -7,11 +7,13 @@
 #include "BloomChain.h"
 #include "BloomPass.h"
 #include "Canvas.h"
+#include "CapturedFrame.h"
 #include "CoveragePass.h"
 #include "DebugViewPass.h"
 #include "DescriptorHeap.h"
 #include "FrameQueries.h"
 #include "GasShellPass.h"
+#include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "LightingPass.h"
 #include "ShadowMap.h"
@@ -55,7 +57,7 @@ struct RendererDesc
   std::span<const NeuronCore::StarRecord> stars; // the world's catalog (Design/Archive/SpaceScene.md §11.2), copied once
 };
 
-// What a frame shows (§11, §13), and what it measures besides (§9.3, §14).
+// What a frame shows (§11, §13), what it measures besides (§9.3, §14), and whether it is kept (Design/ADR/ADR-031).
 struct FrameSettings
 {
   std::optional<NeuronCore::DebugView> debugView; // empty: the lit image
@@ -66,6 +68,7 @@ struct FrameSettings
   bool plainDepth;    // the view splat writes SV_Depth rather than conservative depth (§9.3); the overdraw view overrides it
   bool countCoverage; // counts the pixels a voxel covers (§14)
   std::span<const NeuronCore::Blast> blasts; // the detonations whose light the frame shows (Design/ADR/ADR-025)
+  bool capture;                              // copies the frame as it is presented back to the CPU, for TakeCapture (Design/ADR/ADR-031)
 };
 
 // The frame of Design/Archive/SampleRenderer.md §8 and Design/Archive/SpaceScene.md §8: the shadow splat into the
@@ -126,6 +129,10 @@ public:
   // Waits for the GPU, so that the next TakeStatistics holds every frame rendered so far.
   void FinishFrames();
 
+  // The frame the last Render asked to capture drew, as it was presented, once the GPU has finished it (Design/ADR/ADR-031).
+  // Nothing when no frame has been captured since the last call.
+  [[nodiscard]] std::optional<CapturedFrame> TakeCapture();
+
   // The number the next Render's frame carries in its statistics: the frames rendered so far.
   [[nodiscard]] std::uint64_t NextFrame() const noexcept
   {
@@ -149,6 +156,13 @@ private:
     std::unique_ptr<UploadRing> constants;
     std::uint64_t fenceValue = 0;
     DrawCounts draws{};
+  };
+
+  // A frame's copy on its way back, and the fence value its frame signals when the GPU has finished it.
+  struct PendingCapture
+  {
+    TextureReadback readback;
+    std::uint64_t fenceValue;
   };
 
   // The view splat for the variant the frame asks for.
@@ -181,6 +195,7 @@ private:
   std::array<Frame, FRAMES_IN_FLIGHT> m_frames;
   winrt::com_ptr<ID3D12GraphicsCommandList> m_list;
   std::vector<FrameStatistics> m_statistics;
+  std::optional<PendingCapture> m_capture;
   std::uint32_t m_frameIndex = 0;
   std::uint64_t m_frameNumber = 0;
 };

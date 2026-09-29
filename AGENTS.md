@@ -140,7 +140,7 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 | Project | Kind | References | Holds |
 |---|---|---|---|
 | `NeuronCore` | static library | — | The engine core that client and server share: maths, the voxel model, the `.vox` reader, NVF's reader, writer and importer ([ADR-019](Design/ADR/ADR-019-nvf-format.md), [ADR-020](Design/ADR/ADR-020-nvf-import.md)), the C++ twins of the GPU algorithms (R15), the reference tracer. No Windows or Direct3D header. |
-| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock, and the client's session with a server and its snapshots ([ADR-018](Design/ADR/ADR-018-client.md)). Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
+| `NeuronClient` | static library | `NeuronCore` | The client engine: Direct3D 12, passes and their shaders, the canvas and its twin (R15), window, input, clock, the client's session with a server and its snapshots ([ADR-018](Design/ADR/ADR-018-client.md)), and a frame's capture to a PNG file through WIC ([ADR-031](Design/ADR/ADR-031-frame-capture.md)). Owns `WindowsSdk.h`, the one header that defines the Windows macro family (§4). |
 | `NeuronServer` | static library | `NeuronCore` | The server engine: `ServerHost`, which runs the tick and the sessions, and the `World` it simulates through ([ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). No Windows header. |
 | `GameCore` | static library | `NeuronCore` | The game that client and server share: the catalogue, the designs and their validation, and their profiles ([ADR-026](Design/ADR/ADR-026-game-core.md)). No Windows header. |
 | `GameLogic` | static library | `GameCore`, `NeuronServer`, `NeuronCore` | The game's rules, on the server side: the sector, its layout, routes, flight and detonations ([ADR-017](Design/ADR/ADR-017-sector.md)), and the skirmish ([ADR-030](Design/ADR/ADR-030-skirmish.md)). |
@@ -148,7 +148,7 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 | `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
 | `NvfImport` | console application | `NeuronCore` | `NvfImport.exe`: a `.vox` into an `.nvf`, merged with the hardpoints Blender authored, `--check` and `--dump` ([ADR-020](Design/ADR/ADR-020-nvf-import.md)). A tool of the asset pipeline, not of the game. |
 | `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
-| `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP, and the client's session and snapshots on the CPU. |
+| `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP, and on the CPU the client's session, its snapshots and a capture's PNG file. |
 | `NeuronServerTests` | test DLL | `NeuronServer`, `NeuronCore` | The server host, over a world of its own. |
 | `GameCoreTests` | test DLL | `GameCore`, `NeuronCore` | The catalogue, and the MVP's designs and their profiles, from `GameData`. |
 | `GameLogicTests` | test DLL | `GameLogic`, `GameCore`, `NeuronServer`, `NeuronCore` | The sector and the skirmish, alone and through a server host. |
