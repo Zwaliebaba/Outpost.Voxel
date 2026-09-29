@@ -2,6 +2,7 @@
 
 #include "DescriptorHeap.h"
 #include "GasShellPass.h"
+#include "GpuResources.h"
 #include "GraphicsDevice.h"
 #include "LightingConstants.h"
 #include "LightingPass.h"
