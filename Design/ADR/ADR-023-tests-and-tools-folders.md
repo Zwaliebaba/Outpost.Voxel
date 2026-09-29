@@ -1,6 +1,6 @@
 # ADR-023 — Test suites in `Tests/`, tools in `Tools/`
 
-**Status:** accepted, 2026-09-29 · **Lands with:** the checkers' update for the owner's restructure of the tree, commit c916c1e · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md), where every project lives at `<Name>/<Name>.vcxproj`, for [ADR-016](ADR-016-server-suites.md)'s suites as for the rest; and [ADR-020](ADR-020-nvf-import.md)'s `NvfImport/` and its ban on C++ in `Tools/`
+**Status:** accepted, 2026-09-29 · **Lands with:** the checkers' update for the owner's restructure of the tree, commit c916c1e · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md), where every project lives at `<Name>/<Name>.vcxproj`, for [ADR-016](ADR-016-server-suites.md)'s suites as for the rest; and [ADR-020](ADR-020-nvf-import.md)'s `NvfImport/` and its ban on C++ in `Tools/` · **Amended by:** [ADR-025](ADR-025-design-generator.md), which adds a second tool with no C++, the design generator
 
 ## Context
 

@@ -250,3 +250,9 @@ jobs:
       # From Python 3.12, unittest fails a run that finds no test.
       - name: Test the Blender extension's Python
         run: python3 -m unittest discover --start-directory Tools/Blender/NeuronVoxelFormat/Tests --pattern '*Tests.py' --verbose
+
+      # The design generator (Design/ADR/ADR-025), on the system Python. Its tests hold GameData's generated .vox files to
+      # what the generator writes, and plant the defects its checks refuse; the Windows job's model check then holds each
+      # .nvf to its .vox.
+      - name: Test the design generator
+        run: python3 -m unittest discover --start-directory Tools/DesignGenerator/Tests --pattern '*Tests.py' --verbose
