@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Sector.h"
+#include "Skirmish.h"
 
 #include "Message.h"
 
@@ -28,5 +29,11 @@ namespace GameLogicTests
 
 // The model of entity _id in _snapshot, which holds it.
 [[nodiscard]] std::uint16_t ModelOf(const NeuronCore::Snapshot& _snapshot, std::uint32_t _id);
+
+// The skirmish of _seed, from the repository's models. A refusal fails the test.
+[[nodiscard]] std::unique_ptr<GameLogic::Skirmish> MakeSkirmish(std::uint32_t _seed);
+
+// The skirmish as side _side sees it, or all of it.
+[[nodiscard]] NeuronCore::Snapshot DescribeSkirmish(const GameLogic::Skirmish& _skirmish, std::uint8_t _side = NeuronCore::OBSERVER_SIDE);
 
 } // namespace GameLogicTests

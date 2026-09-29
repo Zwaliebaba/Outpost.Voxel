@@ -754,6 +754,17 @@ public:
     Assert::IsTrue(Describe(*empty).entities.empty(), L"a sector of nothing holds nothing");
     Assert::AreEqual(std::size_t{0}, empty->FlightCount());
   }
+
+  // The sector has no commands of its own, so it refuses the game's as malformed, and none of the engine's
+  // (Design/ADR/ADR-033).
+  TEST_METHOD(RefusesTheGamesCommand)
+  {
+    const auto sector = MakeSector({.stations = 1, .frigates = 0, .capitalShips = 0});
+    const auto refusal = sector->Refuses(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {1, 2, 3}}, NeuronCore::OBSERVER_SIDE);
+    Assert::IsTrue(refusal == NeuronServer::CommandRefusal::MalformedCommand, L"the game's command");
+    Assert::IsFalse(sector->Refuses(NeuronCore::Command{NeuronCore::CommandKind::Detonate, 1, {}}, NeuronCore::OBSERVER_SIDE).has_value(),
+                    L"the engine's");
+  }
 };
 
 } // namespace GameLogicTests

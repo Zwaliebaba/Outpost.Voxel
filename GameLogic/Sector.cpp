@@ -60,13 +60,9 @@ constexpr std::uint32_t DRAWS_PER_FLIGHT = 8;
 constexpr float CAPITAL_SHIP_CRUISE = 20.0f;
 constexpr float CAPITAL_SHIP_ACCELERATION = 5.0f;
 constexpr float CAPITAL_SHIP_TURN_RATE = 8.0f * RADIANS_PER_DEGREE;
-constexpr float CAPITAL_SHIP_BANK_LIMIT = 15.0f * RADIANS_PER_DEGREE;
-constexpr float CAPITAL_SHIP_BANK_RATE = 10.0f * RADIANS_PER_DEGREE;
 constexpr float FRIGATE_CRUISE = 60.0f;
 constexpr float FRIGATE_ACCELERATION = 30.0f;
 constexpr float FRIGATE_TURN_RATE = 45.0f * RADIANS_PER_DEGREE;
-constexpr float FRIGATE_BANK_LIMIT = 45.0f * RADIANS_PER_DEGREE;
-constexpr float FRIGATE_BANK_RATE = 60.0f * RADIANS_PER_DEGREE;
 constexpr float WINGMAN_LOW_SPEED = 0.5f;
 constexpr float WINGMAN_TOP_SPEED = 1.25f;
 

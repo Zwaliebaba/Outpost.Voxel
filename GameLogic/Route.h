@@ -21,7 +21,8 @@ struct Orbit
   bool clockwise;
 };
 
-// A sphere a transit keeps out of: a station's keep-out, widened by what the flight needs around it.
+// A sphere ships keep out of: for a route, a station's keep-out, widened by what the flight needs around it; for
+// Clearances, a core's or an asteroid's own sphere.
 struct Obstacle
 {
   NeuronCore::Float3 center;

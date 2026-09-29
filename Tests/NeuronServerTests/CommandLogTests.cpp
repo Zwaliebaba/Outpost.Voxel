@@ -34,7 +34,8 @@ constexpr std::uint64_t RUN_TICKS = 10;
 
 // A run of the test world, logged, with a session of side 1, one of side 2 and an observer, in that order: side 1 pauses
 // the world at tick 2 and resumes it at tick 4, side 2's detonation of side 1's ship at tick 5 is refused, and the
-// observer detonates the ship at tick 6 and restores it at tick 8. A command's tick is the host's when it applies it,
+// observer detonates the ship at tick 6 and restores it at tick 8. Side 1 hands the world a game command at tick 3, and
+// side 2 one at tick 7 that the world refuses (Design/ADR/ADR-033). A command's tick is the host's when it applies it,
 // before the step that serves it.
 struct LoggedRun
 {
@@ -60,6 +61,9 @@ struct LoggedRun
     case 2:
       clients[0].Send(NeuronCore::Command{NeuronCore::CommandKind::Pause, 0});
       break;
+    case 3:
+      clients[0].Send(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {7, 7}});
+      break;
     case 4:
       clients[0].Send(NeuronCore::Command{NeuronCore::CommandKind::Resume, 0});
       break;
@@ -68,6 +72,9 @@ struct LoggedRun
       break;
     case 6:
       clients[2].Send(NeuronCore::Command{NeuronCore::CommandKind::Detonate, SHIP});
+      break;
+    case 7:
+      clients[1].Send(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {0xFF}});
       break;
     case 8:
       clients[2].Send(NeuronCore::Command{NeuronCore::CommandKind::Restore, SHIP});
@@ -120,10 +127,17 @@ struct LoggedRun
 }
 
 [[nodiscard]] Bytes CommandRecord(std::uint64_t _tick, std::uint64_t _worldTick, std::uint32_t _session, std::uint32_t _kind,
-                                  std::uint32_t _entity)
+                                  std::uint32_t _entity, Bytes _payload = {})
 {
   return NeuronServer::EncodeLogRecord(
-    NeuronServer::LoggedCommand{_tick, _worldTick, _session, {static_cast<NeuronCore::CommandKind>(_kind), _entity}});
+    NeuronServer::LoggedCommand{_tick, _worldTick, _session, {static_cast<NeuronCore::CommandKind>(_kind), _entity, std::move(_payload)}});
+}
+
+// _bytes without their last byte.
+[[nodiscard]] Bytes CutShort(Bytes _bytes)
+{
+  _bytes.pop_back();
+  return _bytes;
 }
 
 // The name of the refusal of _bytes, or "none" for a log that decodes.
@@ -149,9 +163,11 @@ public:
     Assert::IsTrue(log.manifest.front().name == "Frigate" && log.manifest.front().hash == 0x1234u);
     Assert::IsTrue(log.sessionSides == Bytes{1, 2, NeuronCore::OBSERVER_SIDE}, L"every session's side, in order");
 
-    // The refused command is counted and not logged; the others are, with the world tick they were applied at.
-    Assert::AreEqual(std::uint64_t{1}, run.refused);
-    const std::array<NeuronServer::LoggedCommand, 4> expected{{{2, 2, 0, {NeuronCore::CommandKind::Pause, 0}},
+    // The refused commands are counted and not logged; the others are, with the world tick they were applied at and the
+    // game's payload.
+    Assert::AreEqual(std::uint64_t{2}, run.refused);
+    const std::array<NeuronServer::LoggedCommand, 5> expected{{{2, 2, 0, {NeuronCore::CommandKind::Pause, 0}},
+                                                               {3, 2, 0, {NeuronCore::CommandKind::Game, 0, {7, 7}}},
                                                                {4, 2, 0, {NeuronCore::CommandKind::Resume, 0}},
                                                                {6, 4, 2, {NeuronCore::CommandKind::Detonate, SHIP}},
                                                                {8, 6, 2, {NeuronCore::CommandKind::Restore, SHIP}}}};
@@ -165,6 +181,7 @@ public:
       Assert::AreEqual(expected[i].session, command.session, what.c_str());
       Assert::IsTrue(expected[i].command.kind == command.command.kind, what.c_str());
       Assert::AreEqual(expected[i].command.entity, command.command.entity, what.c_str());
+      Assert::IsTrue(expected[i].command.payload == command.command.payload, what.c_str());
     }
 
     // Every tick, the hash of the observer's snapshot and then each side's, which are the bytes their sessions received.
@@ -187,7 +204,7 @@ public:
 
   TEST_METHOD(SpellsTheLogAsTheAdrDoes)
   {
-    const Bytes header{'O', 'V', 'C', 'L', 1, 0,   0,   0,                       // magic, version 1, reserved
+    const Bytes header{'O', 'V', 'C', 'L', 2, 0,   0,   0,                       // magic, version 2, reserved
                        3,   0,   0,   0,   4, 5,   6,                            // the world's description
                        1,   0,   0,   0,   7, 'F', 'r', 'i', 'g', 'a', 't', 'e', // a manifest of one model, by name
                        8,   7,   6,   5,   4, 3,   2,   1,                       // and hash
@@ -199,8 +216,18 @@ public:
                         2, 0, 0, 0, 0, 0, 0, 0, // its world tick
                         1, 0, 0, 0,             // its session
                         3, 0, 0, 0,             // a detonation
-                        7, 0, 0, 0};            // of entity 7
+                        7, 0, 0, 0,             // of entity 7
+                        0, 0, 0, 0};            // and no payload
     Assert::IsTrue(CommandRecord(3, 2, 1, 3, 7) == command, L"a command");
+
+    const Bytes gameCommand{1,                      // a command
+                            3, 0, 0, 0, 0, 0, 0, 0, // its tick
+                            2, 0, 0, 0, 0, 0, 0, 0, // its world tick
+                            1, 0, 0, 0,             // its session
+                            5, 0, 0, 0,             // the game's
+                            0, 0, 0, 0,             // naming no entity
+                            2, 0, 0, 0, 9, 8};      // and its payload of two bytes (Design/ADR/ADR-033)
+    Assert::IsTrue(CommandRecord(3, 2, 1, 5, 0, {9, 8}) == gameCommand, L"the game's command");
 
     const Bytes tick{2,                                              // a tick
                      4,    0,    0,    0,    0,    0,    0,    0,    // its number
@@ -256,7 +283,7 @@ public:
       {L"nothing", {}, "Truncated"},
       {L"a magic cut short", {'O', 'V', 'C'}, "Truncated"},
       {L"another magic", with(3, 'X'), "NotALog"},
-      {L"another version", with(4, 2), "UnsupportedVersion"},
+      {L"another version", with(4, 1), "UnsupportedVersion"},
       {L"a reserved field set", with(6, 1), "MalformedLog"},
       {L"a header cut inside the manifest", Bytes(valid.begin(), valid.begin() + 30), "Truncated"},
       {L"more models than bytes", manyModels, "Truncated"},
@@ -272,9 +299,13 @@ public:
       {L"a world tick past the tick", Joined({Header(), TickRecord(1), CommandRecord(1, 2, 0, 1, 0)}), "MalformedLog"},
       {L"a session the log does not have", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 2, 1, 0)}), "MalformedLog"},
       {L"a command of no kind", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 0, 0)}), "MalformedLog"},
-      {L"a command of a kind past the last", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 5, 7)}), "MalformedLog"},
+      {L"a command of a kind past the last", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 6, 7)}), "MalformedLog"},
       {L"a pause that names an entity", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 1, 7)}), "MalformedLog"},
-      {L"a detonation that names none", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 3, 0)}), "MalformedLog"}};
+      {L"a detonation that names none", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 3, 0)}), "MalformedLog"},
+      {L"a detonation with a payload", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 3, 7, {1})}), "MalformedLog"},
+      {L"the game's command without a payload", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 5, 0)}), "MalformedLog"},
+      {L"the game's command naming an entity", Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 5, 7, {1})}), "MalformedLog"},
+      {L"a payload cut short", CutShort(Joined({Header(), TickRecord(1), CommandRecord(1, 1, 0, 5, 0, {1, 2, 3})})), "Truncated"}};
     for (const Case& refused : cases)
     {
       Assert::AreEqual(std::string(refused.expected), RefusalOf(refused.bytes), refused.what);
@@ -292,7 +323,7 @@ public:
     TestWorld fresh;
     const NeuronServer::ReplayOutcome outcome = NeuronServer::Replay(fresh, Decoded(run.log));
     Assert::AreEqual(RUN_TICKS, outcome.ticks, L"every tick replayed");
-    Assert::AreEqual(std::size_t{4}, outcome.commands, L"every logged command sent again");
+    Assert::AreEqual(std::size_t{5}, outcome.commands, L"every logged command sent again");
     Assert::IsFalse(outcome.firstDifference.has_value(), L"and every tick matched");
 
     // A command the log holds after its last tick, of a step it did not finish, is neither sent nor compared.
@@ -301,7 +332,7 @@ public:
     unfinished.insert(unfinished.end(), trailing.begin(), trailing.end());
     TestWorld again;
     const NeuronServer::ReplayOutcome cut = NeuronServer::Replay(again, Decoded(unfinished));
-    Assert::AreEqual(std::size_t{4}, cut.commands, L"the unfinished step's command is not sent");
+    Assert::AreEqual(std::size_t{5}, cut.commands, L"the unfinished step's command is not sent");
     Assert::IsFalse(cut.firstDifference.has_value(), L"and not compared");
   }
 
@@ -313,13 +344,13 @@ public:
     Assert::IsTrue(NeuronServer::Replay(moved, Decoded(run.log)).firstDifference == 1u, L"a world made otherwise parts at once");
 
     NeuronServer::CommandLog missing = Decoded(run.log);
-    missing.commands.erase(missing.commands.begin() + 2);
+    missing.commands.erase(missing.commands.begin() + 3);
     TestWorld withoutDetonation;
     Assert::IsTrue(NeuronServer::Replay(withoutDetonation, missing).firstDifference == 7u,
                    L"a log without the detonation parts from the snapshot after it");
 
     NeuronServer::CommandLog refused = Decoded(run.log);
-    refused.commands[2].session = 1;
+    refused.commands[3].session = 1;
     TestWorld fromSide2;
     Assert::IsTrue(NeuronServer::Replay(fromSide2, refused).firstDifference == 6u,
                    L"a detonation sent from side 2 is refused, and the commands part at its tick");

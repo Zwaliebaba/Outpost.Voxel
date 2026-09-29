@@ -243,6 +243,26 @@ public:
     Assert::AreEqual(std::size_t{1}, SnapshotsOf(first.ReceiveAll()).back().detonations.size(), L"and it detonates the ship");
   }
 
+  // Design/ADR/ADR-033: the game's own commands reach the world with the side they came from, unread by the host, unless
+  // the world refuses them, which is counted as any refusal is.
+  TEST_METHOD(HandsTheWorldTheGamesCommands)
+  {
+    TestWorld world;
+    NeuronServer::ServerHost host(world);
+    const Client first = Join(host, 1);
+    const Client second = Join(host, 2);
+    const Client observer = Join(host, NeuronCore::OBSERVER_SIDE);
+    host.Step();
+    first.Send(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {1, 2, 3}});
+    second.Send(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {0xFF}});
+    observer.Send(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {4}});
+    host.Step();
+    Assert::IsTrue(world.gameCommands == std::vector<Bytes>{{1, 2, 3}, {4}}, L"the world's commands, byte for byte");
+    Assert::IsTrue(world.gameCommandSides == std::vector<std::uint8_t>{1, NeuronCore::OBSERVER_SIDE}, L"with their sides");
+    Assert::AreEqual(std::uint64_t{1}, host.RefusedCommands(), L"the one the world refused, counted");
+    Assert::AreEqual(std::size_t{3}, host.SessionCount(), L"and nobody closed");
+  }
+
   // A session plays one of the world's sides or observes: side 3 of a world of two is a caller's mistake, and a session
   // that joins once the host logs would be missing from its log.
   TEST_METHOD(TakesASessionOnlyOfASideTheWorldHas)

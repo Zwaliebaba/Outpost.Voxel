@@ -81,6 +81,10 @@ void TestWorld::Restore(std::uint32_t _entity)
 
 std::optional<NeuronServer::CommandRefusal> TestWorld::Refuses(const NeuronCore::Command& _command, std::uint8_t _side) const
 {
+  if (_command.kind == NeuronCore::CommandKind::Game)
+  {
+    return _command.payload.front() == 0xFF ? std::optional(NeuronServer::CommandRefusal::MalformedCommand) : std::nullopt;
+  }
   const bool namesEntity = _command.kind == NeuronCore::CommandKind::Detonate || _command.kind == NeuronCore::CommandKind::Restore;
   const std::uint8_t owner = _command.entity == SHIP ? 1 : (_command.entity == ENEMY ? 2 : 0);
   if (namesEntity && _side != NeuronCore::OBSERVER_SIDE && owner != 0 && owner != _side)
@@ -88,6 +92,12 @@ std::optional<NeuronServer::CommandRefusal> TestWorld::Refuses(const NeuronCore:
     return NeuronServer::CommandRefusal::OtherSidesEntity;
   }
   return std::nullopt;
+}
+
+void TestWorld::ApplyGameCommand(std::span<const std::uint8_t> _payload, std::uint8_t _side)
+{
+  gameCommands.emplace_back(_payload.begin(), _payload.end());
+  gameCommandSides.push_back(_side);
 }
 
 void TestWorld::Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const

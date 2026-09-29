@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Clearances.h"
+#include "ShipMotion.h"
+
 #include "World.h"
 
 #include "Float3.h"
@@ -51,8 +54,9 @@ struct SkirmishError
 // cores and the ships are their designs' composites, of their sides; the asteroids are their models alone, of none. Its
 // welcome names the models, the composites of every design of the catalogue and of every asteroid, the sides' colors, and
 // in its payload their names. Each side sees its own entities and what their sensors reach, and a command on the other
-// side's entity is refused (Design/ADR/ADR-032). Until phase 4 nothing moves: the ships hold station, and an entity
-// detonates and is restored only on command, as the sector's do.
+// side's entity is refused (Design/ADR/ADR-032). A side orders its ships to move, stop or hold, and they fly to their
+// orders on the plane, around the cores and the asteroids, a group as one (Design/ADR/ADR-033); each side's snapshots
+// carry its ships' orders in their payload. An entity detonates and is restored only on command, as the sector's do.
 class Skirmish final : public NeuronServer::World
 {
 public:
@@ -76,13 +80,47 @@ public:
   void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override;
   void Restore(std::uint32_t _entity) override;
 
-  // A detonation or a restore of the other side's entity (G34). An observer is no side, and an asteroid no side's.
+  // A detonation or a restore of the other side's entity (G34), and an order (ADR-033) that does not decode, names an
+  // entity that is no ship, or names another side's ship. An observer is no side, and an asteroid no side's.
   [[nodiscard]] std::optional<NeuronServer::CommandRefusal> Refuses(const NeuronCore::Command& _command, std::uint8_t _side) const override;
 
+  // An order, which Refuses has let pass: a ship detonated since is left out of it.
+  void ApplyGameCommand(std::span<const std::uint8_t> _payload, std::uint8_t _side) override;
+
+  // The entities the side sees, and in the payload its ships' order states (GameCore::EncodeOrderStates): every side's
+  // for the observer.
   void Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const override;
 
 private:
   Skirmish() = default;
+
+  // What a ship is doing: nothing, flying to a move's destination, or holding where it halted.
+  enum class Stance : std::uint8_t
+  {
+    Idle,
+    Moving,
+    Holding
+  };
+
+  // What a ship design flies with on the plane (ADR-033): its limits, and its clearances of the cores and the asteroids.
+  struct ShipDesign
+  {
+    ShipClass limits;
+    Clearances clearances;
+  };
+
+  // A ship and its flight on the plane (ADR-033).
+  struct Ship
+  {
+    std::size_t entity; // its index in m_entities
+    std::size_t design; // its index in m_designs
+    ShipMotion motion;
+    Stance stance;
+    std::vector<NeuronCore::Float3> path; // a move's: where it was ordered from, the corners, then its destination
+    std::size_t next;                     // the point of the path it steers for
+    float pace;                           // the speed its group's move holds it to
+    ShipClass limits;                     // its design's, with its group's acceleration and turn while it moves with one
+  };
 
   struct Entity
   {
@@ -94,6 +132,25 @@ private:
     std::optional<NeuronCore::DetonationEvent> detonation;
   };
 
+  // The index in m_ships of the whole ship entity _id is, or of none: an id the skirmish does not hold, an entity that is
+  // no ship, or a ship that has detonated.
+  [[nodiscard]] std::optional<std::size_t> WholeShip(std::uint32_t _id) const noexcept;
+
+  // Moves the whole ships of _ships to (_targetX, _targetZ), as a group that keeps its members' offsets from its middle.
+  void Move(std::span<const std::uint32_t> _ships, float _targetX, float _targetZ);
+
+  // Halts the whole ships of _ships, which then idle or hold.
+  void Halt(std::span<const std::uint32_t> _ships, Stance _stance);
+
+  // Ends _ship's move, if it has one, and leaves it in _stance with its design's limits.
+  void EndMove(Ship& _ship, Stance _stance) const noexcept;
+
+  // What moving ship _ship steers by to keep apart from the other whole ships, from where they all are.
+  [[nodiscard]] NeuronCore::Float3 Avoidance(std::size_t _ship) const noexcept;
+
+  // Whether moving ship _ship has come as near its destination as a ship halted at it lets it.
+  [[nodiscard]] bool DestinationTaken(std::size_t _ship) const noexcept;
+
   // Whether side _side sees _entity (G21, ADR-032): an observer sees everything, and a side its own entities and every
   // entity whose middle lies within the sensor range of one of its intact entities, measured from that entity's middle.
   [[nodiscard]] bool Sees(std::uint8_t _side, const Entity& _entity) const noexcept;
@@ -104,7 +161,10 @@ private:
   std::vector<NeuronCore::CompositeModel> m_composites;
   std::vector<NeuronCore::SideColor> m_sides;
   std::vector<std::uint8_t> m_welcomePayload;
-  std::vector<Entity> m_entities; // an entity's id is its index plus one
+  std::vector<Entity> m_entities;    // an entity's id is its index plus one
+  std::vector<ShipDesign> m_designs; // the catalogue's ship designs, in its order
+  std::vector<Ship> m_ships;         // in the order of their entities
+  std::vector<std::size_t> m_shipOf; // by entity: its index in m_ships, or the largest std::size_t for one that is no ship
   std::uint32_t m_detonations = 0;
 };
 

@@ -1,6 +1,6 @@
 # ADR-017 — The sector: layout, routes, flight and destruction
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§5, §15, §16) · **Amends:** SpaceScene §5, with what §5 left to the world's ADR, and the name of its world · **Amended by:** [ADR-021](ADR-021-sky.md), which keeps the settings' placeholders as the sky's and the lighting's defaults
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§5, §15, §16) · **Amends:** SpaceScene §5, with what §5 left to the world's ADR, and the name of its world · **Amended by:** [ADR-021](ADR-021-sky.md), which keeps the settings' placeholders as the sky's and the lighting's defaults; and [ADR-033](ADR-033-orders-and-flight.md), whose ships fly this flight on the plane with limits from their profiles, and which lifts the foreclosure of a ship that steers across its route for ships that have none
 
 ## Context
 

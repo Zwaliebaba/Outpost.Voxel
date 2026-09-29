@@ -215,6 +215,9 @@ void ServerHost::Apply(const NeuronCore::Command& _command, const Session& _sess
   case NeuronCore::CommandKind::Restore:
     m_world.Restore(_command.entity);
     break;
+  case NeuronCore::CommandKind::Game:
+    m_world.ApplyGameCommand(_command.payload, _session.side);
+    break;
   }
   if (m_log != nullptr)
   {

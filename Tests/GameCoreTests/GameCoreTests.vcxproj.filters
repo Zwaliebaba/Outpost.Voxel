@@ -13,5 +13,6 @@
     <ClCompile Include="DesignCompositeTests.cpp" />
     <ClCompile Include="SkirmishLayoutTests.cpp" />
     <ClCompile Include="WelcomeNamesTests.cpp" />
+    <ClCompile Include="OrdersTests.cpp" />
   </ItemGroup>
 </Project>

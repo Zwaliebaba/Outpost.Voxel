@@ -161,6 +161,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Clearances.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Route.h" />
     <ClInclude Include="Sector.h" />
@@ -168,6 +169,7 @@
     <ClInclude Include="Skirmish.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Clearances.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>

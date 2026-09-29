@@ -352,6 +352,8 @@ void Write(ByteWriter& _writer, const Command& _command)
   WriteHeader(_writer, MessageType::Command);
   _writer.U32(static_cast<std::uint32_t>(_command.kind));
   _writer.U32(_command.entity);
+  _writer.U32(static_cast<std::uint32_t>(_command.payload.size()));
+  _writer.Raw(_command.payload);
 }
 
 [[nodiscard]] Decoded ReadHello(ByteReader& _reader)
@@ -614,26 +616,35 @@ void Write(ByteWriter& _writer, const Command& _command)
 {
   const std::uint32_t kind = _reader.U32();
   const std::uint32_t entity = _reader.U32();
+  const std::span<const std::uint8_t> payload = _reader.Bytes(_reader.U32());
   if (!_reader.Exhausted())
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }
+  // The engine's commands carry no payload, and name an entity or none as their kind asks; the game's names none and
+  // carries its payload, which the engine does not read (Design/ADR/ADR-033).
   switch (static_cast<CommandKind>(kind))
   {
   case CommandKind::Pause:
   case CommandKind::Resume:
-    if (entity != 0)
+    if (entity != 0 || !payload.empty())
     {
       return std::unexpected(ProtocolError::MalformedMessage);
     }
-    return Command{static_cast<CommandKind>(kind), entity};
+    return Command{static_cast<CommandKind>(kind), entity, {}};
   case CommandKind::Detonate:
   case CommandKind::Restore:
-    if (entity == 0)
+    if (entity == 0 || !payload.empty())
     {
       return std::unexpected(ProtocolError::MalformedMessage);
     }
-    return Command{static_cast<CommandKind>(kind), entity};
+    return Command{static_cast<CommandKind>(kind), entity, {}};
+  case CommandKind::Game:
+    if (entity != 0 || payload.empty())
+    {
+      return std::unexpected(ProtocolError::MalformedMessage);
+    }
+    return Command{CommandKind::Game, 0, std::vector<std::uint8_t>(payload.begin(), payload.end())};
   }
   return std::unexpected(ProtocolError::MalformedMessage);
 }

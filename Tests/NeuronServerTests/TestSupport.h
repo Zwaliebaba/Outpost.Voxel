@@ -24,8 +24,9 @@ inline constexpr std::uint32_t ENEMY = 9;
 
 // A world of two sides, each with one ship: side 1's moves one unit along x each tick, and side 2's stands at x = 100. Each
 // side sees its own ship, and the other's only once the test reveals it; the observer sees both (Design/ADR/ADR-032). A
-// command that names the other side's ship is refused. The world remembers what the host asked of it, and its welcome
-// carries a payload the host must pass on unread.
+// command that names the other side's ship is refused, and so is a game command whose first byte is 0xFF
+// (Design/ADR/ADR-033). The world remembers what the host asked of it, and its welcome carries a payload the host must
+// pass on unread.
 class TestWorld final : public NeuronServer::World
 {
 public:
@@ -41,10 +42,15 @@ public:
   void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override;
   void Restore(std::uint32_t _entity) override;
   [[nodiscard]] std::optional<NeuronServer::CommandRefusal> Refuses(const NeuronCore::Command& _command, std::uint8_t _side) const override;
+  void ApplyGameCommand(std::span<const std::uint8_t> _payload, std::uint8_t _side) override;
   void Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const override;
 
   // The world ticks Advance was called with, in order.
   std::vector<std::uint64_t> advanced;
+
+  // The game's commands the world was handed, and the sides they came from, in order.
+  std::vector<Bytes> gameCommands;
+  std::vector<std::uint8_t> gameCommandSides;
 
   // Whether each side sees the other's ship.
   bool revealed = false;
