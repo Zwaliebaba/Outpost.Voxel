@@ -84,10 +84,30 @@ void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Pl
     {
       const NeuronCore::DetonationEvent& event = _entity.detonation->event;
       placement.detonation = NeuronCore::PlacementDetonation{PartExplosion(measure.centroid, origin, rotation, event.velocity, event.seed),
-                                                             _entity.detonation->seconds, m_fragments.Part(_entity.modelIndex, part)};
+                                                             _entity.detonation->seconds, m_fragments.Part(_entity.modelIndex, part),
+                                                             NeuronCore::DefaultHeatParameters(measure.radius)};
     }
     _placements.push_back(placement);
   }
+}
+
+std::optional<NeuronCore::Blast> SceneModels::Blast(const SampledEntity& _entity) const
+{
+  if (!_entity.detonation)
+  {
+    return std::nullopt;
+  }
+  const Measure& measure = m_measures.at(_entity.modelIndex);
+  const NeuronCore::Rotation rotation = NeuronCore::RotationOf(_entity.rotation);
+  // The debris drifts by the entity's velocity over the lone voxel's drag, as every part's detonation has it.
+  const float drag = NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 0.0f}).drag;
+  const NeuronCore::DetonationEvent& event = _entity.detonation->event;
+  return NeuronCore::Blast{.origin = _entity.position + NeuronCore::RotateVector(rotation, measure.centroid - measure.middle),
+                           .drift = event.velocity * (1.0f / drag),
+                           .drag = drag,
+                           .extent = measure.radius,
+                           .seed = event.seed,
+                           .timeSeconds = _entity.detonation->seconds};
 }
 
 NeuronCore::Sphere SceneModels::Extent(const SampledEntity& _entity) const

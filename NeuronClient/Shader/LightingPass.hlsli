@@ -2,8 +2,10 @@
 
 // The lighting pass (Design/Archive/SampleRenderer.md §8, §11): a thread per pixel in 8 × 8 groups, from the view splat's depth
 // and visibility and the shadow map into the HDR color target. A pixel's voxel id leads through its placement to its
-// record and its model's palette (Design/Archive/SpaceScene.md §7.3).
+// record and its model's palette (Design/Archive/SpaceScene.md §7.3), and, while the placement is detonated, through the
+// record's fragment to its heat; the frame's flashes light every voxel (Design/ADR/ADR-025).
 
+#include "Blast.hlsli"
 #include "Lighting.hlsli"
 #include "PaletteConstants.hlsli"
 #include "Placement.hlsli"
@@ -17,6 +19,10 @@ Texture2D<uint2> g_visibility : register(t2);
 Texture2D<float> g_shadowMap : register(t3);
 StructuredBuffer<PlacementConstants> g_placements : register(t4);
 StructuredBuffer<PaletteConstants> g_palettes : register(t5);
+ConstantBuffer<BlastLighting> g_blasts : register(b3);
+StructuredBuffer<PlacementHeat> g_placementHeat : register(t6);
+StructuredBuffer<uint> g_fragmentOf : register(t7);
+StructuredBuffer<Fragment> g_fragments : register(t8);
 SamplerComparisonState g_shadowSampler : register(s0);
 RWTexture2D<float4> g_color : register(u0);
 
@@ -41,15 +47,26 @@ struct LightingThread
   uint2 visibility = g_visibility.Load(location);
   float3 albedo = float3(0.0, 0.0, 0.0);
   float emissiveScale = 0.0;
-  uint record = 0u;
-  uint paletteIndex = 0u;
-  if (visibility.x != NO_VOXEL && FindVoxel(g_placements, g_lighting.placementCount, visibility.x, record, paletteIndex))
+  float heat = 0.0;
+  uint found = visibility.x != NO_VOXEL ? FindPlacement(g_placements, g_lighting.placementCount, visibility.x) : NO_PLACEMENT;
+  if (found != NO_PLACEMENT)
   {
-    PaletteMaterial material = g_palettes[paletteIndex].materials[UnpackVoxelRecord(g_records[record]).color];
+    PlacementConstants placement = g_placements[found];
+    uint record = placement.firstRecord + (visibility.x - placement.firstVoxel);
+    PaletteMaterial material = g_palettes[placement.paletteIndex].materials[UnpackVoxelRecord(g_records[record]).color];
     albedo = material.albedo;
     emissiveScale = material.emissiveScale;
+    PlacementHeat placementHeat = g_placementHeat[found];
+    if (placementHeat.timeSeconds > 0.0)
+    {
+      heat = FragmentHeat(g_fragments[placementHeat.firstFragment + g_fragmentOf[record]], placementHeat);
+    }
   }
-  float3 color = LightPixel(g_view, float2(pixel) + 0.5, visibility.x, UnpackOctahedralNormal(visibility.y), g_depth.Load(location), albedo,
-                            emissiveScale, g_shadowMap, g_shadowSampler, g_shadowView, g_lighting);
+  float2 center = float2(pixel) + 0.5;
+  float3 normal = UnpackOctahedralNormal(visibility.y);
+  float depth = g_depth.Load(location);
+  float3 color =
+    LightPixel(g_view, center, visibility.x, normal, depth, albedo, emissiveScale, g_shadowMap, g_shadowSampler, g_shadowView, g_lighting) +
+    BlastPixel(g_view, center, visibility.x, normal, depth, albedo, heat, g_blasts);
   g_color[pixel] = float4(color, 1.0);
 }

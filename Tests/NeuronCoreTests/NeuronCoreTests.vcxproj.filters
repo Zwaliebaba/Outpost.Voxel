@@ -10,6 +10,7 @@
     <ClInclude Include="RepositoryFile.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BlastTests.cpp" />
     <ClCompile Include="BloomTests.cpp" />
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />

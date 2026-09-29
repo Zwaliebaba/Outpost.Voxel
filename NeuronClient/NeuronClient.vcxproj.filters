@@ -39,6 +39,7 @@
     <ClInclude Include="FrameQueries.h" />
     <ClInclude Include="GlyphAtlas.h" />
     <ClInclude Include="LightingConstants.h" />
+    <ClInclude Include="GasShellPass.h" />
     <ClInclude Include="LightingPass.h" />
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="ShadowViewConstants.h" />
@@ -77,6 +78,7 @@
     <ClCompile Include="FrameQueries.cpp" />
     <ClCompile Include="GlyphAtlas.cpp" />
     <ClCompile Include="LightingConstants.cpp" />
+    <ClCompile Include="GasShellPass.cpp" />
     <ClCompile Include="LightingPass.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="ShadowViewConstants.cpp" />
@@ -127,6 +129,21 @@
     <None Include="Shader\Hash.hlsli">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="Shader\Blast.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\BlastLighting.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\GasShell.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\GasShellPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\GasShells.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
     <None Include="Shader\Lighting.hlsli">
       <Filter>Shader Files</Filter>
     </None>
@@ -134,6 +151,9 @@
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\LightingPass.hlsli">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="Shader\PlacementHeat.hlsli">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="Shader\OrthographicView.hlsli">
@@ -211,6 +231,9 @@
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\DebugViewVS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\GasShellCS.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
     <FxCompile Include="Shader\LightingCS.hlsl">

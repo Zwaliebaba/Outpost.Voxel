@@ -158,6 +158,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Bloom.h" />
+    <ClInclude Include="Blast.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
@@ -192,6 +193,7 @@
     <ClInclude Include="VoxModel.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Blast.cpp" />
     <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />

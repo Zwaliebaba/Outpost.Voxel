@@ -14,6 +14,7 @@
 #include "UploadRing.h"
 #include "ViewConstants.h"
 
+#include "Blast.h"
 #include "Fragmentation.h"
 #include "StarCatalog.h"
 
@@ -48,6 +49,9 @@ enum RootParameter : std::uint8_t
   BloomParameter,
   StarsParameter,
   FragmentsParameter,
+  BlastLightingParameter,
+  GasShellsParameter,
+  PlacementHeatParameter,
   EchoParameter,
   RootParameterCount
 };
@@ -99,6 +103,10 @@ public:
         const auto bloom = Sentinel<NeuronClient::BloomConstants>(12);
         const std::array<NeuronCore::StarRecord, 2> stars{Sentinel<NeuronCore::StarRecord>(13), Sentinel<NeuronCore::StarRecord>(14)};
         const std::array<NeuronCore::Fragment, 2> fragments{Sentinel<NeuronCore::Fragment>(15), Sentinel<NeuronCore::Fragment>(16)};
+        const auto blastLighting = Sentinel<NeuronCore::BlastLighting>(17);
+        const auto gasShells = Sentinel<NeuronCore::GasShells>(18);
+        const std::array<NeuronCore::PlacementHeat, 2> placementHeat{Sentinel<NeuronCore::PlacementHeat>(19),
+                                                                     Sentinel<NeuronCore::PlacementHeat>(20)};
         std::vector<std::uint32_t> expected;
         AppendWords(expected, view);
         AppendWords(expected, shadowView);
@@ -111,6 +119,9 @@ public:
         AppendWords(expected, canvasQuads);
         AppendWords(expected, stars);
         AppendWords(expected, fragments);
+        AppendWords(expected, blastLighting);
+        AppendWords(expected, gasShells);
+        AppendWords(expected, placementHeat);
 
         NeuronClient::UploadRing constants(_device, TEST_CONSTANTS_BYTES, L"Layout echo constants");
         const D3D12_GPU_VIRTUAL_ADDRESS viewAddress = constants.Push(view);
@@ -119,6 +130,8 @@ public:
         const D3D12_GPU_VIRTUAL_ADDRESS explosionAddress = constants.Push(explosion);
         const D3D12_GPU_VIRTUAL_ADDRESS skyAddress = constants.Push(sky);
         const D3D12_GPU_VIRTUAL_ADDRESS bloomAddress = constants.Push(bloom);
+        const D3D12_GPU_VIRTUAL_ADDRESS blastLightingAddress = constants.Push(blastLighting);
+        const D3D12_GPU_VIRTUAL_ADDRESS gasShellsAddress = constants.Push(gasShells);
         const winrt::com_ptr<ID3D12Resource> paletteBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(palettes)), L"Layout echo palettes");
         const winrt::com_ptr<ID3D12Resource> placementBuffer =
@@ -129,6 +142,8 @@ public:
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(stars)), L"Layout echo stars");
         const winrt::com_ptr<ID3D12Resource> fragmentBuffer =
           NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(fragments)), L"Layout echo fragments");
+        const winrt::com_ptr<ID3D12Resource> placementHeatBuffer =
+          NeuronClient::CreateStaticBuffer(_device, std::as_bytes(std::span(placementHeat)), L"Layout echo placement heat");
         // One word more than the mirrors hold, still zero afterwards, shows the echo wrote nothing past them.
         const std::uint64_t echoBytes = (expected.size() + 1) * sizeof(std::uint32_t);
         const std::vector<std::byte> zeros(echoBytes);
@@ -158,6 +173,12 @@ public:
         parameters[StarsParameter].Descriptor = {3, 0};
         parameters[FragmentsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
         parameters[FragmentsParameter].Descriptor = {4, 0};
+        parameters[BlastLightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[BlastLightingParameter].Descriptor = {6, 0};
+        parameters[GasShellsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        parameters[GasShellsParameter].Descriptor = {7, 0};
+        parameters[PlacementHeatParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[PlacementHeatParameter].Descriptor = {5, 0};
         parameters[EchoParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
         parameters[EchoParameter].Descriptor = {0, 0};
         const D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{static_cast<UINT>(parameters.size()), parameters.data(), 0, nullptr,
@@ -189,6 +210,9 @@ public:
             _list->SetComputeRootConstantBufferView(BloomParameter, bloomAddress);
             _list->SetComputeRootShaderResourceView(StarsParameter, starBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootShaderResourceView(FragmentsParameter, fragmentBuffer->GetGPUVirtualAddress());
+            _list->SetComputeRootConstantBufferView(BlastLightingParameter, blastLightingAddress);
+            _list->SetComputeRootConstantBufferView(GasShellsParameter, gasShellsAddress);
+            _list->SetComputeRootShaderResourceView(PlacementHeatParameter, placementHeatBuffer->GetGPUVirtualAddress());
             _list->SetComputeRootUnorderedAccessView(EchoParameter, echo->GetGPUVirtualAddress());
             _list->Dispatch(1, 1, 1);
           });

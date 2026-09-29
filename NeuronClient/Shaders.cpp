@@ -15,6 +15,7 @@ namespace
 #include "Shaders/CoverageVS.h"
 #include "Shaders/DebugViewPS.h"
 #include "Shaders/DebugViewVS.h"
+#include "Shaders/GasShellCS.h"
 #include "Shaders/LightingCS.h"
 #include "Shaders/ShadowSplatAlignedPS.h"
 #include "Shaders/ShadowSplatAlignedVS.h"
@@ -95,6 +96,11 @@ D3D12_SHADER_BYTECODE ViewSplatAlignedOverdrawPixelShader() noexcept
 D3D12_SHADER_BYTECODE ViewSplatOrientedOverdrawPixelShader() noexcept
 {
   return {VIEW_SPLAT_ORIENTED_OVERDRAW_PS, sizeof(VIEW_SPLAT_ORIENTED_OVERDRAW_PS)};
+}
+
+D3D12_SHADER_BYTECODE GasShellComputeShader() noexcept
+{
+  return {GAS_SHELL_CS, sizeof(GAS_SHELL_CS)};
 }
 
 D3D12_SHADER_BYTECODE LightingComputeShader() noexcept

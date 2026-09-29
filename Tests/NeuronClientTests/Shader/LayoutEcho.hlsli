@@ -5,13 +5,16 @@
 // the C++ structs hold them in. A mirror that places a field anywhere else, or a structured buffer whose stride differs
 // from the struct's size, reads another field's word, and LayoutEchoTests sees it.
 
+#include "BlastLighting.hlsli"
 #include "BloomConstants.hlsli"
 #include "CanvasQuad.hlsli"
 #include "ExplosionConstants.hlsli"
 #include "Fragment.hlsli"
+#include "GasShells.hlsli"
 #include "LightingConstants.hlsli"
 #include "PaletteConstants.hlsli"
 #include "PlacementConstants.hlsli"
+#include "PlacementHeat.hlsli"
 #include "ShadowViewConstants.hlsli"
 #include "SkyConstants.hlsli"
 #include "StarRecord.hlsli"
@@ -28,6 +31,9 @@ ConstantBuffer<SkyConstants> g_sky : register(b4);
 ConstantBuffer<BloomConstants> g_bloom : register(b5);
 StructuredBuffer<StarRecord> g_stars : register(t3);
 StructuredBuffer<Fragment> g_fragments : register(t4);
+ConstantBuffer<BlastLighting> g_blastLighting : register(b6);
+ConstantBuffer<GasShells> g_gasShells : register(b7);
+StructuredBuffer<PlacementHeat> g_placementHeat : register(t5);
 RWByteAddressBuffer g_echo : register(u0);
 
 void Echo(inout uint _word, uint _value)
@@ -155,5 +161,49 @@ void Echo3(inout uint _word, uint3 _value)
     Fragment fragment = g_fragments[fragmentIndex];
     Echo3(word, asuint(fragment.pivot));
     Echo(word, asuint(fragment.sizeScale));
+  }
+
+  [unroll] for (uint colorStep = 0u; colorStep < HEAT_COLOR_STEPS; ++colorStep)
+  {
+    Echo3(word, asuint(g_blastLighting.heatColors[colorStep].xyz));
+    Echo(word, asuint(g_blastLighting.heatColors[colorStep].w));
+  }
+  [unroll] for (uint flash = 0u; flash < MAX_LIT_BLASTS; ++flash)
+  {
+    Echo3(word, asuint(g_blastLighting.flashes[flash].position));
+    Echo(word, asuint(g_blastLighting.flashes[flash].softness));
+    Echo3(word, asuint(g_blastLighting.flashes[flash].intensity));
+    Echo(word, asuint(g_blastLighting.flashes[flash].padding));
+  }
+  Echo(word, g_blastLighting.flashCount);
+  Echo(word, asuint(g_blastLighting.heatGain));
+  Echo(word, asuint(g_blastLighting.padding0));
+  Echo(word, asuint(g_blastLighting.padding1));
+
+  [unroll] for (uint shell = 0u; shell < MAX_LIT_BLASTS; ++shell)
+  {
+    Echo3(word, asuint(g_gasShells.shells[shell].center));
+    Echo(word, asuint(g_gasShells.shells[shell].radius));
+    Echo3(word, asuint(g_gasShells.shells[shell].emission));
+    Echo(word, asuint(g_gasShells.shells[shell].thickness));
+    Echo(word, g_gasShells.shells[shell].seed);
+    Echo(word, g_gasShells.shells[shell].padding0);
+    Echo(word, g_gasShells.shells[shell].padding1);
+    Echo(word, g_gasShells.shells[shell].padding2);
+  }
+  Echo(word, g_gasShells.count);
+  Echo(word, g_gasShells.padding0);
+  Echo(word, g_gasShells.padding1);
+  Echo(word, g_gasShells.padding2);
+
+  [unroll] for (uint heatIndex = 0u; heatIndex < 2u; ++heatIndex)
+  {
+    PlacementHeat heat = g_placementHeat[heatIndex];
+    Echo3(word, asuint(heat.blastOrigin));
+    Echo(word, asuint(heat.timeSeconds));
+    Echo(word, asuint(heat.shockSpeed));
+    Echo(word, asuint(heat.heatDistance));
+    Echo(word, asuint(heat.coolingRate));
+    Echo(word, heat.firstFragment);
   }
 }

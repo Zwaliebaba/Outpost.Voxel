@@ -105,7 +105,7 @@ struct ColorMatching
   return matching;
 }
 
-[[nodiscard]] Float3 BlackBodyColor(const ColorMatching& _matching, double _kelvin) noexcept
+[[nodiscard]] Float3 BlackBodyColor(const ColorMatching& _matching, double _kelvin, double _saturation) noexcept
 {
   double x = 0.0;
   double y = 0.0;
@@ -125,7 +125,8 @@ struct ColorMatching
   const double blue = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z;
   // Unit luminance, then toward white, which has unit luminance too.
   const double luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  const auto channel = [luminance](double _value) { return static_cast<float>(1.0 + STAR_SATURATION * (_value / luminance - 1.0)); };
+  const auto channel = [luminance, _saturation](double _value)
+  { return static_cast<float>(1.0 + _saturation * (_value / luminance - 1.0)); };
   return {channel(red), channel(green), channel(blue)};
 }
 
@@ -138,7 +139,12 @@ double FaintestStarMagnitude(std::uint32_t _count) noexcept
 
 Float3 StarColor(float _kelvin) noexcept
 {
-  return BlackBodyColor(MakeColorMatching(), _kelvin);
+  return BlackBodyColor(MakeColorMatching(), _kelvin, STAR_SATURATION);
+}
+
+Float3 BlackBodyColor(float _kelvin) noexcept
+{
+  return BlackBodyColor(MakeColorMatching(), _kelvin, 1.0);
 }
 
 std::vector<StarRecord> MakeStarCatalog(std::uint32_t _seed, Quaternion _galacticPlane, std::uint32_t _count)
@@ -186,8 +192,8 @@ std::vector<StarRecord> MakeStarCatalog(std::uint32_t _seed, Quaternion _galacti
         : std::lerp(std::log(double{STAR_COOLEST_KELVIN}), std::log(double{STAR_HOTTEST_KELVIN}), uniform(Stream::TemperatureRadius));
     const double kelvin = std::clamp(std::exp(logKelvin), double{STAR_COOLEST_KELVIN}, double{STAR_HOTTEST_KELVIN});
 
-    stars.push_back(
-      {Normalize(RotateVector(galaxy, local)), static_cast<float>(std::pow(10.0, -0.4 * magnitude)), BlackBodyColor(matching, kelvin)});
+    stars.push_back({Normalize(RotateVector(galaxy, local)), static_cast<float>(std::pow(10.0, -0.4 * magnitude)),
+                     BlackBodyColor(matching, kelvin, STAR_SATURATION)});
   }
   return stars;
 }

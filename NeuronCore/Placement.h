@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Blast.h"
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
@@ -20,13 +21,14 @@ namespace NeuronCore
 // What FindPlacement gives for an id that no placement holds.
 inline constexpr std::uint32_t NO_PLACEMENT = 0xFFFFFFFFu;
 
-// What a detonated placement adds (Design/Archive/SpaceScene.md §7.7, Design/ADR/ADR-024): the detonation, in its part's
-// space, the time since, and the fragments its part breaks into.
+// What a detonated placement adds (Design/Archive/SpaceScene.md §7.7, Design/ADR/ADR-024, ADR-025): the detonation, in its
+// part's space, the time since, the fragments its part breaks into, and how they heat.
 struct PlacementDetonation
 {
   ExplosionParameters parameters; // in the part's space: the blast origin, and the inherited velocity turned into it
   float timeSeconds;              // since the detonation
   PartFragments fragments;        // its part's, from the scene's SceneFragments
+  HeatParameters heat;            // none, a heat distance of 0, leaves its debris cold
 };
 
 // A model's part under a rigid transform, whole or detonated (§7): what the renderer draws with one draw, and what the
@@ -74,6 +76,10 @@ struct Placement
 
 // The envelope of _detonation, _placement's, in its part's space: BoundExplosion over its part's box and fragments.
 [[nodiscard]] ExplosionEnvelope PlacementEnvelope(const Placement& _placement, const PlacementDetonation& _detonation) noexcept;
+
+// What the lighting pass reads of _placement's heat: its detonation's blast origin, time, shock speed and heat, and its
+// model's first fragment; or, for a whole placement, zero, whose time 0 heats nothing (ADR-025).
+[[nodiscard]] PlacementHeat MakePlacementHeat(const Placement& _placement) noexcept;
 
 // The sphere around everything _placement draws, which the views cull by (§7.4): around its part's box, or around its
 // detonation's envelope at its time.

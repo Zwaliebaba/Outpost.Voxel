@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="Bloom.h" />
+    <ClInclude Include="Blast.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
@@ -40,6 +41,7 @@
     <ClInclude Include="StarCatalog.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Blast.cpp" />
     <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />

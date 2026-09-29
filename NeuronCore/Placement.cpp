@@ -123,6 +123,21 @@ ExplosionEnvelope PlacementEnvelope(const Placement& _placement, const Placement
   return BoundExplosion(_detonation.parameters, _placement.lower, _placement.upper, _detonation.fragments.radius);
 }
 
+PlacementHeat MakePlacementHeat(const Placement& _placement) noexcept
+{
+  if (!_placement.detonation.has_value())
+  {
+    return {};
+  }
+  const PlacementDetonation& detonation = *_placement.detonation;
+  return {.blastOrigin = detonation.parameters.blastOrigin,
+          .timeSeconds = detonation.timeSeconds,
+          .shockSpeed = detonation.parameters.shockSpeed,
+          .heatDistance = detonation.heat.heatDistance,
+          .coolingRate = detonation.heat.coolingRate,
+          .firstFragment = detonation.fragments.firstFragment};
+}
+
 Sphere PlacementSphere(const Placement& _placement) noexcept
 {
   if (_placement.detonation.has_value())

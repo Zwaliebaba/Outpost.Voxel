@@ -16,6 +16,7 @@
 #include "VoxelScene.h"
 
 #include "Box.h"
+#include "Blast.h"
 #include "Explosion.h"
 #include "Float3.h"
 #include "Fragmentation.h"
@@ -577,6 +578,8 @@ public:
         const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants =
           constants.Push(NeuronClient::MakeLightingConstants(parameters, shadowView, static_cast<std::uint32_t>(placements.size())));
         const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
+        const D3D12_GPU_VIRTUAL_ADDRESS blastConstants = constants.Push(NeuronCore::MakeBlastLighting({}, view.position));
+        const D3D12_GPU_VIRTUAL_ADDRESS placementHeat = NeuronClient::PushPlacementHeat(constants, placements);
 
         _device.Execute(
           [&](ID3D12GraphicsCommandList* _list)
@@ -590,7 +593,8 @@ public:
             viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginLighting(_list);
-            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants);
+            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants,
+                            blastConstants, placementHeat);
             targets.EndLighting(_list);
           });
 

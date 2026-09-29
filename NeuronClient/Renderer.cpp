@@ -35,8 +35,11 @@ constexpr std::uint32_t CPU_CAPACITY = 4;
 // grows its ring (Design/Archive/SpaceScene.md §7.4).
 constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
 
-// The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, besides the placements.
-constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{4} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+// The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, and the detonations' light,
+// three pieces, and gas shells, two, besides the placements (Design/ADR/ADR-025).
+constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{9} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+static_assert(sizeof(NeuronCore::BlastLighting) <= 3 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(NeuronCore::GasShells) <= 2 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
@@ -126,6 +129,7 @@ Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxMod
     m_coverage(m_device),
     m_lighting(m_device),
     m_sky(m_device, _desc.stars),
+    m_gasShell(m_device),
     m_bloomChain(m_shaderHeap),
     m_bloom(m_device),
     m_toneMap(m_device, SwapChain::VIEW_FORMAT),
@@ -200,7 +204,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
 
   // The frame's constants grow with its placements, at 64 bytes each and an aligned piece for each detonation
   // (Design/Archive/SpaceScene.md §7.4). The GPU has finished with this slot's ring, so a larger one can take its place.
-  const std::uint64_t neededBytes = FIXED_CONSTANTS_BYTES + SplatPlacementBytes(_placements);
+  const std::uint64_t neededBytes = FIXED_CONSTANTS_BYTES + SplatPlacementBytes(_placements) + PlacementHeatBytes(_placements.size());
   if (neededBytes > frame.constants->CapacityBytes())
   {
     frame.constants =
@@ -214,6 +218,10 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
     frame.constants->Push(MakeLightingConstants(_settings.lighting, m_shadowView, placementCount));
   const D3D12_GPU_VIRTUAL_ADDRESS skyConstants = frame.constants->Push(MakeSkyConstants(_settings.sky));
   const SplatPlacements placements = PushSplatPlacements(*frame.constants, _placements);
+  const D3D12_GPU_VIRTUAL_ADDRESS placementHeat = PushPlacementHeat(*frame.constants, _placements);
+  const D3D12_GPU_VIRTUAL_ADDRESS blastLighting = frame.constants->Push(NeuronCore::MakeBlastLighting(_settings.blasts, _view.position));
+  const NeuronCore::GasShells shells = NeuronCore::MakeGasShells(_settings.blasts, _view.position);
+  const D3D12_GPU_VIRTUAL_ADDRESS shellConstants = frame.constants->Push(shells);
 
   // Each view culls the placements by their spheres; the camera draws what it keeps nearest first, and the sun in their
   // order (§7.4).
@@ -273,13 +281,21 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   if (!_settings.debugView)
   {
     m_targets.BeginLighting(list);
-    m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants, placements.constants);
+    m_lighting.Record(list, m_targets, m_shadowMap, m_scene, viewConstants, shadowViewConstants, lightingConstants, placements.constants,
+                      blastLighting, placementHeat);
     m_queries.EndPass(list, m_frameIndex, GpuPass::Lighting);
     m_targets.EndLighting(list);
     m_targets.BeginSky(list);
     m_sky.Record(list, viewConstants, skyConstants);
     m_queries.EndPass(list, m_frameIndex, GpuPass::Sky);
     m_targets.EndSky(list);
+    if (shells.count > 0)
+    {
+      m_targets.BeginLighting(list);
+      m_gasShell.Record(list, m_targets, viewConstants, shellConstants);
+      m_queries.EndPass(list, m_frameIndex, GpuPass::GasShell);
+      m_targets.EndLighting(list);
+    }
     m_bloom.Record(list, m_targets, m_bloomChain);
     m_queries.EndPass(list, m_frameIndex, GpuPass::Bloom);
   }

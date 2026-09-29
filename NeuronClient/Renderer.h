@@ -11,6 +11,7 @@
 #include "DebugViewPass.h"
 #include "DescriptorHeap.h"
 #include "FrameQueries.h"
+#include "GasShellPass.h"
 #include "GraphicsDevice.h"
 #include "LightingPass.h"
 #include "ShadowMap.h"
@@ -22,6 +23,7 @@
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
+#include "Blast.h"
 #include "DebugView.h"
 #include "Fragmentation.h"
 #include "Lighting.h"
@@ -62,17 +64,19 @@ struct FrameSettings
   bool vsync;
   bool plainDepth;    // the view splat writes SV_Depth rather than conservative depth (§9.3); the overdraw view overrides it
   bool countCoverage; // counts the pixels a voxel covers (§14)
+  std::span<const NeuronCore::Blast> blasts; // the detonations whose light the frame shows (Design/ADR/ADR-025)
 };
 
-// The frame of Design/Archive/SampleRenderer.md §8 and Design/Archive/SpaceScene.md §8: the shadow splat into the shadow map and the
-// view splat into the depth and visibility buffers, then the lighting into HDR color, the sky over every pixel no voxel
-// covers, bloom's chain from it and the tone map into the back buffer, or a debug view in their place, and last the
-// canvas over it all (§13). What the splats draw is the frame's placements
-// (Design/Archive/SpaceScene.md §7): each view culls them by their spheres and draws each it keeps with one draw, through the
-// aligned permutation when it is whole and turned by a symmetry of the cube and the oriented one otherwise, the camera
-// nearest first (§7.4). Two frames are in flight, each with its own allocator, constants, fence value and slot of
-// queries: every pass is timed and the view splat's pipeline statistics taken, and a frame's measurements and draw
-// counts come back with the Render two frames after it, through TakeStatistics.
+// The frame of Design/Archive/SampleRenderer.md §8 and Design/Archive/SpaceScene.md §8: the shadow splat into the
+// shadow map and the view splat into the depth and visibility buffers, then the lighting into HDR color, the sky over
+// every pixel no voxel covers, the detonations' shells of gas added over both (Design/ADR/ADR-025), bloom's chain from
+// it and the tone map into the back buffer, or a debug view in their place, and last the canvas over it all (§13). What
+// the splats draw is the frame's placements (Design/Archive/SpaceScene.md §7): each view culls them by their spheres
+// and draws each it keeps with one draw, through the aligned permutation when it is whole and turned by a symmetry of
+// the cube and the oriented one otherwise, the camera nearest first (§7.4). Two frames are in flight, each with its own
+// allocator, constants, fence value and slot of queries: every pass is timed and the view splat's pipeline statistics
+// taken, and a frame's measurements and draw counts come back with the Render two frames after it, through
+// TakeStatistics.
 class Renderer
 {
 public:
@@ -164,6 +168,7 @@ private:
   CoveragePass m_coverage;
   LightingPass m_lighting;
   SkyPass m_sky;
+  GasShellPass m_gasShell;
   BloomChain m_bloomChain;
   BloomPass m_bloom;
   ToneMapPass m_toneMap;
