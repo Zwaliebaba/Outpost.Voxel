@@ -8,7 +8,8 @@ Run from anywhere; CI runs it before the build (AGENTS.md §6):
 It checks, over the whole tree:
 
   - the solution: exactly one .slnx at the root, x64 and ARM64 its platforms, listing every .vcxproj in the tree and
-    nothing else;
+    nothing else, each where §2 puts it: <Name>/<Name>.vcxproj at the root, a test suite in Tests/<Name>/ and a tool in
+    Tools/<Name>/ (Design/ADR/ADR-023);
   - the project registry: .clang-tidy's HeaderFilterRegex matches every project and names no project that is gone;
   - configurations: Debug and Release on x64 and on ARM64, and nothing else (§3, ADR-012);
   - the settings §3 fixes, stated explicitly in every configuration, the instruction set per platform;
@@ -17,12 +18,14 @@ It checks, over the whole tree:
   - platform alignment: in each configuration x64 and ARM64 differ only in the instruction set (§3, ADR-012);
   - OutDir and IntDir anchored on $(SolutionDir) (§3);
   - include directories: a project never lists its own folder, lists another project's folder only as
-    $(SolutionDir)<Project>, and only with a reference to that project (§3);
-  - edges: no cycles, and nothing references an application or a test suite (§2, R9);
+    $(SolutionDir)<its folder>, and only with a reference to that project (§3);
+  - edges: every reference's path leads to the project it names, no cycles, and nothing references an application
+    or a test suite (§2, R9);
+  - groups: Tests/ holds the test suites and nothing else, and Tools/ holds applications (§2, ADR-023);
   - registration: every source file is in its project's .vcxproj and .filters, the two agree, and nothing
     listed is missing (§2);
   - directory shape: C++ directly in its project's folder, HLSL in its project's Shader folder, and no source file
-    anywhere else, Tools/ least of all, which holds the tools' Python and data (§2, R17, Design/ADR/ADR-020);
+    anywhere else, so none in Tools/ outside a tool's project folder (§2, R17, Design/ADR/ADR-020, ADR-023);
   - R2 type affixes, R7 file names, R11 spellings, R12's ban on WRL, R17 HLSL files;
   - an HLSL semantic that clang-format has broken onto a line of its own (ADR-005);
   - shader compilation: every project that compiles HLSL does it with the flags ADR-005 and ADR-007 fix, and names
@@ -48,7 +51,12 @@ HLSL_EXTENSIONS = {'.hlsl', '.hlsli'}
 SOURCE_EXTENSIONS = CPP_EXTENSIONS | HLSL_EXTENSIONS
 ITEM_TYPE_FOR_EXTENSION = {'.cpp': 'ClCompile', '.h': 'ClInclude', '.hlsl': 'FxCompile', '.hlsli': 'None'}
 SHADER_FOLDER = 'Shader'  # AGENTS.md §2: a library's HLSL lives in <Project>/Shader; C++ stays flat
-TOOLS_FOLDER = 'Tools'  # AGENTS.md §2, Design/ADR/ADR-020: the tools that are not C++, and their data
+# AGENTS.md §2, Design/ADR/ADR-023: the libraries and the game's executable live at the root, <Name>/<Name>.vcxproj;
+# the test suites and the tools live one folder down, in these groups. Tools/ also holds the tools that are not C++,
+# and their data (Design/ADR/ADR-020).
+TESTS_FOLDER = 'Tests'
+TOOLS_FOLDER = 'Tools'
+GROUP_FOLDERS = (TESTS_FOLDER, TOOLS_FOLDER)
 BANNED_EXTENSIONS = {'.hpp', '.hh', '.hxx', '.h++', '.cc', '.cxx', '.c++', '.inl', '.ipp', '.tpp', '.ixx', '.cppm',
                      '.fx', '.fxh'}
 R7_EXCEPTIONS = {'pch.h', 'pch.cpp', 'framework.h', 'targetver.h', 'Resource.h'}
@@ -214,6 +222,7 @@ class Project:
     self.configurations = set()
     self.items = set()  # (item type, repository-relative path)
     self.references = []  # project names
+    self.reference_paths = []  # (project name, the repository-relative path its reference leads to)
     self.kind = None
     self.is_test_suite = name.endswith('Tests')
 
@@ -299,7 +308,9 @@ def load_project(project, findings):
           continue
         item_configurations = configurations_of(item, group_configurations, project, findings)
         if item_type == 'ProjectReference':
-          project.references.append(PurePosixPath(include.replace('\\', '/')).stem)
+          name = PurePosixPath(include.replace('\\', '/')).stem
+          project.references.append(name)
+          project.reference_paths.append((name, resolve_item_path(project, include)))
           continue
         if item_type in NOT_FILE_ITEMS:
           continue
@@ -337,6 +348,22 @@ def load_filters(project, findings):
   return items
 
 
+def placement_problem(path):
+  """Why a project may not live at path, or None when it may (AGENTS.md §2, Design/ADR/ADR-023)."""
+  parts = PurePosixPath(path).parts
+  name = PurePosixPath(path).stem
+  if not path.endswith('.vcxproj') or len(parts) not in (2, 3) or parts[-2] != name:
+    return 'a project lives at <Name>/<Name>.vcxproj, or at <Group>/<Name>/<Name>.vcxproj in Tests/ or Tools/'
+  group = parts[0] if len(parts) == 3 else None
+  if group is not None and group not in GROUP_FOLDERS:
+    return f'{group}/ is not a group; the test suites live in {TESTS_FOLDER}/ and the tools in {TOOLS_FOLDER}/'
+  if name.endswith('Tests') and group != TESTS_FOLDER:
+    return f'a test suite lives at {TESTS_FOLDER}/<Name>/<Name>.vcxproj'
+  if group == TESTS_FOLDER and not name.endswith('Tests'):
+    return f'{TESTS_FOLDER}/ holds the test suites alone, each named <Library>Tests'
+  return None
+
+
 def load_solution(files, findings):
   solutions = [name for name in files if '/' not in name and name.endswith(('.slnx', '.sln'))]
   if len(solutions) != 1 or not solutions[0].endswith('.slnx'):
@@ -357,8 +384,9 @@ def load_solution(files, findings):
       continue
     path = (element.get('Path') or '').replace('\\', '/')
     name = PurePosixPath(path).stem
-    if PurePosixPath(path).parent.as_posix() != name or not path.endswith('.vcxproj'):
-      findings.add(solution, '§2', f'lists {path}; a project lives at <Name>/<Name>.vcxproj')
+    problem = placement_problem(path)
+    if problem:
+      findings.add(solution, '§2', f'lists {path}; {problem}')
     if path not in files:
       findings.add(solution, 'solution', f'lists {path}, which does not exist')
       continue
@@ -381,7 +409,8 @@ def check_header_filter(projects, findings):
   pattern = match.group(1)
   regex = re.compile(pattern)
   for project in projects:
-    if not (regex.search(f'{project.name}/Probe.h') and regex.search(f'{project.name}\\Probe.h')):
+    probe = f'{project.folder}/Probe.h'  # a header directly in the project's folder, wherever that folder is
+    if not (regex.search(probe) and regex.search(probe.replace('/', '\\'))):
       findings.add('.clang-tidy', 'registry', f'HeaderFilterRegex does not match {project.name}; its headers '
                    'would be checked by nothing (AGENTS.md §2)')
   alternation = re.match(r'^\(([^()]*)\)', pattern)
@@ -477,7 +506,11 @@ def check_shader_settings(project, configuration, settings, findings):
 
 def check_edges(projects, findings):
   by_name = {project.name: project for project in projects}
+  by_folder = {project.folder: project for project in projects}
   for project in projects:
+    if PurePosixPath(project.path).parts[0] == TOOLS_FOLDER and project.kind != 'Application':
+      findings.add(project.path, '§2', f'is in {TOOLS_FOLDER}/ but builds a {project.kind}; a tool is an application '
+                   'that nothing links (Design/ADR/ADR-023)')
     for reference in project.references:
       target = by_name.get(reference)
       if target is None:
@@ -487,6 +520,11 @@ def check_edges(projects, findings):
       elif target.kind != 'StaticLibrary':
         findings.add(project.path, '§2', f'references {reference} ({target.kind}); only static libraries are '
                      'referenced')
+    for reference, path in project.reference_paths:
+      target = by_name.get(reference)
+      if target is not None and path != target.path:
+        findings.add(project.path, '§2', f'references {reference} at {path}, but it lives at {target.path}; a '
+                     'reference\'s path leads to the project it names')
     for configuration in CONFIGURATIONS:
       value = project.settings[configuration].get(('ClCompile', 'AdditionalIncludeDirectories'), '')
       for entry in (part.strip() for part in value.split(';')):
@@ -497,16 +535,16 @@ def check_edges(projects, findings):
           findings.add(project.path, '§3', f'{configuration} lists its own folder ({entry}) on the include path')
         elif normalized.startswith('$(SolutionDir)'):
           folder = normalized[len('$(SolutionDir)'):]
-          if folder == project.name:
+          if folder == project.folder:
             findings.add(project.path, '§3', f'{configuration} lists its own folder ({entry}) on the include path')
-          elif folder not in by_name:
+          elif folder not in by_folder:
             findings.add(project.path, '§3', f'{configuration} includes {entry}, which is not a project folder')
-          elif folder not in project.references:
+          elif by_folder[folder].name not in project.references:
             findings.add(project.path, '§2', f'{configuration} includes {folder} without referencing it; an '
                          'include is an edge, and edges are declared')
         elif not entry.startswith('$('):
           findings.add(project.path, '§3', f'{configuration} includes "{entry}"; project folders are listed as '
-                       '$(SolutionDir)<Project>')
+                       '$(SolutionDir)<its folder>')
 
   state = {}
 
@@ -529,6 +567,14 @@ def check_edges(projects, findings):
 def home_of(project_folder, suffix):
   """The one folder a source file of this kind may live in (AGENTS.md §2)."""
   return f'{project_folder}/{SHADER_FOLDER}' if suffix in HLSL_EXTENSIONS else project_folder
+
+
+def owning_folder(path, folders):
+  """The project folder that path lies in, at any depth below it, or None when it lies in none."""
+  for ancestor in PurePosixPath(path).parents:
+    if ancestor.as_posix() in folders:
+      return ancestor.as_posix()
+  return None
 
 
 def check_registration(projects, files, findings):
@@ -561,21 +607,19 @@ def check_registration(projects, files, findings):
       continue
     if suffix not in SOURCE_EXTENSIONS:
       continue
-    top = posix.parts[0]
-    if top == TOOLS_FOLDER:
-      findings.add(path, '§2', f'is C++ or HLSL in {TOOLS_FOLDER}/, which holds the tools\' Python and data and no code '
-                   'a project builds (Design/ADR/ADR-020)')
-      continue
-    if top not in folders or posix.parent.as_posix() != home_of(top, suffix):
+    # Outside every project folder is outside the build, and that includes Tools/ beyond its tools' own folders,
+    # where the Blender extension's Python and the golden file live (Design/ADR/ADR-020, ADR-023).
+    owner = owning_folder(path, folders)
+    if owner is None or posix.parent.as_posix() != home_of(owner, suffix):
       if suffix in HLSL_EXTENSIONS:
         findings.add(path, '§2', f'is not in a project\'s {SHADER_FOLDER} folder; HLSL lives in '
                      f'<Project>/{SHADER_FOLDER}, beside nothing but other HLSL (R17)')
       else:
-        where = 'below its project folder' if top in folders else 'outside every project folder'
+        where = 'below its project folder' if owner else 'outside every project folder'
         findings.add(path, '§2', f'is {where}; C++ lives directly in its project\'s folder, where '
                      '.clang-tidy\'s HeaderFilterRegex can see it')
     elif path not in listed:
-      findings.add(path, '§2', f'is not listed in {folders[top].path}; a file the project does not list is not built')
+      findings.add(path, '§2', f'is not listed in {folders[owner].path}; a file the project does not list is not built')
     if suffix in CPP_EXTENSIONS and posix.name in R7_EXCEPTIONS:
       continue
     if not PASCAL_CASE_STEM.match(posix.stem):

@@ -116,10 +116,13 @@ def expand(entry, dry_run, macros):
 
 
 def switches_for(source, configuration, dry_run):
-  folder = PurePosixPath(source).parent.as_posix()
-  vcxproj = ROOT / folder / f'{folder}.vcxproj'
+  # A source lives directly in its project's folder, which is named for the project: <Name>/ at the root, or
+  # <Group>/<Name>/ for a test suite or a tool (AGENTS.md §2, Design/ADR/ADR-023).
+  folder = PurePosixPath(source).parent
+  vcxproj = ROOT / folder / f'{folder.name}.vcxproj'
   if not vcxproj.is_file():
-    raise SystemExit(f'RunClangTidy: {source} has no project at {folder}/{folder}.vcxproj (AGENTS.md §2).')
+    raise SystemExit(f'RunClangTidy: {source} has no project at {folder.as_posix()}/{folder.name}.vcxproj '
+                     '(AGENTS.md §2).')
   settings, character_set, macros = project_settings(vcxproj, configuration, PurePosixPath(source).name)
   settings.setdefault('ExceptionHandling', 'Sync')
 

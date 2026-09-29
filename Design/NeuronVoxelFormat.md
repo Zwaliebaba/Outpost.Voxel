@@ -243,13 +243,13 @@ It lists every problem at once, as the importer does. A `FromVox` hardpoint keep
 | `NeuronCore/NvfModel.h/.cpp` | `NvfModel`, `NvfPart`, `NvfHardpoint`, `NvfError`; `ParseNvfModel`, `LoadNvfModel`, `SerializeNvfModel`, `SaveNvfModel`. Record structs with `static_assert`s on size and every offset, as R16 does for GPU layouts. |
 | `NeuronCore/NvfImport.h/.cpp` | `ImportVoxModel` and `NvfImportError` (§6.2). |
 | `NeuronCore/VoxModel.h/.cpp` | Names and odd-sized rotations (§6.1). |
-| `NvfImport/` (new project) | Console application: `Main.cpp` and the command line. References `NeuronCore` only. |
-| `NeuronCoreTests/` | `NvfModelTests.cpp`, `NvfImportTests.cpp`, and the reader's new cases; `NvfGolden.cpp`, the golden model in code, and `RepositoryFile.cpp`, which finds the golden file and the assets. |
+| `Tools/NvfImport/` (new project) | Console application: `Main.cpp` and the command line. References `NeuronCore` only. |
+| `Tests/NeuronCoreTests/` | `NvfModelTests.cpp`, `NvfImportTests.cpp`, and the reader's new cases; `NvfGolden.cpp`, the golden model in code, and `RepositoryFile.cpp`, which finds the golden file and the assets. |
 | `Tools/Blender/NeuronVoxelFormat/` | The extension (§7). |
 | `Tools/Golden/Golden.nvf` | The golden file (§9). |
 | `GameData/*.nvf` | The three converted assets. |
 
-`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R20** is added, R18 and R19 having gone to the space scene's client/server rule and the game concept's opponent rule: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++.
+`AGENTS.md` changes: the `NvfImport` project goes into §2's table and into `.clang-tidy`'s `HeaderFilterRegex`. `Tools/` is a new top-level folder with Python in it, recorded in the layout ADR. **R20** is added, R18 and R19 having gone to the space scene's client/server rule and the game concept's opponent rule: *NVF has one specification, this document's §4, and two implementations, which the golden file keeps in agreement.* `Build/CheckProjectFiles.py` learns that `Tools/` holds no C++. [ADR-023](ADR/ADR-023-tests-and-tools-folders.md) has since moved `NvfImport` into `Tools/` and the test suites into `Tests/`, and the checker now allows C++ in `Tools/` only in a tool's own folder.
 
 ## 9. Verification
 
