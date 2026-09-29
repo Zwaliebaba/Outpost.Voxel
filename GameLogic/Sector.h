@@ -93,7 +93,9 @@ public:
   void Advance(std::uint64_t _worldTick) override;
   void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override;
   void Restore(std::uint32_t _entity) override;
-  void Describe(NeuronCore::Snapshot& _snapshot) const override;
+
+  // The whole sector, whichever side asks: it has no sides, and so no fog (Design/ADR/ADR-032).
+  void Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const override;
 
   // The sphere of model _model, about the center of its occupied box.
   [[nodiscard]] float ModelRadius(std::uint16_t _model) const noexcept;

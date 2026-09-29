@@ -265,21 +265,27 @@ public:
     Assert::AreEqual(16u, NeuronCore::SIDE_PALETTE_ENTRY, L"the last entry, so the fifteen before it stay the author's");
   }
 
-  // Each model's own palette, then its variant for each side, model after model: every pair of a model and a side has
-  // its own palette, and together they fill the scene's palettes without a gap.
+  // Each model's own palette, then its variant for each side, model after model; then the remembered variant of each, in
+  // the same order (Design/ADR/ADR-032): every pair of a model and a side has its own palette and its remembered one, and
+  // together they fill the scene's palettes without a gap.
   TEST_METHOD(IndexesEachModelsPaletteForEachSide)
   {
+    constexpr std::size_t MODELS = 3;
     for (const std::size_t sides : {std::size_t{0}, std::size_t{1}, std::size_t{2}, std::size_t{255}})
     {
-      std::vector<bool> seen(3 * (sides + 1), false);
-      for (std::uint32_t model = 0; model < 3; ++model)
+      std::vector<bool> seen(2 * MODELS * (sides + 1), false);
+      for (std::uint32_t model = 0; model < MODELS; ++model)
       {
         Assert::AreEqual(model, NeuronCore::SidePaletteIndex(model, 0, 0), L"without sides, a model's own index");
         for (std::uint32_t side = 0; side <= sides; ++side)
         {
           const std::uint32_t index = NeuronCore::SidePaletteIndex(model, side, sides);
-          Assert::IsTrue(index < seen.size() && !seen[index], std::format(L"{} sides: model {}, side {}", sides, model, side).c_str());
+          const std::uint32_t remembered = NeuronCore::RememberedPaletteIndex(model, side, sides, MODELS);
+          const std::wstring what = std::format(L"{} sides: model {}, side {}", sides, model, side);
+          Assert::IsTrue(index < MODELS * (sides + 1) && !seen[index], what.c_str());
+          Assert::AreEqual(index + static_cast<std::uint32_t>(MODELS * (sides + 1)), remembered, (what + L", remembered").c_str());
           seen[index] = true;
+          seen[remembered] = true;
         }
       }
       Assert::IsTrue(std::ranges::all_of(seen, [](bool _seen) { return _seen; }), L"no gap");

@@ -28,6 +28,7 @@
     <ClCompile Include="PlacementSplatTests.cpp" />
     <ClCompile Include="SceneModelsTests.cpp" />
     <ClCompile Include="SnapshotBufferTests.cpp" />
+    <ClCompile Include="LastSeenTests.cpp" />
     <ClCompile Include="VoxelSceneTests.cpp" />
     <ClCompile Include="CapturedFrameTests.cpp" />
   </ItemGroup>

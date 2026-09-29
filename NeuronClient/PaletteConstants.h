@@ -36,4 +36,11 @@ static_assert(offsetof(PaletteConstants, materials) == 0);
 [[nodiscard]] PaletteConstants
 MakePaletteConstants(const std::array<NeuronCore::PaletteEntry, NeuronCore::PALETTE_ENTRY_COUNT>& _palette) noexcept;
 
+// How much of its albedo an entity remembered out of sight keeps (Design/ADR/ADR-032): a third, so that it reads as
+// dimmed beside what the side sees now.
+inline constexpr float REMEMBERED_ALBEDO_SCALE = 1.0f / 3.0f;
+
+// _palette as a remembered entity draws it: REMEMBERED_ALBEDO_SCALE of each entry's albedo, and no light of its own.
+[[nodiscard]] PaletteConstants RememberedPaletteConstants(const PaletteConstants& _palette) noexcept;
+
 } // namespace NeuronClient

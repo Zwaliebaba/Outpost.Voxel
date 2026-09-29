@@ -105,6 +105,7 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
     m_manifest = welcome->manifest;
     m_composites = welcome->composites;
     m_sides = welcome->sides;
+    m_side = welcome->sessionSide;
     m_welcomePayload = welcome->payload;
     m_buffer = SnapshotBuffer(welcome->tickRate);
     m_welcomed = true;

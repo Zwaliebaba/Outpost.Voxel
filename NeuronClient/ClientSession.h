@@ -88,6 +88,13 @@ public:
     return m_sides;
   }
 
+  // The side the session plays, n for Sides()[n - 1], or NeuronCore::OBSERVER_SIDE for an observer, which receives the
+  // whole world (Design/ADR/ADR-032); an observer's until the welcome has come.
+  [[nodiscard]] std::uint8_t Side() const noexcept
+  {
+    return m_side;
+  }
+
   // The game's payload in the welcome, which the engine carried unread; empty until the welcome has come.
   [[nodiscard]] std::span<const std::uint8_t> WelcomePayload() const noexcept
   {
@@ -116,6 +123,7 @@ private:
   std::vector<NeuronCore::VoxModel> m_models;
   std::vector<NeuronCore::CompositeModel> m_composites;
   std::vector<NeuronCore::SideColor> m_sides;
+  std::uint8_t m_side = NeuronCore::OBSERVER_SIDE;
   std::vector<std::uint8_t> m_welcomePayload;
   SnapshotBuffer m_buffer{1};
   std::optional<SessionError> m_error; // the refusal, once the session has ended

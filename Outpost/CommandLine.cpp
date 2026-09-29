@@ -24,9 +24,9 @@ constexpr bool DEBUG_BUILD = false;
 #endif
 
 constexpr std::wstring_view USAGE =
-  L"Outpost.exe [--skirmish] [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] [--debris-lifetime "
-  L"<seconds>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds> | --capture "
-  L"<file>.png [--capture-at <seconds>]]";
+  L"Outpost.exe [--skirmish [--observe] [--log <file>]] [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] "
+  L"[--debris-lifetime <seconds>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds> | "
+  L"--capture <file>.png [--capture-at <seconds>]]\n\nOutpost.exe --replay <file>";
 
 // --bench's timeline runs at 60 frames a second, so an hour is 216,000 frames in each of the two variants.
 constexpr std::uint32_t BENCH_SECONDS_MAXIMUM = 3600;
@@ -113,6 +113,9 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
   Options options{{ExecutableFolder() / L"GameData", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}, std::nullopt, false},
                   {},
                   std::nullopt,
+                  std::nullopt,
+                  false,
+                  std::nullopt,
                   std::nullopt};
   std::optional<std::wstring_view> worldOption; // the first option that shapes the world beyond its seed
   bool skirmish = false;
@@ -125,6 +128,18 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
     if (argument == L"--skirmish")
     {
       skirmish = true;
+    }
+    else if (argument == L"--observe")
+    {
+      options.observe = true;
+    }
+    else if (argument == L"--log" && hasValue)
+    {
+      options.logFile = std::filesystem::path(_arguments[++i]);
+    }
+    else if (argument == L"--replay" && hasValue)
+    {
+      options.replayFile = std::filesystem::path(_arguments[++i]);
     }
     else if (argument == L"--seed" && hasValue)
     {
@@ -237,6 +252,11 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
       return std::unexpected(Mistake(std::format(L"{} is not an option here{}.", argument, hasValue ? L"" : L", or it needs a value")));
     }
   }
+  // --replay runs a logged skirmish without a window, from its log alone (Design/ADR/ADR-032).
+  if (options.replayFile && _arguments.size() != 2)
+  {
+    return std::unexpected(Mistake(L"--replay makes the skirmish again from its log alone, so it takes no other option."));
+  }
   if (options.game.device.warp && options.game.device.adapter)
   {
     return std::unexpected(Mistake(L"--warp and --adapter each choose the adapter; give one of them."));
@@ -268,6 +288,12 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
     }
     options.skirmish = GameLogic::SkirmishParameters{.seed = options.world.seed};
     options.game.overview = true;
+  }
+  // The window plays side 1 of the skirmish unless it observes, and the log is the skirmish's (Design/ADR/ADR-032).
+  if (!skirmish && (options.observe || options.logFile))
+  {
+    return std::unexpected(
+      Mistake(std::format(L"{} is the skirmish's, so it goes with --skirmish.", options.observe ? L"--observe" : L"--log")));
   }
   // --bench runs the one-station preset until S-M8's space bench (§14): one station and no ships, from the seed.
   if (options.benchSeconds)

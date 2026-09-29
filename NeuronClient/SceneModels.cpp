@@ -80,7 +80,7 @@ namespace
 
 } // namespace
 
-void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements) const
+void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements, bool _remembered) const
 {
   const Measure& measure = m_measures.at(_entity.composite);
   const NeuronCore::Rotation rotation = NeuronCore::RotationOf(_entity.rotation);
@@ -95,7 +95,8 @@ void SceneModels::Place(const SampledEntity& _entity, std::vector<NeuronCore::Pl
     const NeuronCore::Rotation turned = PartRotation(part.component, part.isIdentity, rotation);
     NeuronCore::Placement placement = part.whole;
     placement.transform = {turned, _entity.position + NeuronCore::RotateVector(rotation, origin - measure.middle)};
-    placement.paletteIndex = NeuronCore::SidePaletteIndex(part.model, _entity.side, m_sideCount);
+    placement.paletteIndex = _remembered ? NeuronCore::RememberedPaletteIndex(part.model, _entity.side, m_sideCount, m_models.size())
+                                         : NeuronCore::SidePaletteIndex(part.model, _entity.side, m_sideCount);
     if (_entity.detonation)
     {
       const NeuronCore::DetonationEvent& event = _entity.detonation->event;

@@ -23,4 +23,15 @@ PaletteConstants MakePaletteConstants(const std::array<NeuronCore::PaletteEntry,
   return constants;
 }
 
+PaletteConstants RememberedPaletteConstants(const PaletteConstants& _palette) noexcept
+{
+  PaletteConstants remembered = _palette;
+  for (PaletteMaterial& material : remembered.materials)
+  {
+    material.albedo = material.albedo * REMEMBERED_ALBEDO_SCALE;
+    material.emissiveScale = 0.0f;
+  }
+  return remembered;
+}
+
 } // namespace NeuronClient

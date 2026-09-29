@@ -3,9 +3,13 @@
 #include "Skirmish.h"
 #include "TestSupport.h"
 
+#include "Catalogue.h"
+#include "Design.h"
+#include "Profile.h"
 #include "SkirmishLayout.h"
 #include "WelcomeNames.h"
 
+#include "CommandLog.h"
 #include "ServerHost.h"
 
 #include "LoopbackTransport.h"
@@ -14,6 +18,7 @@
 #include "RigidTransform.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +26,9 @@
 #include <format>
 #include <memory>
 #include <optional>
+#include <ostream>
+#include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -62,11 +70,34 @@ constexpr std::size_t ASTEROIDS = 44;
   return skirmish ? std::move(*skirmish) : nullptr;
 }
 
-[[nodiscard]] NeuronCore::Snapshot DescribeSkirmish(const GameLogic::Skirmish& _skirmish)
+// The skirmish as side _side sees it, or all of it.
+[[nodiscard]] NeuronCore::Snapshot DescribeSkirmish(const GameLogic::Skirmish& _skirmish, std::uint8_t _side = NeuronCore::OBSERVER_SIDE)
 {
   NeuronCore::Snapshot snapshot{};
-  _skirmish.Describe(snapshot);
+  _skirmish.Describe(snapshot, _side);
   return snapshot;
+}
+
+[[nodiscard]] std::vector<std::uint32_t> IdsOf(const NeuronCore::Snapshot& _snapshot)
+{
+  std::vector<std::uint32_t> ids;
+  ids.reserve(_snapshot.entities.size());
+  for (const NeuronCore::EntityState& entity : _snapshot.entities)
+  {
+    ids.push_back(entity.id);
+  }
+  return ids;
+}
+
+[[nodiscard]] std::vector<std::uint32_t> DetonatedIdsOf(const NeuronCore::Snapshot& _snapshot)
+{
+  std::vector<std::uint32_t> ids;
+  ids.reserve(_snapshot.detonations.size());
+  for (const NeuronCore::DetonationEvent& detonation : _snapshot.detonations)
+  {
+    ids.push_back(detonation.entity);
+  }
+  return ids;
 }
 
 [[nodiscard]] bool SameRotation(const NeuronCore::Rotation& _a, const NeuronCore::Rotation& _b) noexcept
@@ -100,13 +131,189 @@ struct Client
   }
 };
 
-[[nodiscard]] Client Join(NeuronServer::ServerHost& _host)
+// A client of _host that plays side _side, or observes, and has said Hello.
+[[nodiscard]] Client Join(NeuronServer::ServerHost& _host, std::uint8_t _side)
 {
   NeuronCore::LoopbackPair pair = NeuronCore::MakeLoopbackPair();
-  _host.AddSession(std::move(pair.server));
+  _host.AddSession(std::move(pair.server), _side);
   Client client{std::move(pair.client)};
   client.Send(NeuronCore::Hello{NeuronCore::PROTOCOL_VERSION});
   return client;
+}
+
+// The sessions a run of the skirmish serves, in the order they join: side 1's, side 2's and an observer's.
+constexpr std::array<std::uint8_t, 3> SESSION_SIDES{1, 2, NeuronCore::OBSERVER_SIDE};
+constexpr std::size_t OBSERVER_SESSION = 2;
+
+// A command a session sends before the host's step at a tick: the host applies it at that tick, and the snapshot of the
+// next tick is the first to show it.
+struct Scripted
+{
+  std::uint64_t tick;
+  std::size_t session;
+  NeuronCore::CommandKind kind;
+  std::uint32_t entity;
+};
+
+// The entities the script names, by id: each side's core and ships, in the layout's order, then the asteroids, of which
+// the first stands in side 1's first near field.
+constexpr std::uint32_t SIDE_1_CORE = 1;
+constexpr std::uint32_t SIDE_2_CORE = 6;
+constexpr std::uint32_t NEAR_ASTEROID = UNITS + 1;
+
+// Side 1 loses its core and then its four ships, so that it sees only its own, then has its core back; side 2's
+// detonation of side 1's core is refused; the observer detonates side 2's core, which side 2 restores; and side 1
+// detonates an asteroid of its near field while it has no sensor, and sees the debris once its core is back.
+constexpr std::uint64_t SCRIPT_TICKS = 12;
+constexpr std::array<Scripted, 11> SCRIPT{{{2, 0, NeuronCore::CommandKind::Detonate, SIDE_1_CORE},
+                                           {3, 1, NeuronCore::CommandKind::Detonate, SIDE_1_CORE},
+                                           {4, 0, NeuronCore::CommandKind::Detonate, 2},
+                                           {4, 0, NeuronCore::CommandKind::Detonate, 3},
+                                           {4, 0, NeuronCore::CommandKind::Detonate, 4},
+                                           {4, 0, NeuronCore::CommandKind::Detonate, 5},
+                                           {5, 2, NeuronCore::CommandKind::Detonate, SIDE_2_CORE},
+                                           {6, 0, NeuronCore::CommandKind::Detonate, NEAR_ASTEROID},
+                                           {7, 0, NeuronCore::CommandKind::Restore, SIDE_1_CORE},
+                                           {9, 1, NeuronCore::CommandKind::Restore, SIDE_2_CORE},
+                                           {10, 0, NeuronCore::CommandKind::Restore, 2}}};
+constexpr std::size_t SCRIPT_REFUSED = 1;
+
+// What each session of a run received, by session: its welcome, then a snapshot a tick; and what the host counted.
+struct Run
+{
+  std::vector<std::vector<Bytes>> bytes;
+  std::vector<std::vector<NeuronCore::Message>> messages;
+  std::uint64_t refused;
+  std::size_t sessions; // open at the end
+};
+
+// _ticks of the skirmish of _seed, with a session of each of SESSION_SIDES and _script sent at its ticks, logged to _log
+// when there is one.
+[[nodiscard]] Run RunSkirmish(std::uint32_t _seed, std::span<const Scripted> _script, std::uint64_t _ticks, std::ostream* _log = nullptr)
+{
+  const auto skirmish = MakeSkirmish(_seed);
+  NeuronServer::ServerHost host(*skirmish);
+  std::vector<Client> clients;
+  clients.reserve(SESSION_SIDES.size());
+  for (const std::uint8_t side : SESSION_SIDES)
+  {
+    clients.push_back(Join(host, side));
+  }
+  if (_log != nullptr)
+  {
+    host.Log(*_log, GameLogic::EncodeSkirmishParameters({.seed = _seed}));
+  }
+  for (std::uint64_t tick = 0; tick < _ticks; ++tick)
+  {
+    for (const Scripted& scripted : _script)
+    {
+      if (scripted.tick == tick)
+      {
+        clients[scripted.session].Send(NeuronCore::Command{scripted.kind, scripted.entity});
+      }
+    }
+    host.Step();
+  }
+  Run run{std::vector<std::vector<Bytes>>(clients.size()), std::vector<std::vector<NeuronCore::Message>>(clients.size()),
+          host.RefusedCommands(), host.SessionCount()};
+  for (std::size_t session = 0; session < clients.size(); ++session)
+  {
+    run.messages[session] = clients[session].ReceiveAll(run.bytes[session]);
+  }
+  return run;
+}
+
+[[nodiscard]] std::vector<NeuronCore::Snapshot> SnapshotsOf(const std::vector<NeuronCore::Message>& _messages)
+{
+  std::vector<NeuronCore::Snapshot> snapshots;
+  for (const NeuronCore::Message& message : _messages)
+  {
+    if (const auto* snapshot = std::get_if<NeuronCore::Snapshot>(&message))
+    {
+      snapshots.push_back(*snapshot);
+    }
+  }
+  return snapshots;
+}
+
+// Each composite's sensor range, from the welcome's names and GameCore's designs: its design's profile's, and none for an
+// asteroid.
+[[nodiscard]] std::vector<float> SensorRanges(const NeuronCore::Welcome& _welcome)
+{
+  const GameCore::WelcomeNames names = GameCore::DecodeWelcomeNames(_welcome.payload).value_or(GameCore::WelcomeNames{});
+  std::vector<float> ranges;
+  ranges.reserve(names.composites.size());
+  for (const std::string& name : names.composites)
+  {
+    const GameCore::DesignSpec* spec = GameCore::FindDesign(name);
+    const auto design = spec != nullptr ? std::optional(GameCore::LoadDesign(*spec, GameDataDirectory())) : std::nullopt;
+    ranges.push_back(design && design->has_value() ? GameCore::ComputeProfile(design->value()).sensorRangeUnits : 0.0f);
+  }
+  return ranges;
+}
+
+// What side _side should see of _whole, the observer's snapshot of the same tick, by the rule of ADR-032 worked out here:
+// its own entities, and every entity whose middle lies within the sensor range of one of its intact entities.
+[[nodiscard]] std::vector<std::uint32_t> InSight(const NeuronCore::Snapshot& _whole, std::uint8_t _side, const std::vector<float>& _ranges)
+{
+  const auto intact = [&_whole](std::uint32_t _id)
+  { return std::ranges::none_of(_whole.detonations, [_id](const NeuronCore::DetonationEvent& _event) { return _event.entity == _id; }); };
+  std::vector<std::uint32_t> ids;
+  for (const NeuronCore::EntityState& entity : _whole.entities)
+  {
+    bool seen = entity.side == _side;
+    for (const NeuronCore::EntityState& sensor : _whole.entities)
+    {
+      if (seen || sensor.side != _side || !intact(sensor.id))
+      {
+        continue;
+      }
+      const double dx = static_cast<double>(entity.position.x) - static_cast<double>(sensor.position.x);
+      const double dy = static_cast<double>(entity.position.y) - static_cast<double>(sensor.position.y);
+      const double dz = static_cast<double>(entity.position.z) - static_cast<double>(sensor.position.z);
+      const double range = _ranges[sensor.composite];
+      seen = range > 0.0 && dx * dx + dy * dy + dz * dz <= range * range;
+    }
+    if (seen)
+    {
+      ids.push_back(entity.id);
+    }
+  }
+  return ids;
+}
+
+// Side _side's snapshot _seen against the observer's _whole of the same tick: the entities in its sight, in order, each
+// as the observer receives it, and the detonations of those entities alone.
+void CheckSight(const NeuronCore::Snapshot& _whole, const NeuronCore::Snapshot& _seen, std::uint8_t _side,
+                const std::vector<float>& _ranges, const std::wstring& _what)
+{
+  Assert::AreEqual(_whole.tick, _seen.tick, _what.c_str());
+  const std::vector<std::uint32_t> expected = InSight(_whole, _side, _ranges);
+  Assert::IsTrue(IdsOf(_seen) == expected, (_what + L": the entities in its sight").c_str());
+  for (const NeuronCore::EntityState& entity : _seen.entities)
+  {
+    const auto whole = std::ranges::find(_whole.entities, entity.id, &NeuronCore::EntityState::id);
+    Assert::IsTrue(whole != _whole.entities.end() && whole->composite == entity.composite && whole->side == entity.side &&
+                     whole->position.x == entity.position.x && whole->position.y == entity.position.y &&
+                     whole->position.z == entity.position.z,
+                   (_what + std::format(L": entity {} as the observer receives it", entity.id)).c_str());
+  }
+  std::vector<std::uint32_t> detonated;
+  for (const NeuronCore::DetonationEvent& detonation : _whole.detonations)
+  {
+    if (std::ranges::find(expected, detonation.entity) != expected.end())
+    {
+      detonated.push_back(detonation.entity);
+    }
+  }
+  Assert::IsTrue(DetonatedIdsOf(_seen) == detonated, (_what + L": the detonations of those entities").c_str());
+}
+
+[[nodiscard]] const NeuronCore::Welcome& WelcomeOf(const Run& _run, std::size_t _session)
+{
+  const auto* welcome = std::get_if<NeuronCore::Welcome>(_run.messages[_session].data());
+  Assert::IsTrue(welcome != nullptr, L"the session was welcomed");
+  return *welcome;
 }
 
 } // namespace
@@ -203,42 +410,175 @@ public:
     }
   }
 
-  // Two hosts over two skirmishes of one seed, each with a client, over a detonation and a restore: the same welcome and
-  // every snapshot byte for byte. Another seed differs from its welcome on.
+  // Phase 3's test (Design/MvpPlan.md §5): two hosts over two skirmishes of one seed, each with a session of each side and
+  // an observer, over the script: every session receives the same bytes from both. Another seed differs from its welcome
+  // on, and the two sides see apart.
   TEST_METHOD(RepeatsItselfFromItsSeed)
   {
-    const auto stream = [](std::uint32_t _seed)
+    const Run first = RunSkirmish(11, SCRIPT, SCRIPT_TICKS);
+    const Run second = RunSkirmish(11, SCRIPT, SCRIPT_TICKS);
+    const Run other = RunSkirmish(12, SCRIPT, SCRIPT_TICKS);
+    for (std::size_t session = 0; session < SESSION_SIDES.size(); ++session)
     {
-      const auto skirmish = MakeSkirmish(_seed);
-      NeuronServer::ServerHost host(*skirmish);
-      const Client client = Join(host);
-      std::vector<Bytes> bytes;
-      for (std::uint64_t tick = 0; tick < 12; ++tick)
-      {
-        if (tick == 3)
-        {
-          client.Send(NeuronCore::Command{NeuronCore::CommandKind::Detonate, 2});
-        }
-        if (tick == 8)
-        {
-          client.Send(NeuronCore::Command{NeuronCore::CommandKind::Restore, 2});
-        }
-        host.Step();
-        static_cast<void>(client.ReceiveAll(bytes));
-      }
-      return bytes;
-    };
-    const std::vector<Bytes> first = stream(11);
-    const std::vector<Bytes> second = stream(11);
-    const std::vector<Bytes> other = stream(12);
-    Assert::AreEqual(std::size_t{13}, first.size(), L"a welcome and a snapshot a tick");
-    Assert::AreEqual(first.size(), second.size());
-    for (std::size_t i = 0; i < first.size(); ++i)
-    {
-      Assert::IsTrue(first[i] == second[i], std::format(L"message {} is the same", i).c_str());
+      const std::wstring what = std::format(L"session {}", session);
+      Assert::AreEqual(std::size_t{SCRIPT_TICKS + 1}, first.bytes[session].size(), (what + L": a welcome and a snapshot a tick").c_str());
+      Assert::IsTrue(first.bytes[session] == second.bytes[session], (what + L": the same bytes").c_str());
+      Assert::IsFalse(first.bytes[session].front() == other.bytes[session].front(), (what + L": another seed, another welcome").c_str());
+      Assert::IsFalse(first.bytes[session][1] == other.bytes[session][1], (what + L": and other snapshots").c_str());
     }
-    Assert::IsFalse(first.front() == other.front(), L"another seed, another welcome");
-    Assert::IsFalse(first[1] == other[1], L"and other snapshots");
+    Assert::IsFalse(first.bytes[0][1] == first.bytes[1][1], L"the sides see apart");
+  }
+
+  // Phase 3's checkpoint (Design/MvpPlan.md §5): at the start each side sees its own core and ships and its two near
+  // fields, and neither the other side's nor the middle fields, whatever the seed; the observer sees everything. The
+  // asteroids stand in the layout's order: side 1's two near fields and the first middle field, then the half turn of
+  // each.
+  TEST_METHOD(HidesTheEnemyAndTheMiddleAtTheStart)
+  {
+    constexpr std::size_t NEAR_ASTEROIDS = GameCore::HALF_FIELDS[0].asteroids + GameCore::HALF_FIELDS[1].asteroids;
+    constexpr std::size_t HALF_ASTEROIDS = ASTEROIDS / 2;
+    for (std::uint32_t seed = 1; seed <= SYMMETRY_SEEDS; ++seed)
+    {
+      const auto skirmish = MakeSkirmish(seed);
+      Assert::AreEqual(UNITS + ASTEROIDS, DescribeSkirmish(*skirmish).entities.size(), L"the observer sees everything");
+      for (std::uint8_t side = 1; side <= 2; ++side)
+      {
+        std::vector<std::uint32_t> expected;
+        const std::size_t firstUnit = side == 1 ? 1 : 1 + UNITS / 2;
+        const std::size_t firstNear = 1 + UNITS + (side == 1 ? 0 : HALF_ASTEROIDS);
+        for (std::size_t id = firstUnit; id < firstUnit + UNITS / 2; ++id)
+        {
+          expected.push_back(static_cast<std::uint32_t>(id));
+        }
+        for (std::size_t id = firstNear; id < firstNear + NEAR_ASTEROIDS; ++id)
+        {
+          expected.push_back(static_cast<std::uint32_t>(id));
+        }
+        Assert::IsTrue(IdsOf(DescribeSkirmish(*skirmish, side)) == expected,
+                       std::format(L"seed {}, side {}: its own and its near fields", seed, side).c_str());
+      }
+    }
+  }
+
+  // Phase 3's test (Design/MvpPlan.md §5): on 20 seeds and every tick of the script, each side's snapshot holds what the
+  // rule, worked out here from the observer's snapshot, puts in its sight, and nothing else. The ranges are the profiles':
+  // 1,200 units for the core and 700 for a ship.
+  TEST_METHOD(SendsEachSideOnlyWhatItsSensorsReach)
+  {
+    for (std::uint32_t seed = 1; seed <= SYMMETRY_SEEDS; ++seed)
+    {
+      const Run run = RunSkirmish(seed, SCRIPT, SCRIPT_TICKS);
+      const std::vector<float> ranges = SensorRanges(WelcomeOf(run, OBSERVER_SESSION));
+      const GameCore::WelcomeNames names =
+        GameCore::DecodeWelcomeNames(WelcomeOf(run, OBSERVER_SESSION).payload).value_or(GameCore::WelcomeNames{});
+      for (std::size_t composite = 0; composite < names.composites.size(); ++composite)
+      {
+        const std::string& name = names.composites[composite];
+        const float expected = name == "StationCore" ? 1200.0f : (GameCore::FindDesign(name) != nullptr ? 700.0f : 0.0f);
+        Assert::AreEqual(expected, ranges[composite], Widen(name + "'s sensor range").c_str());
+      }
+
+      const std::vector<NeuronCore::Snapshot> whole = SnapshotsOf(run.messages[OBSERVER_SESSION]);
+      Assert::AreEqual(std::size_t{SCRIPT_TICKS}, whole.size(), L"a snapshot a tick");
+      for (std::size_t session = 0; session < OBSERVER_SESSION; ++session)
+      {
+        const std::uint8_t side = SESSION_SIDES[session];
+        Assert::IsTrue(WelcomeOf(run, session).sessionSide == side, L"the session is told its side");
+        const std::vector<NeuronCore::Snapshot> seen = SnapshotsOf(run.messages[session]);
+        Assert::AreEqual(whole.size(), seen.size(), L"a snapshot a tick");
+        for (std::size_t tick = 0; tick < seen.size(); ++tick)
+        {
+          CheckSight(whole[tick], seen[tick], side, ranges, std::format(L"seed {}, side {}, tick {}", seed, side, tick + 1));
+        }
+      }
+
+      // The script's turns: with neither core nor ships intact, side 1 sees only its own, the asteroid it detonates
+      // meanwhile included out of sight; with its core back, it sees the asteroid's debris.
+      const std::vector<NeuronCore::Snapshot> side1 = SnapshotsOf(run.messages[0]);
+      for (std::size_t tick = 5; tick <= 7; ++tick)
+      {
+        Assert::IsTrue(IdsOf(side1[tick - 1]) == std::vector<std::uint32_t>{1, 2, 3, 4, 5},
+                       std::format(L"seed {}, tick {}: side 1 sees only its own", seed, tick).c_str());
+      }
+      const std::vector<std::uint32_t> detonatedAtTick7 = DetonatedIdsOf(whole[6]);
+      const std::vector<std::uint32_t> seenAtTick8 = DetonatedIdsOf(side1[7]);
+      Assert::IsTrue(std::ranges::find(detonatedAtTick7, NEAR_ASTEROID) != detonatedAtTick7.end(), L"the asteroid detonated at tick 7");
+      Assert::IsTrue(std::ranges::find(seenAtTick8, NEAR_ASTEROID) != seenAtTick8.end(),
+                     L"and side 1 sees its debris once its core is back");
+    }
+  }
+
+  // Phase 3's test (Design/MvpPlan.md §5): side 2's detonation of side 1's core is refused and counted, its session stays
+  // open, and every session receives the bytes it would have had the command never been sent. A side may command its own
+  // and an asteroid, which is no side's, and the observer anything.
+  TEST_METHOD(RefusesACommandOnTheOtherSidesEntity)
+  {
+    const auto skirmish = MakeSkirmish(4);
+    const auto refusal = [&skirmish](NeuronCore::CommandKind _kind, std::uint32_t _entity, std::uint8_t _side)
+    { return skirmish->Refuses(NeuronCore::Command{_kind, _entity}, _side); };
+    using enum NeuronCore::CommandKind;
+    Assert::IsTrue(refusal(Detonate, SIDE_1_CORE, 2) == NeuronServer::CommandRefusal::OtherSidesEntity,
+                   L"side 2 may not detonate side 1's core");
+    Assert::IsTrue(refusal(Restore, SIDE_1_CORE, 2) == NeuronServer::CommandRefusal::OtherSidesEntity, L"nor restore it");
+    Assert::IsTrue(refusal(Detonate, SIDE_2_CORE, 1) == NeuronServer::CommandRefusal::OtherSidesEntity, L"nor side 1 side 2's");
+    Assert::IsFalse(refusal(Detonate, SIDE_1_CORE, 1).has_value(), L"side 1 commands its own");
+    Assert::IsFalse(refusal(Detonate, SIDE_1_CORE, NeuronCore::OBSERVER_SIDE).has_value(), L"and the observer anything");
+    Assert::IsFalse(refusal(Detonate, NEAR_ASTEROID, 2).has_value(), L"an asteroid is no side's");
+    Assert::IsFalse(refusal(Pause, 0, 2).has_value(), L"and a pause is anyone's while the MVP has one player");
+
+    std::vector<Scripted> without(SCRIPT.begin(), SCRIPT.end());
+    std::erase_if(without, [](const Scripted& _scripted) { return _scripted.session == 1 && _scripted.entity == SIDE_1_CORE; });
+    const Run refused = RunSkirmish(4, SCRIPT, SCRIPT_TICKS);
+    const Run never = RunSkirmish(4, without, SCRIPT_TICKS);
+    Assert::AreEqual(std::uint64_t{SCRIPT_REFUSED}, refused.refused, L"counted");
+    Assert::AreEqual(std::uint64_t{0}, never.refused);
+    Assert::AreEqual(SESSION_SIDES.size(), refused.sessions, L"and the session stays open");
+    for (std::size_t session = 0; session < SESSION_SIDES.size(); ++session)
+    {
+      Assert::IsTrue(refused.bytes[session] == never.bytes[session],
+                     std::format(L"session {}: the command changed nothing", session).c_str());
+    }
+  }
+
+  // Phase 3's test (Design/MvpPlan.md §5): a logged run of the script replays to the same bytes from its log alone, the
+  // skirmish made again from the parameters the log carries. On another seed it parts at the first tick.
+  TEST_METHOD(ReplaysALoggedRun)
+  {
+    std::stringstream log(std::ios::in | std::ios::out | std::ios::binary);
+    const Run run = RunSkirmish(9, SCRIPT, SCRIPT_TICKS, &log);
+    const std::string text = log.str();
+    const auto decoded = NeuronServer::DecodeCommandLog(Bytes(text.begin(), text.end()));
+    Assert::IsTrue(decoded.has_value(), L"the log decodes");
+    const NeuronServer::CommandLog commandLog = decoded.value_or(NeuronServer::CommandLog{});
+    Assert::AreEqual(SCRIPT.size() - run.refused, commandLog.commands.size(), L"every applied command");
+    Assert::IsTrue(commandLog.sessionSides == Bytes(SESSION_SIDES.begin(), SESSION_SIDES.end()), L"and every session's side");
+
+    const auto parameters = GameLogic::DecodeSkirmishParameters(commandLog.world);
+    Assert::IsTrue(parameters.has_value() && parameters->seed == 9 && parameters->tickRate == 30, L"the skirmish's parameters");
+    auto again = GameLogic::Skirmish::Create(parameters.value_or(GameLogic::SkirmishParameters{}), GameDataDirectory());
+    Assert::IsTrue(again.has_value(), L"made again");
+    const NeuronServer::ReplayOutcome outcome = NeuronServer::Replay(**again, commandLog);
+    Assert::AreEqual(SCRIPT_TICKS, outcome.ticks, L"every tick replayed");
+    Assert::AreEqual(commandLog.commands.size(), outcome.commands, L"every command sent again");
+    Assert::IsFalse(outcome.firstDifference.has_value(), L"and every tick matched");
+
+    const auto otherSeed = MakeSkirmish(10);
+    Assert::IsTrue(NeuronServer::Replay(*otherSeed, commandLog).firstDifference == 1u, L"another seed parts at the first tick");
+  }
+
+  TEST_METHOD(SpellsItsParametersForItsLog)
+  {
+    const Bytes bytes = GameLogic::EncodeSkirmishParameters({.seed = 0x01020304u, .tickRate = 30});
+    Assert::IsTrue(bytes == Bytes{1, 4, 3, 2, 1, 30, 0, 0, 0}, L"a version, then the seed and the tick rate");
+    const auto parameters = GameLogic::DecodeSkirmishParameters(bytes);
+    Assert::IsTrue(parameters.has_value() && parameters->seed == 0x01020304u && parameters->tickRate == 30, L"and back");
+    Bytes otherVersion = bytes;
+    otherVersion[0] = 2;
+    Bytes longer = bytes;
+    longer.push_back(0);
+    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(otherVersion).has_value(), L"another version");
+    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(std::span(bytes).first(8)).has_value(), L"bytes cut short");
+    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(longer).has_value(), L"and too many");
   }
 
   // An entity detonates on command, once, with a seed of its own, at the world tick it was given, and is restored whole.

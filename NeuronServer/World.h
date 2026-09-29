@@ -3,14 +3,22 @@
 #include "Message.h"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace NeuronServer
 {
 
+// Why a world refuses a command from a session's side (G34, Design/ADR/ADR-032). The host counts the refusal, and the
+// session goes on.
+enum class CommandRefusal : std::uint8_t
+{
+  OtherSidesEntity // a command that names an entity of a side other than the session's
+};
+
 // What a ServerHost simulates (Design/Archive/SpaceScene.md §6.1). The host owns the clock, the sessions and the messages; the
-// world only advances a tick at a time and describes itself. The game's world is GameLogic's Sector, and the
-// server's tests bring one of their own.
+// world only advances a tick at a time, describes itself as each side sees it, and judges each side's commands
+// (Design/ADR/ADR-032). The game's worlds are GameLogic's Sector and Skirmish, and the server's tests bring one of their own.
 class World
 {
 public:
@@ -55,8 +63,16 @@ public:
   // Restores a detonated entity whole; anything else is left as it is.
   virtual void Restore(std::uint32_t _entity) = 0;
 
-  // Fills _snapshot's entities, in the order of their ids, and its detonations: the world as it is now.
-  virtual void Describe(NeuronCore::Snapshot& _snapshot) const = 0;
+  // Why the world refuses a command from a session of the given side, or nothing when it applies it (G34). An observer's
+  // commands are judged as no side's. A world that gives its sides no rules refuses nothing.
+  [[nodiscard]] virtual std::optional<CommandRefusal> Refuses(const NeuronCore::Command& /*_command*/, std::uint8_t /*_side*/) const
+  {
+    return std::nullopt;
+  }
+
+  // Fills _snapshot's entities, in the order of their ids, and its detonations: the world as it is now, as side _side sees
+  // it, or all of it for NeuronCore::OBSERVER_SIDE (G21, G30). A detonation goes with its entity.
+  virtual void Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const = 0;
 };
 
 } // namespace NeuronServer

@@ -7,6 +7,7 @@
 #include "Catalogue.h"
 #include "Design.h"
 #include "DesignComposite.h"
+#include "Profile.h"
 #include "SkirmishLayout.h"
 #include "WelcomeNames.h"
 
@@ -32,6 +33,10 @@ using NeuronCore::Float3;
 constexpr std::uint32_t SEED_STEP = 0x9E3779B9u;
 constexpr std::uint32_t DETONATION_STREAM = 0xD7u;
 
+// The skirmish's parameters in its command log: a version, then the seed and the tick rate.
+constexpr std::uint8_t PARAMETERS_VERSION = 1;
+constexpr std::size_t PARAMETERS_BYTES = 1 + 4 + 4;
+
 [[nodiscard]] SkirmishError Refuse(SkirmishRefusal _refusal, std::string _detail)
 {
   return {_refusal, std::move(_detail)};
@@ -45,7 +50,50 @@ constexpr std::uint32_t DETONATION_STREAM = 0xD7u;
           0.5f * static_cast<float>(bounds.lower.z + bounds.upper.z)};
 }
 
+// Whether _to lies within _rangeUnits of _from. Squared, in double precision: the skirmish's positions are whole or half
+// voxels, so every term is exact and every build compares alike (R21).
+[[nodiscard]] bool WithinRange(Float3 _from, Float3 _to, float _rangeUnits) noexcept
+{
+  const double dx = static_cast<double>(_to.x) - static_cast<double>(_from.x);
+  const double dy = static_cast<double>(_to.y) - static_cast<double>(_from.y);
+  const double dz = static_cast<double>(_to.z) - static_cast<double>(_from.z);
+  const double range = _rangeUnits;
+  return dx * dx + dy * dy + dz * dz <= range * range;
+}
+
+[[nodiscard]] std::uint32_t ReadU32(std::span<const std::uint8_t> _bytes, std::size_t _offset) noexcept
+{
+  std::uint32_t value = 0;
+  for (std::size_t i = 0; i < 4; ++i)
+  {
+    value |= std::uint32_t{_bytes[_offset + i]} << (8u * i);
+  }
+  return value;
+}
+
 } // namespace
+
+std::vector<std::uint8_t> EncodeSkirmishParameters(const SkirmishParameters& _parameters)
+{
+  std::vector<std::uint8_t> bytes{PARAMETERS_VERSION};
+  for (const std::uint32_t value : {_parameters.seed, _parameters.tickRate})
+  {
+    for (std::uint32_t shift = 0; shift < 32u; shift += 8u)
+    {
+      bytes.push_back(static_cast<std::uint8_t>(value >> shift));
+    }
+  }
+  return bytes;
+}
+
+std::optional<SkirmishParameters> DecodeSkirmishParameters(std::span<const std::uint8_t> _bytes) noexcept
+{
+  if (_bytes.size() != PARAMETERS_BYTES || _bytes[0] != PARAMETERS_VERSION)
+  {
+    return std::nullopt;
+  }
+  return SkirmishParameters{ReadU32(_bytes, 1), ReadU32(_bytes, 5)};
+}
 
 const char* SkirmishRefusalName(SkirmishRefusal _refusal) noexcept
 {
@@ -159,22 +207,25 @@ std::expected<std::unique_ptr<Skirmish>, SkirmishError> Skirmish::Create(const S
   skirmish->m_welcomePayload = GameCore::EncodeWelcomeNames(welcomeNames);
 
   // The entities, where the seed lays them out: each side's core and ships, then the asteroids. Each stands at its anchor,
-  // turned by one of the cube's rotations, spelled as the NVF importer's table spells it, so every voxel is exact.
+  // turned by one of the cube's rotations, spelled as the NVF importer's table spells it, so every voxel is exact. A
+  // design's entity senses as far as its profile says, and an asteroid senses nothing.
   const GameCore::SkirmishLayout layout = GameCore::MakeSkirmishLayout(_parameters.seed);
-  const auto place = [&skirmish, &models](std::uint16_t _composite, std::uint8_t _side, const GameCore::Anchor& _anchor)
+  const auto place =
+    [&skirmish, &models](std::uint16_t _composite, std::uint8_t _side, const GameCore::Anchor& _anchor, float _sensorRangeUnits)
   {
     const Float3 middle = Middle(models, skirmish->m_composites[_composite]);
     const NeuronCore::Quaternion rotation = NeuronCore::CubeRotationQuaternion(_anchor.turn).value_or(NeuronCore::Quaternion{});
-    skirmish->m_entities.push_back({_composite, _side, GameCore::AnchoredPosition(_anchor, middle), rotation, std::nullopt});
+    skirmish->m_entities.push_back(
+      {_composite, _side, GameCore::AnchoredPosition(_anchor, middle), rotation, _sensorRangeUnits, std::nullopt});
   };
   for (const GameCore::LayoutUnit& unit : layout.units)
   {
     const auto design = std::ranges::find(designs, unit.design, [](const GameCore::Design& _design) { return _design.spec->name; });
-    place(static_cast<std::uint16_t>(design - designs.begin()), unit.side, unit.anchor);
+    place(static_cast<std::uint16_t>(design - designs.begin()), unit.side, unit.anchor, GameCore::ComputeProfile(*design).sensorRangeUnits);
   }
   for (const GameCore::LayoutAsteroid& asteroid : layout.asteroids)
   {
-    place(static_cast<std::uint16_t>(firstAsteroid + asteroid.model), 0, asteroid.anchor);
+    place(static_cast<std::uint16_t>(firstAsteroid + asteroid.model), 0, asteroid.anchor, 0.0f);
   }
   return skirmish;
 }
@@ -233,22 +284,57 @@ void Skirmish::Restore(std::uint32_t _entity)
   }
 }
 
-void Skirmish::Describe(NeuronCore::Snapshot& _snapshot) const
+std::optional<NeuronServer::CommandRefusal> Skirmish::Refuses(const NeuronCore::Command& _command, std::uint8_t _side) const
 {
-  _snapshot.entities.reserve(m_entities.size());
+  const bool namesEntity = _command.kind == NeuronCore::CommandKind::Detonate || _command.kind == NeuronCore::CommandKind::Restore;
+  if (!namesEntity || _side == NeuronCore::OBSERVER_SIDE || _command.entity == 0 || _command.entity > m_entities.size())
+  {
+    return std::nullopt;
+  }
+  const std::uint8_t owner = m_entities[_command.entity - 1].side;
+  if (owner != 0 && owner != _side)
+  {
+    return NeuronServer::CommandRefusal::OtherSidesEntity;
+  }
+  return std::nullopt;
+}
+
+void Skirmish::Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t _side) const
+{
+  // Worked out afresh from every entity against every intact entity of the side, so a detonation or a restore changes
+  // what the side sees on the tick it lands. A detonation goes with its entity.
+  const std::size_t first = _snapshot.entities.size();
   for (std::size_t index = 0; index < m_entities.size(); ++index)
   {
     const Entity& entity = m_entities[index];
-    _snapshot.entities.push_back(
-      {static_cast<std::uint32_t>(index + 1), entity.composite, entity.side, entity.position, entity.rotation, {0.0f, 0.0f, 0.0f}});
+    if (Sees(_side, entity))
+    {
+      _snapshot.entities.push_back(
+        {static_cast<std::uint32_t>(index + 1), entity.composite, entity.side, entity.position, entity.rotation, {0.0f, 0.0f, 0.0f}});
+    }
   }
-  for (const Entity& entity : m_entities)
+  for (std::size_t described = first; described < _snapshot.entities.size(); ++described)
   {
+    const Entity& entity = m_entities[_snapshot.entities[described].id - 1];
     if (entity.detonation)
     {
       _snapshot.detonations.push_back(*entity.detonation);
     }
   }
+}
+
+bool Skirmish::Sees(std::uint8_t _side, const Entity& _entity) const noexcept
+{
+  if (_side == NeuronCore::OBSERVER_SIDE || _entity.side == _side)
+  {
+    return true;
+  }
+  return std::ranges::any_of(m_entities,
+                             [_side, &_entity](const Entity& _sensor)
+                             {
+                               return _sensor.side == _side && !_sensor.detonation && _sensor.sensorRangeUnits > 0.0f &&
+                                      WithinRange(_sensor.position, _entity.position, _sensor.sensorRangeUnits);
+                             });
 }
 
 } // namespace GameLogic

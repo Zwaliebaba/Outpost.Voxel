@@ -292,11 +292,11 @@ struct Client
   }
 };
 
-// A client of _host that has said Hello.
+// A client of _host that observes, as the space scene's does, and has said Hello.
 [[nodiscard]] Client Join(NeuronServer::ServerHost& _host)
 {
   NeuronCore::LoopbackPair pair = NeuronCore::MakeLoopbackPair();
-  _host.AddSession(std::move(pair.server));
+  _host.AddSession(std::move(pair.server), NeuronCore::OBSERVER_SIDE);
   Client client{std::move(pair.client)};
   client.Send(NeuronCore::Hello{NeuronCore::PROTOCOL_VERSION});
   return client;

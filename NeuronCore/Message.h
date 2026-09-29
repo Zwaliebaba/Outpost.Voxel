@@ -19,11 +19,13 @@ namespace NeuronCore
 // with a header of its type, its layout's version and its whole size in bytes.
 
 // The protocol a Hello asks for and a Welcome answers with. A change of meaning bumps it: version 2 places entities as
-// composite models of sides, and carries the game's own payload (ADR-029).
+// composite models of sides, carries the game's own payload (ADR-029), and sends each session what its side sees
+// (G21, G30, Design/ADR/ADR-032).
 inline constexpr std::uint32_t PROTOCOL_VERSION = 2;
 
-// The version of every message's layout, in its header. A change of layout bumps it.
-inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 2;
+// The version of every message's layout, in its header. A change of layout bumps it: version 3's welcome tells the
+// session the side it plays (ADR-032).
+inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 3;
 
 inline constexpr std::size_t MESSAGE_HEADER_BYTES = 8;
 inline constexpr std::size_t ENTITY_RECORD_BYTES = 48;
@@ -36,6 +38,9 @@ inline constexpr std::size_t MAX_MODEL_NAME_CHARS = 255;
 
 // An entity's side is a byte, and side 0 is none: a welcome names at most this many sides (ADR-029).
 inline constexpr std::size_t MAX_SIDES = 255;
+
+// The side of a session that plays none (ADR-032): an observer, which receives the whole world.
+inline constexpr std::uint8_t OBSERVER_SIDE = 0;
 
 // How far a component may be moved within its composite, on any axis: the .vox reader's bound on a translation, which keeps
 // every voxel center exact in single precision (NeuronCore/VoxModel.h).
@@ -92,8 +97,9 @@ struct SideColor
 };
 
 // Server to client, in answer to a Hello: the protocol, the clock, the world's settings, the models it places, the
-// composites an entity may be, the sides, and the game's own payload, which the engine carries without reading (ADR-029).
-// An entity names its composite by its index here, and its side by its number: 0 for none, and n for sides[n - 1].
+// composites an entity may be, the sides, the side the session plays, and the game's own payload, which the engine
+// carries without reading (ADR-029, ADR-032). An entity names its composite by its index here, and its side by its
+// number: 0 for none, and n for sides[n - 1].
 struct Welcome
 {
   std::uint32_t protocolVersion;
@@ -103,6 +109,7 @@ struct Welcome
   std::vector<ManifestEntry> manifest;
   std::vector<CompositeModel> composites;
   std::vector<SideColor> sides;
+  std::uint8_t sessionSide; // the side this session plays, n for sides[n - 1], or OBSERVER_SIDE
   std::vector<std::uint8_t> payload;
 };
 
@@ -129,9 +136,10 @@ struct DetonationEvent
   Float3 velocity;
 };
 
-// Server to client, once a tick: the whole state of the world. The tick is the clock's and never stops; the world tick
-// counts the ticks the world has advanced, and stands still while it is paused, so that debris freezes with it (§6.3,
-// ADR-015). The payload is the game's, which the engine carries without reading (ADR-029).
+// Server to client, once a tick: the world as the session's side sees it, whole, or all of it for an observer (ADR-032).
+// The tick is the clock's and never stops; the world tick counts the ticks the world has advanced, and stands still while
+// it is paused, so that debris freezes with it (§6.3, ADR-015). The payload is the game's, which the engine carries
+// without reading (ADR-029).
 struct Snapshot
 {
   std::uint64_t tick;
@@ -175,7 +183,7 @@ enum class ProtocolError : std::uint8_t
   UnknownEntity,      // a detonation of an entity the snapshot does not hold
   NotCubeRotation,    // a component turned by other than one of the cube's 24 rotations
   BadCompositeIndex,  // an entity naming a composite the receiver's welcome does not have
-  BadSide             // an entity naming a side the receiver's welcome does not have
+  BadSide             // an entity, or a welcome's session, naming a side the welcome does not have
 };
 
 [[nodiscard]] const char* ProtocolErrorName(ProtocolError _error) noexcept;

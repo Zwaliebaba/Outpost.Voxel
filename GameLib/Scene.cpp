@@ -17,13 +17,18 @@ Scene::Scene(std::span<const NeuronCore::VoxModel> _models, std::span<const Neur
 {
 }
 
-std::vector<NeuronCore::Placement> Scene::Place(const NeuronClient::WorldSample& _sample) const
+std::vector<NeuronCore::Placement> Scene::Place(const NeuronClient::WorldSample& _sample,
+                                                std::span<const NeuronClient::SampledEntity> _remembered) const
 {
   std::vector<NeuronCore::Placement> placements;
-  placements.reserve(_sample.entities.size());
+  placements.reserve(_sample.entities.size() + _remembered.size());
   for (const NeuronClient::SampledEntity& entity : _sample.entities)
   {
     m_models.Place(entity, placements);
+  }
+  for (const NeuronClient::SampledEntity& entity : _remembered)
+  {
+    m_models.Place(entity, placements, true);
   }
   if (!NeuronCore::AssignVoxelIds(placements))
   {

@@ -57,7 +57,7 @@ std::unique_ptr<GameLogic::Sector> MakeSector(const GameLogic::SectorParameters&
 NeuronCore::Snapshot Describe(const GameLogic::Sector& _sector)
 {
   NeuronCore::Snapshot snapshot{};
-  _sector.Describe(snapshot);
+  _sector.Describe(snapshot, NeuronCore::OBSERVER_SIDE);
   return snapshot;
 }
 
