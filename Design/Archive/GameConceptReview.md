@@ -1,7 +1,7 @@
 # Outpost.Voxel — Game Concept Review
 
-**Status:** a review for the owner. Nothing here changes `GameConcept.md` until the owner takes it into the concept · **Date:** 2026-09-29
-**Reviews:** [`GameConcept.md`](GameConcept.md) as the owner accepted it on 2026-09-28, with G22 as he amended it the same day. It is read against [`SpaceScene.md`](SpaceScene.md), [`NeuronVoxelFormat.md`](NeuronVoxelFormat.md), [ADR-003](ADR/ADR-003-engine-and-game-layout.md), [ADR-014](ADR/ADR-014-placements.md), [ADR-015](ADR/ADR-015-client-server-boundary.md), [ADR-017](ADR/ADR-017-sector.md), [ADR-018](ADR/ADR-018-client.md), `AGENTS.md`, and the decision table of [`Archive/SampleRenderer.md`](Archive/SampleRenderer.md)
+**Status:** a review for the owner, which the owner took into [`GameConcept.md`](../GameConcept.md) on 2026-09-29, and archived as the record of its reasoning. Its questions 23 to 31 are answered in the concept's §14, with four more that the answers raised; G28 to G50 stand in the concept as proposed here, with the answers in place of the brackets; and the concept, not this review, is what the code follows · **Date:** 2026-09-29
+**Reviews:** [`GameConcept.md`](../GameConcept.md) as the owner accepted it on 2026-09-28, with G22 as the owner amended it the same day. It is read against [`SpaceScene.md`](../SpaceScene.md), [`NeuronVoxelFormat.md`](../NeuronVoxelFormat.md), [ADR-003](../ADR/ADR-003-engine-and-game-layout.md), [ADR-014](../ADR/ADR-014-placements.md), [ADR-015](../ADR/ADR-015-client-server-boundary.md), [ADR-017](../ADR/ADR-017-sector.md), [ADR-018](../ADR/ADR-018-client.md), `AGENTS.md`, and the decision table of [`SampleRenderer.md`](SampleRenderer.md)
 
 This document reviews the game concept and changes nothing. Part 1 gives the findings. Part 2 turns them into proposed amendments. Each amendment is marked either as requiring the owner's decision or as derived from a finding the owner can accept with the rest.
 
@@ -87,7 +87,7 @@ Merges F6.1 and F5.8.
   - Precedent: Gratuitous Space Battles fights player-designed fleets without orders once a battle starts, so a battle without command already tests a design. Besiege and Kerbal Space Program put a build-and-test loop of minutes at the center of construction.
 - Proposal:
   1. G-M3's done-when gains the shape test: three authored hulls of equal cost, a brick, a needle and a spine, each beat another over 20 seeded engagements under F1.4's rules (Part 2, gate 5).
-  2. Swap G-M2 and G-M3. Combat comes first, with a bench that fights library fleets choosing their own targets, which also gives the owner a proving ground for his MagicaVoxel designs. Command comes second. Repair moves to G-M4, which brings the shipyard it needs, and the opponent's project starts with combat as the scripted second side the bench needs anyway (F5.8).
+  2. Swap G-M2 and G-M3. Combat comes first, with a bench that fights library fleets choosing their own targets, which also gives the owner a proving ground for the designs authored in MagicaVoxel. Command comes second. Repair moves to G-M4, which brings the shipyard it needs, and the opponent's project starts with combat as the scripted second side the bench needs anyway (F5.8).
   3. Bench whole placements before G-M1 (gate 1), so that their cost is known before protocol version 2 is fixed.
 
   F6.1's fuller reorder, a gray-box first match before the full economy, is left out: it re-plans more than the finding needs. The candidate this review was asked to weigh, a gray-box skirmish with coarse damage, is rejected. The renderer draws every surviving voxel whatever the damage cell, so it retires only the server's risk, and it would test a game in which the unit built is not the unit broken (F6.4).
@@ -257,7 +257,7 @@ Merges the research half of F3.3.
   - The refit screen edits a variant once and shows, as it changes, the power margin, mass, acceleration, turn rate, arcs, price and time (F6.3's card).
   - §5.1 reads: between engagements, the match asks which variant to build, and which to refit to.
 - Cost of change: G-M1 (variants in the shared library and protocol version 2), G-M4 (the refit order and screen), §5.1, §5.2, §5.6 and G12's wording. Cheaper before protocol version 2 fixes what a fit is on the wire.
-- Falsification: In G-M4 the owner refits ten ships one by one in under about 15 s of screen time, or G-M5's skirmishes show that he never wants one fit on many ships.
+- Falsification: In G-M4 the owner refits ten ships one by one in under about 15 s of screen time, or G-M5's skirmishes show that the owner never wants one fit on many ships.
 - Adjudication: Not sent to the advocate. It stands: the concept's own "Warzone's kind of choice" is a choice of template, and §5.2's default fit is already one, so the change names what the concept half has.
 
 #### 9. F2.1: No rule ends a dry sector with both cores standing
@@ -832,7 +832,7 @@ Adds F3.7's point on bands.
 
 ### 4. Challenges to owner decisions
 
-Four findings challenge the owner's own decisions, G1 to G11. Each is set out below with its alternatives and what each would cost, and none is applied here. Separately, Part 2 proposes changes to G20, G21, G22, G23, G25 and G26. Those are derived decisions, but the owner took them on 2026-09-28, so every such change is marked as requiring his decision.
+Four findings challenge the owner's own decisions, G1 to G11. Each is set out below with its alternatives and what each would cost, and none is applied here. Separately, Part 2 proposes changes to G20, G21, G22, G23, G25 and G26. Those are derived decisions, but the owner took them on 2026-09-28, so every such change is marked as requiring the owner's decision.
 
 | Decision | Finding | Alternative | What it would cost | The review's view |
 |---|---|---|---|---|
@@ -1025,7 +1025,7 @@ The gates come from F6.2. Their thresholds are the reviewers' judgement until qu
 | 3 | End of combat | The server's tick at the 99th percentile, 50 ships a side for 5 minutes in lockstep | Over 8 ms after one pass of optimization | G44's ladder |
 | 4 | End of combat | The worst frame of the aftermath, at peak wrecks and debris | Over 16.7 ms | G50's lifetimes, then S-M9's levers on damaged placements, then G44's ladder |
 | 5 | End of combat | Each shape's win rate against the others, 20 seeds a pairing, headless, under G33's rules | One shape wins over 80 % against both others, or no engagement range reverses a pairing | Retune. After two failed retunes, the owner reopens G18 before command is built |
-| 6 | End of command | Pixels per voxel at the default strategic zoom; whether the owner can name a failed module on recorded runs without the orbit camera | Under 1 px, or he cannot | G49's readout and icons, and a nearer default zoom |
+| 6 | End of command | Pixels per voxel at the default strategic zoom; whether the owner can name a failed module on recorded runs without the orbit camera | Under 1 px, or the owner cannot | G49's readout and icons, and a nearer default zoom |
 | 7 | End of G-M4 | Time to the first credit; the median length of 10 matches of the opponent against itself; whether the owner refits in 3 matches | A first credit after one minute; a median outside 20 to 40 minutes; no refits at all | Tune income and prices. No refits means §14's first risk has fired, and G5's split is reopened before G-M5 |
 | 8 | End of G-M5 | The opponent against a scripted rush and a scripted turtle, 10 seeds each | It wins fewer than half | A second pass on the opponent before the designer |
 
