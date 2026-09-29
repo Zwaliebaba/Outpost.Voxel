@@ -21,7 +21,7 @@ namespace GameCore
 enum class DesignRefusal : std::uint8_t
 {
   HullUnreadable,    // the hull's file is missing, or NVF's reader refused it
-  BadMountName,      // a hardpoint not named <type>.<size>.<label>, with a type and a size the catalogue knows (ADR-025)
+  BadMountName,      // a hardpoint not named <type>.<size>.<label>, with a type and a size the catalogue knows (ADR-027)
   MountOffCenter,    // a mount's position is not a voxel's center
   MountOffAxis,      // a mount's turn is not one of the cube's 24
   NoCommandMount,    // no mount for a command module

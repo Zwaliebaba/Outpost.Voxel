@@ -29,7 +29,7 @@ struct Profile
   float speedUnitsPerSecond;               // the class's cap
 
   // Turning about the vertical, the one turn the MVP's plane needs: the acceleration vectored thrust gives the design's
-  // inertia (Design/ADR/ADR-024), the class's cap on the rate, and a half turn from rest to rest within both.
+  // inertia (Design/ADR/ADR-026), the class's cap on the rate, and a half turn from rest to rest within both.
   float turnAccelerationRadiansPerSecondSquared;
   float turnRateRadiansPerSecond;
   float halfTurnSeconds;

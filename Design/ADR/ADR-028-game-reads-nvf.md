@@ -1,6 +1,6 @@
-# ADR-026 — The game reads `.nvf`
+# ADR-028 — The game reads `.nvf`
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md), its task 6 · **Amends:** [ADR-018](ADR-018-client.md), whose session read each model the welcome names as `<name>.vox`; [`SampleRenderer.md`](../Archive/SampleRenderer.md) §7.1, whose loader the game no longer uses; and [`NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) §10, whose follow-up this is
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md), its task 6 · **Renumbered:** from ADR-026, which phase 1's commits cite, when `main` gave ADR-024 and ADR-025 to the fragmented detonation and its light · **Amends:** [ADR-018](ADR-018-client.md), whose session read each model the welcome names as `<name>.vox`; [`SampleRenderer.md`](../Archive/SampleRenderer.md) §7.1, whose loader the game no longer uses; and [`NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) §10, whose follow-up this is
 
 ## Context
 
@@ -20,7 +20,7 @@ So a part needs only its origin in model space, which is the sum of the translat
 - each part becomes an unturned instance, named by its path and placed at its origin in model space;
 - the records stay in the parts' order, and the palette is kept as it is;
 - `version` is 0 and there are no render objects, since the model came from no `.vox`;
-- hardpoints stay behind: they are the game's, and `GameCore` reads them from the `NvfModel` ([ADR-024](ADR-024-game-core.md)).
+- hardpoints stay behind: they are the game's, and `GameCore` reads them from the `NvfModel` ([ADR-026](ADR-026-game-core.md)).
 
 **`ReadNvfFile`** returns a file's bytes, which a manifest hashes, as `ReadVoxFile` did. `LoadNvfModel` now reads through it.
 
@@ -34,7 +34,7 @@ So a part needs only its origin in model space, which is the sum of the translat
 
 ## Figures
 
-Measured by the suites built natively by GCC 13.3 for x86-64 against a throwaway stand-in for the test framework, as ADR-024's were. `ClientSessionTests` ran with `ClientSession` and `SnapshotBuffer` compiled apart from `NeuronClient`, whose precompiled header needs the Windows SDK.
+Measured by the suites built natively by GCC 13.3 for x86-64 against a throwaway stand-in for the test framework, as ADR-026's were. `ClientSessionTests` ran with `ClientSession` and `SnapshotBuffer` compiled apart from `NeuronClient`, whose precompiled header needs the Windows SDK.
 
 - **`FlattensAsTheVoxReaderReads`** covers each of the three assets. Its `.nvf`, flattened, gives the model `ParseVoxModel` reads from its `.vox`:
   - the same records in the same order;

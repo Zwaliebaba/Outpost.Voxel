@@ -94,7 +94,7 @@ The owner starts a phase with a message such as: *"Execute phase 3 of Design/Mvp
 
 ### 3.3 Doing the work
 
-- **Decisions before code.** A phase writes its ADRs first, numbered from the next free number, ADR-024 when this plan begins, and each ADR states its context, its decision and what it forecloses, as `AGENTS.md` §6 asks. Figures in an ADR are measured, and say how.
+- **Decisions before code.** A phase writes its ADRs first, numbered from the next free number, ADR-026 for phase 1's first, since ADR-024 and ADR-025 went to the fragmented detonation and its light, and each ADR states its context, its decision and what it forecloses, as `AGENTS.md` §6 asks. Figures in an ADR are measured, and say how.
 - **Small commits,** each building and passing its tests, with imperative subjects.
 - **Tests with the code.** Game rules are tested headless, in the suites of the libraries that hold them, so that CI checks them without a GPU; what only the GPU runs has a C++ twin and a WARP test (R15, R16). Every seeded test is deterministic (R21); a flaky test is a defect.
 - **Frames as evidence.** From phase 2, `Outpost.exe --capture <file>.png --capture-at <seconds>` writes one frame through WIC, which the Windows SDK provides, and exits; until then the agent captures the window with PowerShell. Every phase that changes the picture attaches captures to its pull request.
@@ -525,7 +525,7 @@ These are where the phases start, not measurements. The phase that introduces a 
 | `Cruiser` | Capital | 9,017 | Command module, large reactor, 4 thrusters, 2 mass drivers, 2 lasers, sensor | 4 | After Capital hulls and Lasers |
 | `StationCore` | Station, the skirmish's own | 28,955 | Command module, large reactor, shipyard, lab, refinery, sensor array, 4 mass drivers | — | Placed by the skirmish |
 
-Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate, 10,000 for the cruiser and 30,000 for the core. It kept the frigates near 1,150 and gave the cruiser 63 % heavy armor. That way two thrusters move a frigate, and four the cruiser, within a quarter of the class targets below. The cruiser and the core carry the large reactor, since their fits draw more than a small one supplies ([ADR-024](ADR/ADR-024-game-core.md)).
+Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate, 10,000 for the cruiser and 30,000 for the core. It kept the frigates near 1,150 and gave the cruiser 63 % heavy armor. That way two thrusters move a frigate, and four the cruiser, within a quarter of the class targets below. The cruiser and the core carry the large reactor, since their fits draw more than a small one supplies ([ADR-026](ADR/ADR-026-game-core.md)).
 
 **Class targets.** The two classes aim at ADR-017's class figures, which the owner accepted by eye:
 - a frigate: 60 units/s at most, about 30 units/s² of acceleration, and a 45°/s turn;
@@ -533,7 +533,7 @@ Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate,
 
 **Class limits.** A frigate's box is about 32 × 16 × 48 with a budget of 2,000 voxels. A capital ship's is about 64 × 24 × 96 with a budget of 12,000. Profiles land within 25 % of the targets.
 
-**Measured in phase 1** (ADR-024).
+**Measured in phase 1** (ADR-026).
 - **Acceleration.** The frigates accelerate at 25.1 to 34.9 units/s², and the cruiser at 5.7.
 - **Half turns.** The frigates turn half a turn in 4.3 to 4.6 s, and the cruiser in 23.4 s, against 4.0 s and 22.5 s at their caps alone.
 - **Prices.** A gunship costs 3,819 credits and builds in 25.5 s, and a cruiser costs 28,848 and builds in 192 s.

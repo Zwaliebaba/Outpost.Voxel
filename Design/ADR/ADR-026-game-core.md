@@ -1,6 +1,6 @@
-# ADR-024 — `GameCore`, the shared game library
+# ADR-026 — `GameCore`, the shared game library
 
-**Status:** accepted, 2026-09-29; the owner confirms the name at phase 1's checkpoint, while a rename is cheap · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md) · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md), which creates the shared game library when the first type both sides need appears
+**Status:** accepted, 2026-09-29; the owner confirms the name at phase 1's checkpoint, while a rename is cheap · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md) · **Renumbered:** from ADR-024, which phase 1's commits cite, when `main` gave ADR-024 and ADR-025 to the fragmented detonation and its light · **Amends:** [ADR-003](ADR-003-engine-and-game-layout.md), which creates the shared game library when the first type both sides need appears
 
 ## Context
 
@@ -40,7 +40,7 @@ So a frigate-sized hull can never be entered as a capital ship and cost four com
 **`ValidateDesign` refuses by name** (the concept's §5.5), and checks in this order:
 - `HullUnreadable`: the file, or a part tree or voxel range a model built in memory gets wrong.
 - The mounts, one by one, in the hull's hardpoint order:
-  - `BadMountName`: not ADR-025's `<type>.<s|l>.<label>`, or a type no module has;
+  - `BadMountName`: not ADR-027's `<type>.<s|l>.<label>`, or a type no module has;
   - `MountOffCenter`: not at a voxel's center;
   - `MountOffAxis`: not turned by one of the cube's 24 rotations.
 - The command mount: `NoCommandMount`, `ExtraCommandMount`.

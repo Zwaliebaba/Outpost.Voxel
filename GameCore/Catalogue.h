@@ -13,7 +13,7 @@ namespace GameCore
 {
 
 // The game's data (Design/GameConcept.md §5, Design/MvpPlan.md §8): the armor classes, the modules, the size classes and
-// the MVP's designs, as tables in code until a data format is decided (Design/ADR/ADR-024). A module's and a hull's
+// the MVP's designs, as tables in code until a data format is decided (Design/ADR/ADR-026). A module's and a hull's
 // voxels are their models' in GameData; what they do is here, never in their files (Design/Archive/NeuronVoxelFormat.md N8).
 
 // A hull voxel's armor class, which its palette entry names (G13).
@@ -31,7 +31,7 @@ struct Material
   float priceCredits; // per voxel
 };
 
-// The box a mount holds, and so the module it takes (Design/ADR/ADR-025).
+// The box a mount holds, and so the module it takes (Design/ADR/ADR-027).
 enum class MountSize : std::uint8_t
 {
   Small,
@@ -116,7 +116,7 @@ struct DesignSpec
 
 inline constexpr std::size_t SIZE_CLASS_COUNT = 3;
 
-// The share of an engine's thrust it can turn across the ship's length to turn it (Design/ADR/ADR-024).
+// The share of an engine's thrust it can turn across the ship's length to turn it (Design/ADR/ADR-026).
 inline constexpr float VECTORED_THRUST_SHARE = 0.25f;
 
 // How fast a shipyard turns credits into a ship: a design's build time is its price over this. Set so that the core's one
@@ -140,12 +140,12 @@ inline constexpr float BUILD_CREDITS_PER_SECOND = 150.0f;
 [[nodiscard]] std::string_view HardpointTypeOf(ModuleKind _kind) noexcept;
 [[nodiscard]] std::optional<ModuleKind> ModuleKindOf(std::string_view _hardpointType) noexcept;
 
-// A mount's size as its name's second segment spells it, s or l (Design/ADR/ADR-025); and back.
+// A mount's size as its name's second segment spells it, s or l (Design/ADR/ADR-027); and back.
 [[nodiscard]] std::string_view MountSizeSegment(MountSize _size) noexcept;
 [[nodiscard]] std::optional<MountSize> MountSizeOf(std::string_view _segment) noexcept;
 
 // The box a mount of _size holds, x by y by z in the mount's frame, +Z the way it faces: odd on every axis, so that its
-// center is a voxel's (Design/ADR/ADR-025).
+// center is a voxel's (Design/ADR/ADR-027).
 [[nodiscard]] NeuronCore::Int3 MountBox(MountSize _size) noexcept;
 
 // Whether a module of _kind works along a line out of the hull, which the hull must leave clear for it to work (G38).

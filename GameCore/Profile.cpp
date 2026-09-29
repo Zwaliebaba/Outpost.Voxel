@@ -40,7 +40,7 @@ void AddMoments(std::array<double, 3>& _inertia, const std::array<double, 3>& _p
 }
 
 // The torque about the vertical an engine gives by vectoring VECTORED_THRUST_SHARE of its _thrust sideways, across its
-// line and within the plane, at _lever from the center of mass (Design/ADR/ADR-024). Along the ship's length, that is
+// line and within the plane, at _lever from the center of mass (Design/ADR/ADR-026). Along the ship's length, that is
 // its distance fore or aft of the center; across it, its distance to port or starboard; and an engine that fires up or
 // down swings its share whichever way the plane turns it most.
 [[nodiscard]] double VectoredTorque(Int3 _facing, const std::array<double, 3>& _lever, float _thrust) noexcept

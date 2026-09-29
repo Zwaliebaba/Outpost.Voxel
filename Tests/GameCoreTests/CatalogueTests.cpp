@@ -103,7 +103,7 @@ public:
     Assert::IsTrue(GameCore::FindDesign("Dreadnought") == nullptr);
   }
 
-  // A mount's name carries its type and size (Design/ADR/ADR-025), and each spelling reads back as what wrote it.
+  // A mount's name carries its type and size (Design/ADR/ADR-027), and each spelling reads back as what wrote it.
   TEST_METHOD(MountNamesRoundTrip)
   {
     for (const GameCore::ModuleKind kind : MODULE_KINDS)

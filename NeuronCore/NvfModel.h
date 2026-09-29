@@ -210,12 +210,12 @@ struct NvfModel
 // fault.
 [[nodiscard]] std::expected<NvfModel, NvfError> ParseNvfModel(std::span<const std::uint8_t> _bytes);
 
-// An .nvf file's bytes, whole: what ParseNvfModel reads, and what a welcome's manifest hashes (Design/ADR/ADR-026).
+// An .nvf file's bytes, whole: what ParseNvfModel reads, and what a welcome's manifest hashes (Design/ADR/ADR-028).
 [[nodiscard]] std::expected<std::vector<std::uint8_t>, NvfError> ReadNvfFile(const std::filesystem::path& _path);
 
 [[nodiscard]] std::expected<NvfModel, NvfError> LoadNvfModel(const std::filesystem::path& _path);
 
-// _model, which NVF's reader accepts, as the renderer and the server's measures take a model (Design/ADR/ADR-026): each
+// _model, which NVF's reader accepts, as the renderer and the server's measures take a model (Design/ADR/ADR-028): each
 // part an unturned instance named by its path, at its origin in model space, which is the sum of the translations from
 // part 0 down to it, with its records in the part's order; the palette as it is; version 0 and no render objects, since
 // it came from no .vox. Hardpoints are the game's, and stay behind. For a model NvfImport made from a .vox, it gives

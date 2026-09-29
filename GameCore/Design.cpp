@@ -49,7 +49,7 @@ constexpr float MAX_MOUNT_CELL = static_cast<float>(2 * NeuronCore::NVF_MAX_PART
   return {static_cast<std::int32_t>(_axis.x), static_cast<std::int32_t>(_axis.y), static_cast<std::int32_t>(_axis.z)};
 }
 
-// The type and size a mount's name spells as <type>.<size>.<label> (ADR-025), or nothing when it spells no mount.
+// The type and size a mount's name spells as <type>.<size>.<label> (ADR-027), or nothing when it spells no mount.
 struct MountName
 {
   ModuleKind kind;
@@ -274,7 +274,7 @@ std::expected<Design, DesignError> ValidateDesign(const DesignSpec& _spec, const
     return std::unexpected(std::move(flat.error()));
   }
 
-  // Each hardpoint is a mount: named as ADR-025 spells one, centered on a voxel and turned by quarter turns.
+  // Each hardpoint is a mount: named as ADR-027 spells one, centered on a voxel and turned by quarter turns.
   Design design{&_spec, SizeClass::Frigate, std::move(flat->voxels), {}};
   design.mounts.reserve(_hull.hardpoints.size());
   for (const NeuronCore::NvfHardpoint& hardpoint : _hull.hardpoints)

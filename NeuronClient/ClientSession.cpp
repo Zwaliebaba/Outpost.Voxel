@@ -75,7 +75,7 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
                                                                welcome->protocolVersion, NeuronCore::PROTOCOL_VERSION));
     }
     // Every model the welcome names, from the client's own copy of its file, before anything is drawn (§6.2). The file is
-    // the model's .nvf (Design/ADR/ADR-026).
+    // the model's .nvf (Design/ADR/ADR-028).
     std::vector<NeuronCore::VoxModel> models;
     models.reserve(welcome->manifest.size());
     for (const NeuronCore::ManifestEntry& entry : welcome->manifest)

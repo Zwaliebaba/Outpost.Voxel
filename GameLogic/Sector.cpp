@@ -27,7 +27,7 @@ constexpr float TWO_PI = 2.0f * std::numbers::pi_v<float>;
 constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
 // The models the world places, in the manifest's order. Each is read from <name>.nvf (Design/Archive/SpaceScene.md §6.2,
-// Design/ADR/ADR-026).
+// Design/ADR/ADR-028).
 constexpr std::array<const char*, MODEL_COUNT> MODEL_NAMES{"MilitaryStation", "CapitalShip", "Frigate"};
 
 // §5.2: an orbit's radius is 1.3 to 2 keep-out radii, in a plane tilted up to 45 degrees from the horizontal, flown one

@@ -597,7 +597,7 @@ hardpoints: 4
     }
   }
 
-  // Design/ADR/ADR-026: the game draws and measures each asset from its .nvf, flattened, and gets the model the .vox
+  // Design/ADR/ADR-028: the game draws and measures each asset from its .nvf, flattened, and gets the model the .vox
   // reader gives it, voxel for voxel. A tree of parts flattens with each part at the sum of its translations.
   TEST_METHOD(FlattensAsTheVoxReaderReads)
   {

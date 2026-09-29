@@ -9,7 +9,7 @@ the repository root to rewrite GameData's generated files; it rewrites nothing e
 
 A model is described in the engine's axes, +Y up and +Z forward, and VoxFile.py swaps them into MagicaVoxel's.
 
-Conventions, which Design/ADR/ADR-025 records:
+Conventions, which Design/ADR/ADR-027 records:
 - A mount's marker is named hull@<type>.<size>.<label>: its type is the kind of module it holds, and its size, s or l,
   the box that module fills: 3 x 3 x 5 or 5 x 5 x 9, +Z the way the module faces. The marker is that box, centered on
   the mount, and the importer keeps its centre and its turn and drops its voxels.

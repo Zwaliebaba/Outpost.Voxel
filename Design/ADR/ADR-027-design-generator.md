@@ -1,6 +1,6 @@
-# ADR-025 — The design generator, and how a mount's name carries its size
+# ADR-027 — The design generator, and how a mount's name carries its size
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4 · **Amends:** [ADR-023](ADR-023-tests-and-tools-folders.md), whose `Tools/` holds a second tool with no C++; and [`NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) §5, whose marker names this gives a convention for mounts, which the game concept left to G-M1 (its §5.2)
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 1 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4 · **Renumbered:** from ADR-025, which phase 1's commits cite, when `main` gave ADR-024 and ADR-025 to the fragmented detonation and its light · **Amends:** [ADR-023](ADR-023-tests-and-tools-folders.md), whose `Tools/` holds a second tool with no C++; and [`NeuronVoxelFormat.md`](../Archive/NeuronVoxelFormat.md) §5, whose marker names this gives a convention for mounts, which the game concept left to G-M1 (its §5.2)
 
 ## Context
 
@@ -24,7 +24,7 @@ It sits beside the Blender extension in `Tools/`, as ADR-023 allows for a tool w
 **The files are committed, and so are their `.nvf`.** `NvfImport` makes each `.nvf` from its `.vox`, and CI's model check holds the two together, as it does for the three assets (NVF §9). So each generated model is held to three things:
 - the generator's suite holds the `.vox` to the generator's output, byte for byte;
 - the model check holds the `.nvf` to the `.vox`;
-- `GameCoreTests` holds the design to the concept's validation (ADR-024).
+- `GameCoreTests` holds the design to the concept's validation (ADR-026).
 
 **A mount's name is `<type>.<size>.<label>`.** Its marker is `hull@<type>.<size>.<label>`, which is within NVF §5's grammar.
 - The **type** is the hardpoint type of the module it holds: `command`, `reactor`, `engine`, `weapon`, `mining`, `cargo`, `sensor`, `shipyard`, `lab` or `refinery`.
@@ -48,7 +48,7 @@ Both are odd on every axis, so the box's center is a voxel's center, as NVF §5 
 **Modules.** A module is a single unnamed part, at most its size's box. Its model faces +Z, and its center voxel, ⌊size / 2⌋ on each axis, is the mount's center when the game places it.
 
 **Palettes.** For every hull:
-- entries 1 and 2 are light armor, and 3 and 4 heavy, the pairing ADR-024's catalogue reads (G13);
+- entries 1 and 2 are light armor, and 3 and 4 heavy, the pairing ADR-026's catalogue reads (G13);
 - entry 5 is trim and entry 6 lights, both light armor;
 - entry 15 is the markers' magenta;
 - entry 16 is the side's color (G24): the renderer gives each side its own.
@@ -74,7 +74,7 @@ The generator writes 21 files, 252,610 bytes in all. It writes the same bytes on
 - **Modules.** Thirteen, one for each kind and size that a design fits. They range from the sensor's 13 voxels to the large reactor's, lab's and refinery's 225.
 - **Asteroids.** A has 2,027 voxels in 17 × 18 × 19, B 4,676 in 25 × 24 × 21, and C 1,330 in 16 × 14 × 24.
 
-The voxel counts differ from the plan's "about" figures (§8.1) where ADR-024's acceleration targets needed them to. Phase 1's pull request updates that table.
+The voxel counts differ from the plan's "about" figures (§8.1) where ADR-026's acceleration targets needed them to. Phase 1's pull request updates that table.
 
 ## What this forecloses
 

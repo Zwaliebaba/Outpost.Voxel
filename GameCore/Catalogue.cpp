@@ -50,7 +50,7 @@ constexpr std::array<ModuleSpec, 13> MODULES{{
   {"Refinery", ModuleKind::Refinery, MountSize::Large, 300.0f, 0.0f, 15.0f, 0.0f, 0.0f, 0.0f, 0.0f},
 }};
 
-// The generator's palette convention (Design/ADR/ADR-025): entries 3 and 4 are heavy armor, and every other is light.
+// The generator's palette convention (Design/ADR/ADR-027): entries 3 and 4 are heavy armor, and every other is light.
 constexpr MaterialClass L = MaterialClass::Light;
 constexpr MaterialClass H = MaterialClass::Heavy;
 constexpr std::array<MaterialClass, NeuronCore::PALETTE_ENTRY_COUNT> HULL_MATERIALS{L, L, H, H, L, L, L, L, L, L, L, L, L, L, L, L};

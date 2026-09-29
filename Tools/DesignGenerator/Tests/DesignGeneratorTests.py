@@ -1,4 +1,4 @@
-"""DesignGenerator.py and VoxFile.py against Design/ADR/ADR-025 and NeuronCore's reader.
+"""DesignGenerator.py and VoxFile.py against Design/ADR/ADR-027 and NeuronCore's reader.
 
 The Linux CI job runs them with the system Python, from the repository root:
 
