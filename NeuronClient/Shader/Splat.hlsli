@@ -59,6 +59,11 @@ ConstantBuffer<ExplosionConstants> g_explosion : register(b2);
 #endif
 StructuredBuffer<uint> g_records : register(t0);
 StructuredBuffer<PlacementConstants> g_placements : register(t1);
+#if ORIENTED
+// Each record's fragment within its model, parallel to the records, and every model's fragments (Design/ADR/ADR-024).
+StructuredBuffer<uint> g_fragmentOf : register(t2);
+StructuredBuffer<Fragment> g_fragments : register(t3);
+#endif
 #if COUNT_OVERDRAW
 RWTexture2D<uint> g_overdraw : register(u0);
 #endif
@@ -103,8 +108,8 @@ struct SplatTargets
 // The box voxel _local of _placement is drawn as, whose packed record is _record (Design/Archive/SpaceScene.md §7.2, §7.7). In
 // the aligned permutation, its cell's center taken into the world, which a symmetry of the cube leaves axis-aligned. In
 // the oriented one, its pose in the part's space, taken into the world: at rest while the placement is whole or its
-// detonation's time is 0, and otherwise posed, its hash counting from the model-local hash base. Rest or posed, the center
-// goes through the one TransformPoint. The C++ twin is PlacedVoxelBox in NeuronCore/Placement.h (R15).
+// detonation's time is 0, and otherwise posed as part of its fragment, which its model's first fragment finds in the
+// scene's buffer. Rest or posed, the center goes through the one TransformPoint. The C++ twin is PlacedVoxelBox in NeuronCore/Placement.h (R15).
 Box PlacedVoxelBox(PlacementConstants _placement, uint _local, uint _record)
 {
   VoxelRecord record = UnpackVoxelRecord(_record);
@@ -117,7 +122,8 @@ Box PlacedVoxelBox(PlacementConstants _placement, uint _local, uint _record)
   pose.axisZ = float3(0.0, 0.0, 1.0);
   if (g_explosion.timeSeconds > 0.0)
   {
-    pose = ExplosionPose(g_explosion.hashBase + _local, restCenter, g_explosion);
+    uint fragment = g_fragmentOf[_placement.firstRecord + _local];
+    pose = ExplosionPose(fragment, g_fragments[g_explosion.firstFragment + fragment], restCenter, g_explosion);
   }
   return MakeOrientedBox(TransformPoint(_placement, pose.center), float3(0.5, 0.5, 0.5), RotateVector(_placement, pose.axisX),
                          RotateVector(_placement, pose.axisY), RotateVector(_placement, pose.axisZ));

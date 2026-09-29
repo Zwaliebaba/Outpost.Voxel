@@ -63,7 +63,6 @@ Placement PlacePart(const VoxModel& _model, std::uint32_t _modelIndex, std::uint
           .upper = {static_cast<float>(upper.x), static_cast<float>(upper.y), static_cast<float>(upper.z)},
           .firstRecord = _modelFirstRecord + part.firstRecord,
           .recordCount = part.recordCount,
-          .hashBase = part.firstRecord,
           .paletteIndex = _modelIndex,
           .firstVoxel = 0u,
           .detonation = std::nullopt};
@@ -106,7 +105,8 @@ Box PlacedVoxelBox(const Placement& _placement, std::uint32_t _voxel, std::uint3
   if (_placement.detonation.has_value() && _placement.detonation->timeSeconds > 0.0f)
   {
     const PlacementDetonation& detonation = *_placement.detonation;
-    pose = ExplosionPose(_placement.hashBase + _voxel, restCenter, detonation.parameters, detonation.timeSeconds);
+    const std::uint32_t fragment = detonation.fragments.fragmentOf[_voxel];
+    pose = ExplosionPose(fragment, detonation.fragments.fragments[fragment], restCenter, detonation.parameters, detonation.timeSeconds);
   }
   const Float3 center = TransformPoint(_placement.transform, pose.center);
   const Rotation& rotation = _placement.transform.rotation;
@@ -118,12 +118,32 @@ Box PlacedVoxelBox(const Placement& _placement, std::uint32_t _voxel, std::uint3
                          RotateVector(rotation, pose.axisZ));
 }
 
+ExplosionEnvelope PlacementEnvelope(const Placement& _placement, const PlacementDetonation& _detonation) noexcept
+{
+  return BoundExplosion(_detonation.parameters, _placement.lower, _placement.upper, _detonation.fragments.radius);
+}
+
+PlacementHeat MakePlacementHeat(const Placement& _placement) noexcept
+{
+  if (!_placement.detonation.has_value())
+  {
+    return {};
+  }
+  const PlacementDetonation& detonation = *_placement.detonation;
+  return {.blastOrigin = detonation.parameters.blastOrigin,
+          .timeSeconds = detonation.timeSeconds,
+          .shockSpeed = detonation.parameters.shockSpeed,
+          .heatDistance = detonation.heat.heatDistance,
+          .coolingRate = detonation.heat.coolingRate,
+          .firstFragment = detonation.fragments.firstFragment};
+}
+
 Sphere PlacementSphere(const Placement& _placement) noexcept
 {
   if (_placement.detonation.has_value())
   {
     const PlacementDetonation& detonation = *_placement.detonation;
-    const ExplosionEnvelope envelope = BoundExplosion(detonation.parameters, _placement.lower, _placement.upper);
+    const ExplosionEnvelope envelope = PlacementEnvelope(_placement, detonation);
     const Sphere local = EnvelopeSphereAt(envelope, detonation.parameters, detonation.timeSeconds);
     return {TransformPoint(_placement.transform, local.center), local.radius};
   }

@@ -158,10 +158,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Bloom.h" />
+    <ClInclude Include="Blast.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
     <ClInclude Include="Explosion.h" />
+    <ClInclude Include="Fragmentation.h" />
     <ClInclude Include="Float3.h" />
     <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
@@ -191,10 +193,12 @@
     <ClInclude Include="VoxModel.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Blast.cpp" />
     <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
     <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Fragmentation.cpp" />
     <ClCompile Include="Half.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="LoopbackTransport.cpp" />

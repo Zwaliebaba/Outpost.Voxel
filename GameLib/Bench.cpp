@@ -13,6 +13,7 @@
 #include "OrbitCamera.h"
 #include "Scene.h"
 
+#include "Blast.h"
 #include "Explosion.h"
 #include "Lighting.h"
 #include "Message.h"
@@ -119,13 +120,14 @@ struct Spread
   return _statistics.passMilliseconds[static_cast<std::size_t>(_pass)].value_or(0.0f);
 }
 
-// The frame of §8 without what only the bench adds: the two splats, the lighting, the sky, bloom and the tone map.
+// The frame of §8 without what only the bench adds: the two splats, the lighting, the sky, the gas shells, bloom and the
+// tone map.
 [[nodiscard]] double FramePassMilliseconds(const NeuronClient::FrameStatistics& _statistics) noexcept
 {
   return PassMilliseconds(_statistics, NeuronClient::GpuPass::ShadowSplat) +
          PassMilliseconds(_statistics, NeuronClient::GpuPass::ViewSplat) + PassMilliseconds(_statistics, NeuronClient::GpuPass::Lighting) +
-         PassMilliseconds(_statistics, NeuronClient::GpuPass::Sky) + PassMilliseconds(_statistics, NeuronClient::GpuPass::Bloom) +
-         PassMilliseconds(_statistics, NeuronClient::GpuPass::ToneMap);
+         PassMilliseconds(_statistics, NeuronClient::GpuPass::Sky) + PassMilliseconds(_statistics, NeuronClient::GpuPass::GasShell) +
+         PassMilliseconds(_statistics, NeuronClient::GpuPass::Bloom) + PassMilliseconds(_statistics, NeuronClient::GpuPass::ToneMap);
 }
 
 [[nodiscard]] double PixelShaderInvocationsPerCoveredPixel(const NeuronClient::FrameStatistics& _statistics) noexcept
@@ -196,7 +198,8 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   {
     throw std::runtime_error(std::format("--bench could not write {}.", winrt::to_string(_path.wstring())));
   }
-  csv << "frame,depth,explosionSeconds,yawDegrees,shadowSplatMs,viewSplatMs,coverageMs,lightingMs,skyMs,bloomMs,toneMapMs,canvasMs,"
+  csv << "frame,depth,explosionSeconds,yawDegrees,shadowSplatMs,viewSplatMs,coverageMs,lightingMs,skyMs,gasShellMs,bloomMs,toneMapMs,"
+         "canvasMs,"
          "framePassesMs,gpuMs,"
          "intervalMs,vsInvocations,psInvocations,primitives,coveredPixels,psPerCoveredPixel,viewDrawn,viewCulled,shadowDrawn,"
          "shadowCulled,viewVoxels,shadowVoxels\n";
@@ -208,18 +211,19 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
     }
     const NeuronClient::FrameStatistics& statistics = *shot.statistics;
     csv << std::format(
-      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f},{},{},{},{},{},{"
+      "{},{},{:.4f},{:.2f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{},{},{},{},{:.4f},{},{},{},"
+      "{},{},{"
       "}\n",
       shot.index, DEPTH_NAMES[static_cast<std::size_t>(shot.depth)], shot.explosionSeconds,
       shot.yawRadians * 180.0f / std::numbers::pi_v<float>, PassMilliseconds(statistics, NeuronClient::GpuPass::ShadowSplat),
       PassMilliseconds(statistics, NeuronClient::GpuPass::ViewSplat), PassMilliseconds(statistics, NeuronClient::GpuPass::Coverage),
       PassMilliseconds(statistics, NeuronClient::GpuPass::Lighting), PassMilliseconds(statistics, NeuronClient::GpuPass::Sky),
-      PassMilliseconds(statistics, NeuronClient::GpuPass::Bloom), PassMilliseconds(statistics, NeuronClient::GpuPass::ToneMap),
-      PassMilliseconds(statistics, NeuronClient::GpuPass::Canvas), FramePassMilliseconds(statistics), statistics.gpuMilliseconds,
-      shot.intervalMilliseconds, statistics.vertexShaderInvocations, statistics.pixelShaderInvocations, statistics.primitives,
-      statistics.coveredPixels.value_or(0), PixelShaderInvocationsPerCoveredPixel(statistics), statistics.draws.viewDrawn,
-      statistics.draws.viewCulled, statistics.draws.shadowDrawn, statistics.draws.shadowCulled, statistics.draws.viewVoxels,
-      statistics.draws.shadowVoxels);
+      PassMilliseconds(statistics, NeuronClient::GpuPass::GasShell), PassMilliseconds(statistics, NeuronClient::GpuPass::Bloom),
+      PassMilliseconds(statistics, NeuronClient::GpuPass::ToneMap), PassMilliseconds(statistics, NeuronClient::GpuPass::Canvas),
+      FramePassMilliseconds(statistics), statistics.gpuMilliseconds, shot.intervalMilliseconds, statistics.vertexShaderInvocations,
+      statistics.pixelShaderInvocations, statistics.primitives, statistics.coveredPixels.value_or(0),
+      PixelShaderInvocationsPerCoveredPixel(statistics), statistics.draws.viewDrawn, statistics.draws.viewCulled,
+      statistics.draws.shadowDrawn, statistics.draws.shadowCulled, statistics.draws.viewVoxels, statistics.draws.shadowVoxels);
   }
   if (!csv)
   {
@@ -262,6 +266,7 @@ void WriteCsv(const std::filesystem::path& _path, const std::vector<Shot>& _shot
   row("view splat", pass(NeuronClient::GpuPass::ViewSplat), 3, "ms");
   row("lighting", pass(NeuronClient::GpuPass::Lighting), 3, "ms");
   row("sky", pass(NeuronClient::GpuPass::Sky), 3, "ms");
+  row("gas shells", pass(NeuronClient::GpuPass::GasShell), 3, "ms");
   row("bloom", pass(NeuronClient::GpuPass::Bloom), 3, "ms");
   row("tone map", pass(NeuronClient::GpuPass::ToneMap), 3, "ms");
   row("the frame's six passes", framePasses, 3, "ms");
@@ -384,7 +389,7 @@ struct Bench::Run
     scene->FitShadowView(sample);
     renderer = std::make_unique<NeuronClient::Renderer>(
       NeuronClient::RendererDesc{device, window.Handle(), BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS, scene->ShadowView(), stars},
-      scene->Models().Models());
+      scene->Models().Models(), scene->Models().Fragments());
   }
 
   // Draws shot _step: frame _index of the timeline with _depth, and a measured shot unless it is a warm-up one.
@@ -412,8 +417,7 @@ struct Bench::Run
       {
         if (placement.detonation)
         {
-          stopSeconds = std::max(
-            stopSeconds, NeuronCore::BoundExplosion(placement.detonation->parameters, placement.lower, placement.upper).stopSeconds);
+          stopSeconds = std::max(stopSeconds, NeuronCore::PlacementEnvelope(placement, *placement.detonation).stopSeconds);
         }
       }
       phase = explosionSeconds < stopSeconds ? Phase::Flight : Phase::Stopped;
@@ -447,8 +451,9 @@ struct Bench::Run
     canvas.Print(progress, static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS,
                  static_cast<float>(PROGRESS_MARGIN_PIXELS) + PROGRESS_PADDING_PIXELS, PROGRESS_STYLE, {1.0f, 1.0f, 1.0f}, 1.0f);
     const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(session.Settings(), 1.0f);
+    const std::vector<NeuronCore::Blast> blasts = scene->Blasts(sample);
     renderer->Render(camera->View(BENCH_WIDTH_PIXELS, BENCH_HEIGHT_PIXELS), placements,
-                     {std::nullopt, lighting, sky, EXPOSURE, false, _depth == Depth::Plain, true});
+                     {std::nullopt, lighting, sky, EXPOSURE, false, _depth == Depth::Plain, true, blasts});
   }
 
   void Frame()

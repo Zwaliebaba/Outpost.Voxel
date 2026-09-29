@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Blast.h"
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "RigidTransform.h"
 #include "Sphere.h"
 #include "TraceHit.h"
@@ -19,11 +21,14 @@ namespace NeuronCore
 // What FindPlacement gives for an id that no placement holds.
 inline constexpr std::uint32_t NO_PLACEMENT = 0xFFFFFFFFu;
 
-// What a detonated placement adds (Design/Archive/SpaceScene.md §7.7): the detonation, in its part's space, and the time since.
+// What a detonated placement adds (Design/Archive/SpaceScene.md §7.7, Design/ADR/ADR-024, ADR-025): the detonation, in its
+// part's space, the time since, the fragments its part breaks into, and how they heat.
 struct PlacementDetonation
 {
   ExplosionParameters parameters; // in the part's space: the blast origin, and the inherited velocity turned into it
   float timeSeconds;              // since the detonation
+  PartFragments fragments;        // its part's, from the scene's SceneFragments
+  HeatParameters heat;            // none, a heat distance of 0, leaves its debris cold
 };
 
 // A model's part under a rigid transform, whole or detonated (§7): what the renderer draws with one draw, and what the
@@ -35,7 +40,6 @@ struct Placement
   Float3 upper;
   std::uint32_t firstRecord; // the part's records in the scene's record buffer (§7.1)
   std::uint32_t recordCount;
-  std::uint32_t hashBase;     // the part's first record within its model, from which a detonated voxel's hash counts
   std::uint32_t paletteIndex; // its model's palette
   std::uint32_t firstVoxel;   // the id of its first voxel (§7.3); AssignVoxelIds gives it
   // Empty while the placement is whole.
@@ -65,10 +69,17 @@ struct Placement
 
 // The box the splat pass draws for voxel _voxel of _placement, whose packed record is _record (§7.2, §7.7). Whole, it is
 // the voxel's cell taken into the world, axis-aligned when the placement is aligned and turned with it when not.
-// Detonated, it is the voxel's pose in the part's space, its hash counting from the placement's hashBase, taken into the
-// world; at time 0 the pose is the rest exactly, and the shader skips it. The twin of PlacedVoxelBox in
+// Detonated, it is the voxel's pose in the part's space, as part of its fragment, taken into the world; at time 0 the pose
+// is the rest exactly, and the shader skips it. The twin of PlacedVoxelBox in
 // Shader/Splat.hlsli (R15).
 [[nodiscard]] Box PlacedVoxelBox(const Placement& _placement, std::uint32_t _voxel, std::uint32_t _record) noexcept;
+
+// The envelope of _detonation, _placement's, in its part's space: BoundExplosion over its part's box and fragments.
+[[nodiscard]] ExplosionEnvelope PlacementEnvelope(const Placement& _placement, const PlacementDetonation& _detonation) noexcept;
+
+// What the lighting pass reads of _placement's heat: its detonation's blast origin, time, shock speed and heat, and its
+// model's first fragment; or, for a whole placement, zero, whose time 0 heats nothing (ADR-025).
+[[nodiscard]] PlacementHeat MakePlacementHeat(const Placement& _placement) noexcept;
 
 // The sphere around everything _placement draws, which the views cull by (§7.4): around its part's box, or around its
 // detonation's envelope at its time.

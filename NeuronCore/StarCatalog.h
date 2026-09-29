@@ -55,6 +55,11 @@ static_assert(offsetof(StarRecord, color) == 16);
 // toward white by STAR_SATURATION.
 [[nodiscard]] Float3 StarColor(float _kelvin) noexcept;
 
+// The color of a black body at _kelvin as StarColor finds it, normalized to unit luminance, but not moved toward white:
+// the color of hot debris and of a detonation's light (Design/ADR/ADR-025). Far below 1,000 K a channel can fall below
+// zero, outside Rec. 709; the caller clamps it.
+[[nodiscard]] Float3 BlackBodyColor(float _kelvin) noexcept;
+
 // The catalog of _seed: _count stars in the galaxy's frame, turned into the world by _galacticPlane (§11.3). Bright
 // stars fall almost evenly over the sky, and fainter ones gather toward the galactic plane and its core. The same seed
 // gives the same bytes.

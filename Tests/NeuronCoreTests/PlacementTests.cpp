@@ -6,6 +6,7 @@
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Placement.h"
 #include "RigidTransform.h"
 #include "Sphere.h"
@@ -84,8 +85,10 @@ using NeuronCore::Placement;
   return transform;
 }
 
-// A detonation with an inherited velocity and a seed, around a blast origin inside the part's box.
-[[nodiscard]] NeuronCore::PlacementDetonation RandomDetonation(SeededRandom& _random, const Placement& _placement, float _timeSeconds)
+// A detonation with an inherited velocity and a seed, around a blast origin inside the part's box, breaking it into
+// _fragments.
+[[nodiscard]] NeuronCore::PlacementDetonation RandomDetonation(SeededRandom& _random, const Placement& _placement, float _timeSeconds,
+                                                               const NeuronCore::PartFragments& _fragments)
 {
   NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(_random.InBox(_placement.lower, _placement.upper));
   parameters.launchSpeed = _random.Uniform(10.0f, 60.0f);
@@ -93,7 +96,7 @@ using NeuronCore::Placement;
   const Float3 heading = _random.Direction();
   parameters.inheritedVelocity = heading * _random.Uniform(0.0f, 40.0f);
   parameters.seed = _random.Below(1000u);
-  return {parameters, _timeSeconds};
+  return {parameters, _timeSeconds, _fragments};
 }
 
 // The rest center of a record in its part's space: the middle of its cell.
@@ -160,7 +163,6 @@ public:
         const std::wstring what = std::format(L"model {}, part {}", model, part);
         Assert::AreEqual(firstRecords[model] + instance.firstRecord, placement.firstRecord, what.c_str());
         Assert::AreEqual(instance.recordCount, placement.recordCount, what.c_str());
-        Assert::AreEqual(instance.firstRecord, placement.hashBase, what.c_str());
         Assert::AreEqual(model, placement.paletteIndex, what.c_str());
         Assert::IsFalse(placement.detonation.has_value(), what.c_str());
 
@@ -234,11 +236,12 @@ public:
   {
     SeededRandom random(20261007u);
     const NeuronCore::VoxModel model = RandomModel(random, 1, 300, 64);
+    const NeuronCore::SceneFragments fragments({&model, 1});
     for (std::uint32_t sample = 0; sample < 16u; ++sample)
     {
       const Placement whole = NeuronCore::PlacePart(model, 0, 0, 0, RandomTransform(random, 4096.0f));
       Placement detonated = whole;
-      detonated.detonation = RandomDetonation(random, whole, 0.0f);
+      detonated.detonation = RandomDetonation(random, whole, 0.0f, fragments.Part(0, 0));
       Assert::IsFalse(NeuronCore::IsAlignedPlacement(detonated), L"a detonated placement draws oriented");
       for (std::uint32_t i = 0; i < whole.recordCount; ++i)
       {
@@ -254,16 +257,18 @@ public:
   {
     SeededRandom random(20261008u);
     const NeuronCore::VoxModel model = RandomModel(random, 2, 150, 48);
+    const NeuronCore::SceneFragments fragments({&model, 1});
     for (std::uint32_t sample = 0; sample < 16u; ++sample)
     {
       const std::uint32_t part = random.Below(2u);
       Placement placement = NeuronCore::PlacePart(model, 0, 0, part, RandomTransform(random, 8192.0f));
-      placement.detonation = RandomDetonation(random, placement, random.Uniform(0.0f, 4.0f));
+      placement.detonation = RandomDetonation(random, placement, random.Uniform(0.0f, 4.0f), fragments.Part(0, part));
       const NeuronCore::ModelInstance& instance = model.instances[part];
       for (std::uint32_t i = 0; i < placement.recordCount; ++i)
       {
         const std::uint32_t record = model.records[instance.firstRecord + i];
-        const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(instance.firstRecord + i, RestCenter(record),
+        const std::uint32_t fragment = fragments.FragmentOf()[instance.firstRecord + i];
+        const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(fragment, fragments.Fragments()[fragment], RestCenter(record),
                                                                      placement.detonation->parameters, placement.detonation->timeSeconds);
         const NeuronCore::Box box = NeuronCore::PlacedVoxelBox(placement, i, record);
         const std::wstring what = std::format(L"sample {}, voxel {}", sample, i);
@@ -277,7 +282,7 @@ public:
     }
   }
 
-  // §7.7, ADR-014: a detonated voxel hashes by its index within its model, so a model's debris does not depend on where
+  // §7.7, ADR-014, ADR-024: a fragment hashes by its index within its model, so a model's debris does not depend on where
   // its records sit in the scene's buffer.
   TEST_METHOD(DebrisDoesNotDependOnTheSceneOrder)
   {
@@ -290,8 +295,13 @@ public:
     Placement ahead = NeuronCore::PlacePart(second, 1, NeuronCore::ModelFirstRecords(forward)[1], 1, transform);
     Placement behind = NeuronCore::PlacePart(second, 0, NeuronCore::ModelFirstRecords(backward)[0], 1, transform);
     Assert::IsTrue(ahead.firstRecord != behind.firstRecord, L"the part sits at two places in the two buffers");
-    ahead.detonation = RandomDetonation(random, ahead, 1.5f);
+    const NeuronCore::SceneFragments aheadFragments(forward);
+    const NeuronCore::SceneFragments behindFragments(backward);
+    ahead.detonation = RandomDetonation(random, ahead, 1.5f, aheadFragments.Part(1, 1));
     behind.detonation = ahead.detonation;
+    behind.detonation->fragments = behindFragments.Part(0, 1);
+    Assert::IsTrue(ahead.detonation->fragments.firstFragment != behind.detonation->fragments.firstFragment,
+                   L"the model's fragments sit at two places in the two buffers");
     const std::vector<std::uint32_t> aheadRecords = NeuronCore::SceneRecords(forward);
     const std::vector<std::uint32_t> behindRecords = NeuronCore::SceneRecords(backward);
     for (std::uint32_t i = 0; i < ahead.recordCount; ++i)
@@ -373,13 +383,15 @@ public:
   TEST_METHOD(SpheresHoldEverythingTheyPlace)
   {
     SeededRandom random(20261011u);
-    const NeuronCore::VoxModel model = RandomModel(random, 1, 300, 40);
+    // Dense enough that most voxels have neighbors, so that fragments of many voxels turn about their pivots.
+    const NeuronCore::VoxModel model = RandomModel(random, 1, 600, 10);
+    const NeuronCore::SceneFragments fragments({&model, 1});
     for (std::uint32_t sample = 0; sample < 24u; ++sample)
     {
       Placement placement = NeuronCore::PlacePart(model, 0, 0, 0, RandomTransform(random, 8192.0f));
       if (sample % 2u == 1u)
       {
-        placement.detonation = RandomDetonation(random, placement, random.Uniform(0.0f, 6.0f));
+        placement.detonation = RandomDetonation(random, placement, random.Uniform(0.0f, 6.0f), fragments.Part(0, 0));
       }
       const NeuronCore::Sphere sphere = NeuronCore::PlacementSphere(placement);
       float farthest = 0.0f;

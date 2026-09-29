@@ -15,6 +15,7 @@
 #include "Box.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "PerspectiveView.h"
 #include "Placement.h"
 #include "Quaternion.h"
@@ -136,7 +137,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const NeuronCore::VoxModel model = LoadMilitaryStation();
-        const NeuronClient::VoxelScene scene(_device, {&model, 1});
+        const NeuronCore::SceneFragments fragments({&model, 1});
+        const NeuronClient::VoxelScene scene(_device, {&model, 1}, fragments);
         const NeuronCore::PerspectiveView view = ThreeQuarterView();
         const NeuronCore::ExplosionParameters explosion = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
         const NeuronClient::SplatPass overdraw(_device, NeuronClient::SplatPass::Kind::View, NeuronClient::SplatPass::Variant::Overdraw);
@@ -148,9 +150,10 @@ public:
           const wchar_t* name;
           std::vector<NeuronCore::Placement> placements;
         };
-        const std::array<Case, 3> cases{{{L"intact", WholePlacements(model)},
-                                         {L"turned", turned},
-                                         {L"exploded", DetonatePlacements(WholePlacements(model), explosion, EXPLOSION_SECONDS)}}};
+        const std::array<Case, 3> cases{
+          {{L"intact", WholePlacements(model)},
+           {L"turned", turned},
+           {L"exploded", DetonatePlacements(WholePlacements(model), {&model, 1}, fragments, explosion, EXPLOSION_SECONDS)}}};
         for (const Case& drawn : cases)
         {
           const std::vector<NeuronCore::Placement>& placements = drawn.placements;

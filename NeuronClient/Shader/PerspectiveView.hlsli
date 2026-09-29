@@ -24,6 +24,9 @@ Ray PerspectiveRay(ViewConstants _view, float2 _pixelCenter)
   return ray;
 }
 
+// The depth the view is cleared to, which no voxel reaches: NeuronCore's PERSPECTIVE_FAR_DEPTH.
+static const float PERSPECTIVE_FAR_DEPTH = 0.0;
+
 // Reversed-Z with an infinite far plane: depth = n / view depth.
 float PerspectiveDepth(ViewConstants _view, float _viewDepth)
 {

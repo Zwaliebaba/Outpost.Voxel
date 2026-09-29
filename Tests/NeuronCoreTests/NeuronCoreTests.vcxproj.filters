@@ -10,6 +10,7 @@
     <ClInclude Include="RepositoryFile.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BlastTests.cpp" />
     <ClCompile Include="BloomTests.cpp" />
     <ClCompile Include="BoxTests.cpp" />
     <ClCompile Include="DebugViewTests.cpp" />
@@ -25,6 +26,7 @@
     <ClCompile Include="VoxFile.cpp" />
     <ClCompile Include="VoxModelTests.cpp" />
     <ClCompile Include="ExplosionTests.cpp" />
+    <ClCompile Include="FragmentationTests.cpp" />
     <ClCompile Include="LightingTests.cpp" />
     <ClCompile Include="ToneMapTests.cpp" />
     <ClCompile Include="CullingTests.cpp" />

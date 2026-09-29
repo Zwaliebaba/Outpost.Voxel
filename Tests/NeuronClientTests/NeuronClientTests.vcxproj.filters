@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClCompile Include="BloomPassTests.cpp" />
     <ClCompile Include="DebugViewPassTests.cpp" />
+    <ClCompile Include="GasShellPassTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="SkyPassTests.cpp" />

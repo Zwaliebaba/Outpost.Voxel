@@ -191,6 +191,7 @@
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="LightingConstants.h" />
+    <ClInclude Include="GasShellPass.h" />
     <ClInclude Include="LightingPass.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
@@ -230,6 +231,7 @@
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
     <ClCompile Include="LightingConstants.cpp" />
+    <ClCompile Include="GasShellPass.cpp" />
     <ClCompile Include="LightingPass.cpp" />
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp">
@@ -288,6 +290,11 @@
       <ShaderType>Vertex</ShaderType>
       <EntryPointName>FullScreenVertex</EntryPointName>
       <VariableName>DEBUG_VIEW_VS</VariableName>
+    </FxCompile>
+    <FxCompile Include="Shader\GasShellCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+      <EntryPointName>AddGasShells</EntryPointName>
+      <VariableName>GAS_SHELL_CS</VariableName>
     </FxCompile>
     <FxCompile Include="Shader\LightingCS.hlsl">
       <ShaderType>Compute</ShaderType>
@@ -402,11 +409,18 @@
     <None Include="Shader\DebugViewPass.hlsli" />
     <None Include="Shader\Explosion.hlsli" />
     <None Include="Shader\ExplosionConstants.hlsli" />
+    <None Include="Shader\Fragment.hlsli" />
     <None Include="Shader\FullScreen.hlsli" />
     <None Include="Shader\Hash.hlsli" />
+    <None Include="Shader\Blast.hlsli" />
+    <None Include="Shader\BlastLighting.hlsli" />
+    <None Include="Shader\GasShell.hlsli" />
+    <None Include="Shader\GasShellPass.hlsli" />
+    <None Include="Shader\GasShells.hlsli" />
     <None Include="Shader\Lighting.hlsli" />
     <None Include="Shader\LightingConstants.hlsli" />
     <None Include="Shader\LightingPass.hlsli" />
+    <None Include="Shader\PlacementHeat.hlsli" />
     <None Include="Shader\OrthographicView.hlsli" />
     <None Include="Shader\Packing.hlsli" />
     <None Include="Shader\PaletteConstants.hlsli" />

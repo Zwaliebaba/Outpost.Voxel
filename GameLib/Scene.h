@@ -3,6 +3,7 @@
 #include "SceneModels.h"
 #include "SnapshotBuffer.h"
 
+#include "Blast.h"
 #include "Float3.h"
 #include "OrthographicView.h"
 #include "Placement.h"
@@ -42,6 +43,9 @@ public:
   // The placements _sample's entities draw, in the order of their ids and then of their parts, with their ids (§7.3).
   // Throws std::runtime_error when their voxels would reach NO_VOXEL.
   [[nodiscard]] std::vector<NeuronCore::Placement> Place(const NeuronClient::WorldSample& _sample) const;
+
+  // The light of _sample's detonations, in the order of their entities (Design/ADR/ADR-025).
+  [[nodiscard]] std::vector<NeuronCore::Blast> Blasts(const NeuronClient::WorldSample& _sample) const;
 
   // Fits the sun's view around _sample's entities, as far as it must: true when the view moved, as it does the first time.
   bool FitShadowView(const NeuronClient::WorldSample& _sample);
