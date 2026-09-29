@@ -2,6 +2,7 @@
 
 #include "Box.h"
 #include "Explosion.h"
+#include "Fragmentation.h"
 #include "Lighting.h"
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
@@ -179,21 +180,34 @@ constexpr float POSITION_ROUNDING = 1.0e-6f;
   return times;
 }
 
-// A rotation of the cube onto itself: every entry exactly 0 or ±1, and a rotation rather than a reflection.
-[[nodiscard]] bool IsCubeRotation(const NeuronCore::VoxelPose& _pose) noexcept
+// The station broken as the client breaks it (Design/ADR/ADR-024), in the model's space where RestCenters lie: each voxel's
+// fragment, and each fragment with its pivot moved out of its part's space.
+struct StationFragments
 {
-  for (const Float3 axis : {_pose.axisX, _pose.axisY, _pose.axisZ})
+  std::vector<std::uint32_t> fragmentOf;
+  std::vector<NeuronCore::Fragment> fragments;
+  float radius;
+};
+
+[[nodiscard]] StationFragments BreakStation(const NeuronCore::VoxModel& _model)
+{
+  const NeuronCore::ModelFragments broken = NeuronCore::FragmentModel(_model, NeuronCore::DefaultFragmentationParameters(_model));
+  Assert::AreEqual(std::size_t{1}, _model.instances.size(), L"the station is one part");
+  const Int3 origin = _model.instances.front().origin;
+  StationFragments station{broken.fragmentOf, broken.fragments, broken.partRadius.front()};
+  for (NeuronCore::Fragment& fragment : station.fragments)
   {
-    for (const float entry : {axis.x, axis.y, axis.z})
-    {
-      if (entry != 0.0f && entry != 1.0f && entry != -1.0f)
-      {
-        return false;
-      }
-    }
+    fragment.pivot = fragment.pivot + Float3{static_cast<float>(origin.x), static_cast<float>(origin.y), static_cast<float>(origin.z)};
   }
-  const Float3 handed = NeuronCore::Cross(_pose.axisX, _pose.axisY);
-  return handed.x == _pose.axisZ.x && handed.y == _pose.axisZ.y && handed.z == _pose.axisZ.z;
+  return station;
+}
+
+// Voxel _voxel of the station, whose center is _center, as the detonation poses it.
+[[nodiscard]] NeuronCore::VoxelPose StationPose(const StationFragments& _station, std::uint32_t _voxel, Float3 _center,
+                                                const NeuronCore::ExplosionParameters& _parameters, float _timeSeconds) noexcept
+{
+  const std::uint32_t fragment = _station.fragmentOf[_voxel];
+  return NeuronCore::ExplosionPose(fragment, _station.fragments[fragment], _center, _parameters, _timeSeconds);
 }
 
 // How far the farthest corner of the unit cube posed as _a is from the same corner posed as _b.
@@ -545,13 +559,14 @@ public:
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
+    const StationFragments station = BreakStation(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
     const NeuronCore::VoxelPose intact{{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     for (std::uint32_t voxel = 0; voxel < centers.size(); ++voxel)
     {
       NeuronCore::VoxelPose expected = intact;
       expected.center = centers[voxel];
-      if (!SamePose(expected, NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, 0.0f)))
+      if (!SamePose(expected, StationPose(station, voxel, centers[voxel], parameters, 0.0f)))
       {
         Assert::Fail(std::format(L"voxel {} moves at time 0", voxel).c_str());
       }
@@ -559,26 +574,28 @@ public:
   }
 
   // §5.5: from the envelope's stop time on, no corner of any voxel is farther than EXPLOSION_STOP_DISTANCE from where it
-  // ends; and where it ends, once its motion is done to the float's last bit, it is still and square to the axes.
+  // ends; and where it ends, once its fragment's motion is done to the float's last bit, it is still (ADR-024).
   TEST_METHOD(ExplosionDriftsToAStop)
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
+    const StationFragments station = BreakStation(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
     const auto [lower, upper] = CenterBox(centers);
-    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper).stopSeconds;
-    const float done = MOTION_DONE / parameters.drag;
+    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper, station.radius).stopSeconds;
+    // Every fragment has started by the stop time, and has the least drag or more.
+    const float done = stop + MOTION_DONE / parameters.minDrag;
     float mostLeft = 0.0f;
     for (std::uint32_t voxel = 0; voxel < centers.size(); ++voxel)
     {
-      const NeuronCore::VoxelPose end = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, done);
-      if (!IsCubeRotation(end) || !SamePose(end, NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, 2.0f * done)))
+      const NeuronCore::VoxelPose end = StationPose(station, voxel, centers[voxel], parameters, done);
+      if (!SamePose(end, StationPose(station, voxel, centers[voxel], parameters, 2.0f * done)))
       {
-        Assert::Fail(std::format(L"voxel {} does not end still and square", voxel).c_str());
+        Assert::Fail(std::format(L"voxel {} does not end still", voxel).c_str());
       }
       for (const float time : {stop, 1.5f * stop})
       {
-        const float left = CornerDistance(NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time), end);
+        const float left = CornerDistance(StationPose(station, voxel, centers[voxel], parameters, time), end);
         mostLeft = std::max(mostLeft, left);
         if (left > NeuronCore::EXPLOSION_STOP_DISTANCE + POSITION_ROUNDING * NeuronCore::Length(end.center))
         {
@@ -589,27 +606,29 @@ public:
     Logger::WriteMessage(std::format(L"stop at {} s; the most any corner had left to go from then on was {}\n", stop, mostLeft).c_str());
   }
 
-  // §5.5: the drag only slows a voxel, so none moves faster than the fastest launch: the launch speed at the blast
-  // origin with all of its variation.
+  // §5.5: the drag only slows a fragment, so no voxel moves faster than the fastest launch, the launch speed at the blast
+  // origin with all of its variation, plus the fastest turn at the farthest a voxel lies from its pivot.
   TEST_METHOD(ExplosionIsNoFasterThanItsLaunch)
   {
     constexpr float STEP_SECONDS = 1.0e-3f;
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
+    const StationFragments station = BreakStation(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
-    const float fastest = parameters.launchSpeed * (1.0f + parameters.speedJitter);
+    const float fastest =
+      parameters.launchSpeed * std::exp(3.0f * parameters.speedSpread) + parameters.maxSpinRadians * parameters.drag * station.radius;
     const auto [lower, upper] = CenterBox(centers);
-    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper).stopSeconds;
+    const float stop = NeuronCore::BoundExplosion(parameters, lower, upper, station.radius).stopSeconds;
     float fastestSeen = 0.0f;
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
       for (const float time : SampleTimes(stop))
       {
-        const NeuronCore::VoxelPose before = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
-        const NeuronCore::VoxelPose after = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time + STEP_SECONDS);
+        const NeuronCore::VoxelPose before = StationPose(station, voxel, centers[voxel], parameters, time);
+        const NeuronCore::VoxelPose after = StationPose(station, voxel, centers[voxel], parameters, time + STEP_SECONDS);
         const float moved = NeuronCore::Length(after.center - before.center);
         fastestSeen = std::max(fastestSeen, moved / STEP_SECONDS);
-        Assert::IsTrue(moved <= fastest * STEP_SECONDS + 4.0f * POSITION_ROUNDING * NeuronCore::Length(after.center),
+        Assert::IsTrue(moved <= fastest * STEP_SECONDS * 1.001f + 4.0f * POSITION_ROUNDING * NeuronCore::Length(after.center),
                        std::format(L"voxel {} moves {} in {} s at {} s", voxel, moved, STEP_SECONDS, time).c_str());
       }
     }
@@ -623,15 +642,16 @@ public:
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
+    const StationFragments station = BreakStation(model);
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
     const auto [lower, upper] = CenterBox(centers);
-    const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, lower, upper);
+    const NeuronCore::ExplosionEnvelope envelope = NeuronCore::BoundExplosion(parameters, lower, upper, station.radius);
     float farthest = 0.0f;
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
       for (const float time : SampleTimes(envelope.stopSeconds))
       {
-        const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
+        const NeuronCore::VoxelPose pose = StationPose(station, voxel, centers[voxel], parameters, time);
         const float reached = NeuronCore::Length(pose.center - envelope.center) + NeuronCore::VOXEL_BOUNDING_RADIUS;
         farthest = std::max(farthest, reached);
         Assert::IsTrue(reached <= envelope.radius * (1.0f + POSITION_ROUNDING),
@@ -655,13 +675,15 @@ public:
   {
     const NeuronCore::VoxModel model = LoadMilitaryStation();
     const std::vector<Float3> centers = RestCenters(model);
+    const StationFragments station = BreakStation(model);
+    Assert::IsTrue(station.fragmentOf == BreakStation(model).fragmentOf, L"the station breaks the same way twice");
     const NeuronCore::ExplosionParameters parameters = NeuronCore::DefaultExplosionParameters(NeuronCore::VoxelCentroid(model));
     for (const std::uint32_t voxel : FollowedVoxels(centers))
     {
       for (const float time : {0.25f, 1.0f, 3.0f, 6.0f})
       {
-        const NeuronCore::VoxelPose first = NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time);
-        Assert::IsTrue(SamePose(first, NeuronCore::ExplosionPose(voxel, centers[voxel], parameters, time)));
+        const NeuronCore::VoxelPose first = StationPose(station, voxel, centers[voxel], parameters, time);
+        Assert::IsTrue(SamePose(first, StationPose(station, voxel, centers[voxel], parameters, time)));
       }
     }
   }

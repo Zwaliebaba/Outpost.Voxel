@@ -1,7 +1,8 @@
 #pragma once
 
 // The HLSL mirror of NeuronClient/ExplosionConstants.h (R16, Design/Archive/SampleRenderer.md §7.4, Design/Archive/SpaceScene.md
-// §5.5, §7.7). The C++ struct is the truth, and the layout echo in NeuronClientTests proves that the two agree.
+// §5.5, §7.7, Design/ADR/ADR-024). The C++ struct is the truth, and the layout echo in NeuronClientTests proves that the two
+// agree.
 struct ExplosionConstants
 {
   float3 blastOrigin;
@@ -10,9 +11,11 @@ struct ExplosionConstants
   float launchSpeed;
   float falloffDistance;
   float directionJitter;
-  float speedJitter;
+  float speedSpread;
   float drag;
-  uint maxQuarterTurns;
+  float minDrag;
+  float maxSpinRadians;
+  float shockSpeed;
   uint seed;
-  uint hashBase; // the model-local index of the placement's first record, from which its voxels' hashes count
+  uint firstFragment; // where the placement's model's first fragment lies in the scene's fragment buffer
 };

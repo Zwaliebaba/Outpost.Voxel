@@ -18,11 +18,13 @@ ExplosionConstants MakeExplosionConstants(const NeuronCore::Placement& _placemen
           .launchSpeed = parameters.launchSpeed,
           .falloffDistance = parameters.falloffDistance,
           .directionJitter = parameters.directionJitter,
-          .speedJitter = parameters.speedJitter,
+          .speedSpread = parameters.speedSpread,
           .drag = parameters.drag,
-          .maxQuarterTurns = parameters.maxQuarterTurns,
+          .minDrag = parameters.minDrag,
+          .maxSpinRadians = parameters.maxSpinRadians,
+          .shockSpeed = parameters.shockSpeed,
           .seed = parameters.seed,
-          .hashBase = _placement.hashBase};
+          .firstFragment = _placement.detonation->fragments.firstFragment};
 }
 
 } // namespace NeuronClient

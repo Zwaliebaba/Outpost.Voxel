@@ -219,6 +219,7 @@
     <ClCompile Include="ClientSessionTests.cpp" />
     <ClCompile Include="DebugViewPassTests.cpp" />
     <ClCompile Include="ExplosionSplatTests.cpp" />
+    <ClCompile Include="GasShellPassTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="MeasurementTests.cpp" />

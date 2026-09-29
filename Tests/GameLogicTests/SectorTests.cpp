@@ -9,6 +9,7 @@
 
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Hash.h"
 #include "LoopbackTransport.h"
 #include "Message.h"
@@ -654,11 +655,12 @@ public:
     NeuronCore::ExplosionParameters lateParameters = parameters;
     lateParameters.seed = lateEvent->seed;
     lateParameters.inheritedVelocity = lateEvent->velocity;
-    for (const std::uint32_t voxel : {0u, 17u, 1180u})
+    for (const std::uint32_t fragment : {0u, 17u, 1180u})
     {
-      const Float3 rest{static_cast<float>(voxel % 13), static_cast<float>(voxel % 7), static_cast<float>(voxel % 5)};
-      const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(voxel, rest, parameters, age);
-      const NeuronCore::VoxelPose latePose = NeuronCore::ExplosionPose(voxel, rest, lateParameters, age);
+      const Float3 rest{static_cast<float>(fragment % 13), static_cast<float>(fragment % 7), static_cast<float>(fragment % 5)};
+      const NeuronCore::Fragment shape{rest, 1.0f};
+      const NeuronCore::VoxelPose pose = NeuronCore::ExplosionPose(fragment, shape, rest, parameters, age);
+      const NeuronCore::VoxelPose latePose = NeuronCore::ExplosionPose(fragment, shape, rest, lateParameters, age);
       Assert::IsTrue(pose.center.x == latePose.center.x && pose.center.y == latePose.center.y && pose.center.z == latePose.center.z,
                      L"the late client computes the same debris");
     }

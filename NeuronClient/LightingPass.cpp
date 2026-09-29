@@ -6,11 +6,15 @@
 #include "GraphicsDevice.h"
 #include "Shaders.h"
 #include "ShadowMap.h"
+#include "UploadRing.h"
 #include "ViewTargets.h"
 #include "VoxelScene.h"
 
+#include "Blast.h"
+
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace NeuronClient
 {
@@ -28,11 +32,35 @@ enum RootParameter : std::uint8_t
   ShadowMapParameter,
   PlacementsParameter,
   PalettesParameter,
+  BlastLightingParameter,
+  PlacementHeatParameter,
+  FragmentOfParameter,
+  FragmentsParameter,
   ColorParameter,
   RootParameterCount
 };
 
+// Every piece an upload ring hands out starts on this boundary.
+constexpr std::uint64_t RING_ALIGNMENT_BYTES = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+
 } // namespace
+
+D3D12_GPU_VIRTUAL_ADDRESS PushPlacementHeat(UploadRing& _ring, std::span<const NeuronCore::Placement> _placements)
+{
+  std::vector<NeuronCore::PlacementHeat> heat;
+  heat.reserve(_placements.size());
+  for (const NeuronCore::Placement& placement : _placements)
+  {
+    heat.push_back(NeuronCore::MakePlacementHeat(placement));
+  }
+  return _ring.PushBytes(std::as_bytes(std::span(heat)));
+}
+
+std::uint64_t PlacementHeatBytes(std::size_t _placementCount) noexcept
+{
+  const std::uint64_t bytes = _placementCount * sizeof(NeuronCore::PlacementHeat);
+  return (bytes + RING_ALIGNMENT_BYTES - 1) / RING_ALIGNMENT_BYTES * RING_ALIGNMENT_BYTES;
+}
 
 LightingPass::LightingPass(GraphicsDevice& _device)
 {
@@ -59,6 +87,14 @@ LightingPass::LightingPass(GraphicsDevice& _device)
   parameters[PlacementsParameter].Descriptor = {4, 0};
   parameters[PalettesParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[PalettesParameter].Descriptor = {5, 0};
+  parameters[BlastLightingParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+  parameters[BlastLightingParameter].Descriptor = {3, 0};
+  parameters[PlacementHeatParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[PlacementHeatParameter].Descriptor = {6, 0};
+  parameters[FragmentOfParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[FragmentOfParameter].Descriptor = {7, 0};
+  parameters[FragmentsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[FragmentsParameter].Descriptor = {8, 0};
   parameters[ColorParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[ColorParameter].DescriptorTable = {1, &colorRange};
   for (D3D12_ROOT_PARAMETER& parameter : parameters)
@@ -98,7 +134,8 @@ LightingPass::LightingPass(GraphicsDevice& _device)
 void LightingPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _targets, const ShadowMap& _shadowMap,
                           const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
                           D3D12_GPU_VIRTUAL_ADDRESS _shadowViewConstants, D3D12_GPU_VIRTUAL_ADDRESS _lightingConstants,
-                          D3D12_GPU_VIRTUAL_ADDRESS _placements) const
+                          D3D12_GPU_VIRTUAL_ADDRESS _placements, D3D12_GPU_VIRTUAL_ADDRESS _blastLighting,
+                          D3D12_GPU_VIRTUAL_ADDRESS _placementHeat) const
 {
   _list->SetComputeRootSignature(m_rootSignature.get());
   _list->SetPipelineState(m_pipeline.get());
@@ -111,6 +148,10 @@ void LightingPass::Record(ID3D12GraphicsCommandList* _list, const ViewTargets& _
   _list->SetComputeRootDescriptorTable(ShadowMapParameter, _shadowMap.Table());
   _list->SetComputeRootShaderResourceView(PlacementsParameter, _placements);
   _list->SetComputeRootShaderResourceView(PalettesParameter, _scene.Palettes());
+  _list->SetComputeRootConstantBufferView(BlastLightingParameter, _blastLighting);
+  _list->SetComputeRootShaderResourceView(PlacementHeatParameter, _placementHeat);
+  _list->SetComputeRootShaderResourceView(FragmentOfParameter, _scene.FragmentOf());
+  _list->SetComputeRootShaderResourceView(FragmentsParameter, _scene.Fragments());
   _list->SetComputeRootDescriptorTable(ColorParameter, _targets.HdrColorWriteTable());
   _list->Dispatch((_targets.WidthPixels() + GROUP_PIXELS - 1) / GROUP_PIXELS, (_targets.HeightPixels() + GROUP_PIXELS - 1) / GROUP_PIXELS,
                   1);

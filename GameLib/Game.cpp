@@ -15,6 +15,7 @@
 #include "OrbitCamera.h"
 #include "Scene.h"
 
+#include "Blast.h"
 #include "DebugView.h"
 #include "Lighting.h"
 #include "Message.h"
@@ -95,7 +96,7 @@ constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NA
 
 // The passes the title and the panel time, by NeuronClient::GpuPass.
 constexpr std::array<const wchar_t*, NeuronClient::GPU_PASS_COUNT> GPU_PASS_NAMES{
-  L"shadow splat", L"view splat", L"coverage", L"lighting", L"sky", L"bloom", L"tone map", L"debug view", L"canvas"};
+  L"shadow splat", L"view splat", L"coverage", L"lighting", L"sky", L"gas shells", L"bloom", L"tone map", L"debug view", L"canvas"};
 
 constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"Right drag\tpan\n"
@@ -583,7 +584,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
   NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
-                                  scene.Models().Models());
+                                  scene.Models().Models(), scene.Models().Fragments());
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -667,9 +668,10 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
         renderer.SetShadowView(scene.ShadowView());
       }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(tuned, controls.emissiveGain);
-      renderer.Render(
-        camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
-        {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false, false});
+      const std::vector<NeuronCore::Blast> blasts = scene.Blasts(sample);
+      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
+                      {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false,
+                       false, blasts});
     }
   }
   catch (...)

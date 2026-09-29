@@ -16,8 +16,10 @@
 #include "VoxelScene.h"
 
 #include "Box.h"
+#include "Blast.h"
 #include "Explosion.h"
 #include "Float3.h"
+#include "Fragmentation.h"
 #include "Half.h"
 #include "Lighting.h"
 #include "OctahedralNormal.h"
@@ -480,10 +482,11 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const ThreeModels three = LoadThreeModels();
-        const NeuronClient::VoxelScene scene(_device, three.models);
+        const NeuronCore::SceneFragments fragments(three.models);
+        const NeuronClient::VoxelScene scene(_device, three.models, fragments);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const std::vector<Placement> detonated =
-          DetonatePlacements(whole, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
+          DetonatePlacements(whole, three.models, fragments, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
         const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronCore::PerspectiveView view = FromTheOrigin();
         Report(L"detonated at time 0, the view",
@@ -506,7 +509,8 @@ public:
       [](NeuronClient::GraphicsDevice& _device)
       {
         const ThreeModels three = LoadThreeModels();
-        const NeuronClient::VoxelScene scene(_device, three.models);
+        const NeuronCore::SceneFragments fragments(three.models);
+        const NeuronClient::VoxelScene scene(_device, three.models, fragments);
         const std::vector<Placement> whole = SeveralPlacements(three);
         const NeuronClient::SplatPass standard(_device, NeuronClient::SplatPass::Kind::View);
         const NeuronClient::SplatPass plainDepth(_device, NeuronClient::SplatPass::Kind::View,
@@ -519,7 +523,8 @@ public:
         explosion.seed = 7u;
         for (const float time : {0.0f, 0.5f})
         {
-          const std::vector<Placement> placements = time > 0.0f ? DetonatePlacements(whole, explosion, time) : whole;
+          const std::vector<Placement> placements =
+            time > 0.0f ? DetonatePlacements(whole, three.models, fragments, explosion, time) : whole;
           const SplatImage image = RenderSplat(_device, scene, placements, standard, view);
           Report(std::format(L"plain depth at {} s", time),
                  CompareDrawings(image, RenderSplat(_device, scene, placements, plainDepth, view)), EDGE_MISMATCH_LIMIT);
@@ -573,6 +578,8 @@ public:
         const D3D12_GPU_VIRTUAL_ADDRESS lightingConstants =
           constants.Push(NeuronClient::MakeLightingConstants(parameters, shadowView, static_cast<std::uint32_t>(placements.size())));
         const NeuronClient::SplatPlacements pushed = PushTestPlacements(constants, placements);
+        const D3D12_GPU_VIRTUAL_ADDRESS blastConstants = constants.Push(NeuronCore::MakeBlastLighting({}, view.position));
+        const D3D12_GPU_VIRTUAL_ADDRESS placementHeat = NeuronClient::PushPlacementHeat(constants, placements);
 
         _device.Execute(
           [&](ID3D12GraphicsCommandList* _list)
@@ -586,7 +593,8 @@ public:
             viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginLighting(_list);
-            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants);
+            lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants,
+                            blastConstants, placementHeat);
             targets.EndLighting(_list);
           });
 

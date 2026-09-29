@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="Bloom.h" />
+    <ClInclude Include="Blast.h" />
     <ClInclude Include="Box.h" />
     <ClInclude Include="ColorSpace.h" />
     <ClInclude Include="DebugView.h" />
@@ -20,6 +21,7 @@
     <ClInclude Include="VoxelRecord.h" />
     <ClInclude Include="VoxModel.h" />
     <ClInclude Include="Explosion.h" />
+    <ClInclude Include="Fragmentation.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Lighting.h" />
     <ClInclude Include="ToneMap.h" />
@@ -39,6 +41,7 @@
     <ClInclude Include="StarCatalog.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Blast.cpp" />
     <ClCompile Include="Bloom.cpp" />
     <ClCompile Include="ColorSpace.cpp" />
     <ClCompile Include="DebugView.cpp" />
@@ -53,6 +56,7 @@
     <ClCompile Include="VoxelGrid.cpp" />
     <ClCompile Include="VoxModel.cpp" />
     <ClCompile Include="Explosion.cpp" />
+    <ClCompile Include="Fragmentation.cpp" />
     <ClCompile Include="Lighting.cpp" />
     <ClCompile Include="ToneMap.cpp" />
     <ClCompile Include="Placement.cpp" />

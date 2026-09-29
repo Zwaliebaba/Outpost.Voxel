@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <stdexcept>
 
 namespace GameLib
@@ -28,6 +29,19 @@ std::vector<NeuronCore::Placement> Scene::Place(const NeuronClient::WorldSample&
     throw std::runtime_error("The world holds more voxels than a frame can name.");
   }
   return placements;
+}
+
+std::vector<NeuronCore::Blast> Scene::Blasts(const NeuronClient::WorldSample& _sample) const
+{
+  std::vector<NeuronCore::Blast> blasts;
+  for (const NeuronClient::SampledEntity& entity : _sample.entities)
+  {
+    if (const std::optional<NeuronCore::Blast> blast = m_models.Blast(entity))
+    {
+      blasts.push_back(*blast);
+    }
+  }
+  return blasts;
 }
 
 bool Scene::FitShadowView(const NeuronClient::WorldSample& _sample)
