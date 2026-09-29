@@ -2,6 +2,9 @@
 
 #include "CanvasShading.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace NeuronClient
 {
 
@@ -23,6 +26,32 @@ void CanvasAtlasTexel(std::int32_t _pixelX, std::int32_t _pixelY, std::int32_t _
 {
   _texelX = static_cast<std::int32_t>(_atlasX) + (_pixelX - _originX);
   _texelY = static_cast<std::int32_t>(_atlasY) + (_pixelY - _originY);
+}
+
+Float2 CanvasSegmentCornerNdc(Float2 _start, Float2 _end, float _halfWidthPixels, std::uint32_t _corner, std::uint32_t _targetWidthPixels,
+                              std::uint32_t _targetHeightPixels) noexcept
+{
+  const Float2 along = _end - _start;
+  const float lengthPixels = std::sqrt(along.x * along.x + along.y * along.y);
+  const Float2 direction = lengthPixels > 0.0f ? Float2{along.x / lengthPixels, along.y / lengthPixels} : Float2{1.0f, 0.0f};
+  const float reach = _halfWidthPixels + 1.0f;
+  const Float2 end = (_corner & 1u) != 0u ? Float2{_end.x + direction.x * reach, _end.y + direction.y * reach}
+                                          : Float2{_start.x - direction.x * reach, _start.y - direction.y * reach};
+  const float side = ((_corner >> 1u) & 1u) != 0u ? reach : -reach;
+  const Float2 corner{end.x - direction.y * side, end.y + direction.x * side};
+  return {2.0f * corner.x / static_cast<float>(_targetWidthPixels) - 1.0f,
+          1.0f - 2.0f * corner.y / static_cast<float>(_targetHeightPixels)};
+}
+
+float CanvasSegmentCoverage(Float2 _pixel, Float2 _start, Float2 _end, float _halfWidthPixels) noexcept
+{
+  const Float2 along = _end - _start;
+  const Float2 from = _pixel - _start;
+  const float lengthSquared = along.x * along.x + along.y * along.y;
+  const float nearest = lengthSquared > 0.0f ? std::clamp((from.x * along.x + from.y * along.y) / lengthSquared, 0.0f, 1.0f) : 0.0f;
+  const Float2 apart{from.x - along.x * nearest, from.y - along.y * nearest};
+  const float apartPixels = std::sqrt(apart.x * apart.x + apart.y * apart.y);
+  return std::clamp(_halfWidthPixels + 0.5f - apartPixels, 0.0f, 1.0f);
 }
 
 Float4 CanvasPremultiply(Float3 _color, float _alpha, float _coverage) noexcept

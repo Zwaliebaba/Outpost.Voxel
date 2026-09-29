@@ -184,6 +184,7 @@
     <ClInclude Include="ComApartment.h" />
     <ClInclude Include="CoveragePass.h" />
     <ClInclude Include="DebugViewPass.h" />
+    <ClInclude Include="DeferredSurface.h" />
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="ExplosionConstants.h" />
     <ClInclude Include="FailureReport.h" />
@@ -195,9 +196,12 @@
     <ClInclude Include="InputState.h" />
     <ClInclude Include="LightingConstants.h" />
     <ClInclude Include="GasShellPass.h" />
+    <ClInclude Include="Interface.h" />
     <ClInclude Include="LightingPass.h" />
+    <ClInclude Include="Overlay.h" />
     <ClInclude Include="PaletteConstants.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Pick.h" />
     <ClInclude Include="PlacementConstants.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="SceneModels.h" />
@@ -208,6 +212,7 @@
     <ClInclude Include="SkyPass.h" />
     <ClInclude Include="SnapshotBuffer.h" />
     <ClInclude Include="SplatPass.h" />
+    <ClInclude Include="Surface.h" />
     <ClInclude Include="SwapChain.h" />
     <ClInclude Include="ToneMapPass.h" />
     <ClInclude Include="UploadRing.h" />
@@ -226,6 +231,7 @@
     <ClCompile Include="ClientSession.cpp" />
     <ClCompile Include="CoveragePass.cpp" />
     <ClCompile Include="DebugViewPass.cpp" />
+    <ClCompile Include="DeferredSurface.cpp" />
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="ExplosionConstants.cpp" />
     <ClCompile Include="FailureReport.cpp" />
@@ -237,11 +243,14 @@
     <ClCompile Include="InputState.cpp" />
     <ClCompile Include="LightingConstants.cpp" />
     <ClCompile Include="GasShellPass.cpp" />
+    <ClCompile Include="Interface.cpp" />
     <ClCompile Include="LightingPass.cpp" />
+    <ClCompile Include="Overlay.cpp" />
     <ClCompile Include="PaletteConstants.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Pick.cpp" />
     <ClCompile Include="PlacementConstants.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="SceneModels.cpp" />

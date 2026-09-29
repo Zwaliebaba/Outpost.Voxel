@@ -58,7 +58,7 @@ constexpr std::uint32_t WARMUP_FRAMES = 120;
 constexpr double DETONATION_FRACTION = 0.25;
 
 // The run's progress on screen, which the canvas draws and times as a pass of its own.
-constexpr NeuronClient::TextStyle PROGRESS_STYLE{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
+constexpr NeuronClient::TextStyle PROGRESS_STYLE{L"Consolas", 15.0f, NeuronClient::REGULAR_WEIGHT};
 constexpr std::int32_t PROGRESS_MARGIN_PIXELS = 8;
 constexpr float PROGRESS_PADDING_PIXELS = 6.0f;
 

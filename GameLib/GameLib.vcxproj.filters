@@ -7,6 +7,9 @@
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Bench.h" />
     <ClInclude Include="ChaseCamera.h" />
+    <ClInclude Include="StrategicCamera.h" />
+    <ClInclude Include="Commander.h" />
+    <ClInclude Include="Hud.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Game.cpp" />
@@ -15,5 +18,8 @@
     <ClCompile Include="Scene.cpp" />
     <ClCompile Include="Bench.cpp" />
     <ClCompile Include="ChaseCamera.cpp" />
+    <ClCompile Include="StrategicCamera.cpp" />
+    <ClCompile Include="Commander.cpp" />
+    <ClCompile Include="Hud.cpp" />
   </ItemGroup>
 </Project>

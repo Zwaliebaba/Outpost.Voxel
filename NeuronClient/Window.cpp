@@ -12,6 +12,9 @@ constexpr const wchar_t* CLASS_NAME = L"NeuronClientWindow";
 // The window property that holds the Window a handle belongs to.
 constexpr const wchar_t* INSTANCE_PROPERTY = L"NeuronClient.Window";
 
+// InputState spells the modifier keys without the SDK's header; these are what it spells.
+static_assert(SHIFT_KEY == VK_SHIFT && CONTROL_KEY == VK_CONTROL && ALT_KEY == VK_MENU);
+
 // The Window whose handle CreateWindowExW is making on this thread: its first messages arrive before the handle does.
 thread_local Window* g_creating = nullptr;
 
@@ -151,13 +154,32 @@ LRESULT Window::OnMessage(HWND _window, UINT _message, WPARAM _wParam, LPARAM _l
     OnButton(MouseButton::Middle, false);
     return 0;
   case WM_MOUSEMOVE:
+    // The strategic camera pans at the client area's edges (Design/ADR/ADR-034), so the input must hear when the pointer
+    // leaves it rather than keep its last place.
+    if (!m_trackingLeave)
+    {
+      TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT), TME_LEAVE, _window, 0};
+      m_trackingLeave = TrackMouseEvent(&track) != FALSE;
+    }
     m_input.OnMouseMove(PointerX(_lParam), PointerY(_lParam));
+    return 0;
+  case WM_MOUSELEAVE:
+    m_trackingLeave = false;
+    m_input.OnPointerLeft();
     return 0;
   case WM_MOUSEWHEEL:
     m_input.OnWheel(static_cast<float>(GET_WHEEL_DELTA_WPARAM(_wParam)) / static_cast<float>(WHEEL_DELTA));
     return 0;
   case WM_KILLFOCUS:
     m_input.OnFocusLost();
+    break;
+  case WM_SYSCOMMAND:
+    // Alt is the debug keys' modifier (Design/ADR/ADR-034). Pressed and released alone, it would open the window's menu,
+    // of which it has none, and swallow the next key.
+    if ((static_cast<std::uint32_t>(_wParam) & 0xFFF0u) == SC_KEYMENU)
+    {
+      return 0;
+    }
     break;
   default:
     break;

@@ -6,21 +6,29 @@
 #include "CapturedFrame.h"
 #include "ClientSession.h"
 #include "Clock.h"
+#include "DeferredSurface.h"
 #include "FailureReport.h"
 #include "FrameQueries.h"
 #include "InputState.h"
+#include "Interface.h"
 #include "LastSeen.h"
+#include "Pick.h"
 #include "Renderer.h"
 #include "SnapshotBuffer.h"
 
 #include "ChaseCamera.h"
+#include "Commander.h"
+#include "Hud.h"
 #include "OrbitCamera.h"
 #include "Scene.h"
+#include "StrategicCamera.h"
 
 #include "Catalogue.h"
+#include "Orders.h"
 #include "WelcomeNames.h"
 
 #include "Blast.h"
+#include "Composite.h"
 #include "DebugView.h"
 #include "Lighting.h"
 #include "Message.h"
@@ -75,7 +83,7 @@ constexpr DWORD MINIMIZED_WAIT_MILLISECONDS = 100;
 
 // The figures on screen (§13, ADR-010): one per line on a translucent panel in the top-left corner, at these sizes on a
 // 96 DPI monitor and larger in proportion on a denser one.
-constexpr NeuronClient::TextStyle FIGURES_STYLE{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
+constexpr NeuronClient::TextStyle FIGURES_STYLE{L"Consolas", 15.0f, NeuronClient::REGULAR_WEIGHT};
 constexpr float FIGURES_MARGIN_PIXELS = 8.0f;
 constexpr float FIGURES_PADDING_PIXELS = 6.0f;
 constexpr float FIGURES_PANEL_ALPHA = 0.55f;
@@ -125,6 +133,56 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"F2\tthe figures on screen\n"
                                    L"F3\ttune the lighting: Up Down choose, Left Right change, Home reset, P print to the debugger\n"
                                    L"Alt+F4\tquit";
+
+// A skirmish's keys (Design/MvpPlan.md phase 4, Design/ADR/ADR-034): the commander's, and the debug keys behind Alt.
+constexpr const wchar_t* COMMAND_KEY_MAP =
+  L"Arrows, the screen's edges\tpan\n"
+  L"Wheel\tzoom\n"
+  L"Middle drag\tturn\n"
+  L"Home\tframe your core\n"
+  L"Click, drag\tselect; Shift adds\n"
+  L"Right click\tmove the selected ships there\n"
+  L"M, then click\tmove\n"
+  L"S\tstop\n"
+  L"H\thold\n"
+  L"Ctrl+0 - 9\tmake the selected ships a group\n"
+  L"0 - 9\tselect a group\n"
+  L"Esc\tforget an armed move, or the selection\n"
+  L"Space\tpause or resume the server\n"
+  L"Alt+O, Alt+C\torbit or chase the first selected, until Home\n"
+  L"Alt+F\tfly mode, while orbiting: W A S D move, Page Down and Page Up sink and rise\n"
+  L"Alt+E, Alt+R\tdetonate or restore the selected\n"
+  L"Alt+1\tthe lit image\n"
+  L"Alt+2 - 6\talbedo, normal, voxel index, shadow map, overdraw\n"
+  L"[ ]\temissive glow down, up\n"
+  L"V\tvsync\n"
+  L"F1\tthis key map\n"
+  L"F2\tthe figures on screen\n"
+  L"F3\ttune the lighting: Up Down choose, Left Right change, Home reset, P print to the debugger\n"
+  L"Alt+F4\tquit";
+
+// The strategic camera (Design/ADR/ADR-034): it pans a screen's worth of its distance a second, with the arrows or with the
+// pointer within EDGE_PIXELS of the screen's edge, and Home frames the side's core from HOME_DISTANCE.
+constexpr float PAN_SCREENS_PER_SECOND = 1.0f;
+constexpr float EDGE_PIXELS = 4.0f;
+constexpr float HOME_DISTANCE = 1400.0f;
+
+// The interface's look at 96 DPI, and larger in proportion on a denser monitor.
+constexpr NeuronClient::InterfaceStyle INTERFACE_STYLE{{L"Segoe UI", 15.0f, NeuronClient::REGULAR_WEIGHT},
+                                                       5.0f,
+                                                       {0.0f, 0.0f, 0.0f},
+                                                       0.55f,
+                                                       {0.08f, 0.1f, 0.13f},
+                                                       {0.16f, 0.22f, 0.3f},
+                                                       {0.25f, 0.35f, 0.5f},
+                                                       {0.95f, 0.95f, 0.95f},
+                                                       {0.45f, 0.45f, 0.45f},
+                                                       {0.12f, 0.3f, 0.5f},
+                                                       {0.05f, 0.05f, 0.05f}};
+
+// How the commander marks the world, at 96 DPI.
+constexpr CommanderLook COMMANDER_LOOK{
+  {0.35f, 0.85f, 1.0f}, {1.0f, 0.35f, 0.3f}, {0.9f, 0.85f, 0.5f}, {0.4f, 1.0f, 0.5f}, 1.5f, 1.5f, 12.0f};
 
 // What F3 tunes: multipliers on the welcome's world settings, which stay as the server sent them, and the exposure, which
 // only the client has. Nothing of it reaches the server (AGENTS.md R18).
@@ -354,8 +412,8 @@ template <typename Now> void AwaitWorld(NeuronClient::ClientSession& _session, c
   return {OrbitCamera(everything.center, everything.radius), ChaseCamera{}, false, 0, std::nullopt};
 }
 
-void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, const InputState& _input, std::uint32_t _heightPixels,
-           float _seconds)
+// The space scene's camera keys (§13): N and B choose the target, F frames it, C chases it, and Tab flies.
+void SteerKeys(Camera& _camera, const Scene& _scene, const WorldSample& _sample, const InputState& _input)
 {
   const SampledEntity* target = FindEntity(_sample, _camera.target);
   const bool next = _input.WasKeyPressed('N');
@@ -390,9 +448,16 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
     _camera.chasing = false;
     _camera.orbit.ToggleFlying();
   }
+}
 
+// The orbit and chase cameras (§13), following their target, and the orbit's pointer and fly keys. _pointer says whether
+// the pointer is the world's to steer with.
+void SteerOrbit(Camera& _camera, const Scene& _scene, const WorldSample& _sample, const InputState& _input, bool _pointer,
+                std::uint32_t _heightPixels, float _seconds)
+{
   // The orbit keeps its place relative to the target as the target moves; the chase camera rides behind it. A target
   // that has gone leaves the camera where it is.
+  const SampledEntity* target = FindEntity(_sample, _camera.target);
   if (target != nullptr)
   {
     if (_camera.followed.has_value() && !_camera.orbit.IsFlying())
@@ -416,15 +481,18 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
   }
 
   OrbitCamera& orbit = _camera.orbit;
-  if (_input.IsButtonDown(MouseButton::Left))
+  if (_pointer && _input.IsButtonDown(MouseButton::Left))
   {
     orbit.Orbit(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels());
   }
-  if (_input.IsButtonDown(MouseButton::Right))
+  if (_pointer && _input.IsButtonDown(MouseButton::Right))
   {
     orbit.Pan(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels(), _heightPixels);
   }
-  orbit.Dolly(_input.WheelNotches());
+  if (_pointer)
+  {
+    orbit.Dolly(_input.WheelNotches());
+  }
   if (orbit.IsFlying())
   {
     const float step = FLY_SPEED_PER_SECOND * orbit.Distance() * _seconds * (_input.IsKeyDown(VK_SHIFT) ? FLY_BOOST : 1.0f);
@@ -451,13 +519,16 @@ void Command(NeuronClient::ClientSession& _session, std::uint32_t _target, bool 
   }
 }
 
-void Choose(Controls& _controls, const InputState& _input, HWND _window)
+// The controls' keys. A skirmish's digits are its control groups, so while _commanding the debug views are behind Alt
+// (Design/ADR/ADR-034).
+void Choose(Controls& _controls, const InputState& _input, HWND _window, bool _commanding)
 {
-  if (_input.WasKeyPressed('1'))
+  const bool views = !_commanding || _input.IsKeyDown(VK_MENU);
+  if (views && _input.WasKeyPressed('1'))
   {
     _controls.debugView.reset();
   }
-  for (std::uint32_t view = 0; view < NeuronCore::DEBUG_VIEW_COUNT; ++view)
+  for (std::uint32_t view = 0; views && view < NeuronCore::DEBUG_VIEW_COUNT; ++view)
   {
     if (_input.WasKeyPressed('2' + view))
     {
@@ -479,7 +550,7 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   }
   if (_input.WasKeyPressed(VK_F1))
   {
-    MessageBoxW(_window, KEY_MAP, L"Outpost keys", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(_window, _commanding ? COMMAND_KEY_MAP : KEY_MAP, L"Outpost keys", MB_OK | MB_ICONINFORMATION);
   }
   if (_input.WasKeyPressed(VK_F2))
   {
@@ -654,20 +725,21 @@ void PrintTuning(const NeuronCore::WorldSettings& _tuned, const Tuning& _tuning,
   return joined;
 }
 
-// The figures on the canvas, one per line, white on a translucent black panel in the top-left corner. _scale is the
-// monitor's DPI over 96.
-void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>& _figures, float _scale)
+// The figures on the canvas, one per line, white on a translucent black panel in the top-left corner, _topPixels down.
+// _scale is the monitor's DPI over 96.
+void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>& _figures, float _scale, float _topPixels)
 {
   const NeuronClient::TextStyle style{FIGURES_STYLE.fontFamily, FIGURES_STYLE.sizePixels * _scale, FIGURES_STYLE.weight};
   const std::wstring text = Joined(_figures, L"\n");
   const NeuronClient::TextExtent extent = _canvas.Measure(text, style);
   const float margin = std::round(FIGURES_MARGIN_PIXELS * _scale);
   const float padding = std::round(FIGURES_PADDING_PIXELS * _scale);
-  _canvas.FillRectangle(static_cast<std::int32_t>(margin), static_cast<std::int32_t>(margin),
+  const float top = _topPixels + margin;
+  _canvas.FillRectangle(static_cast<std::int32_t>(margin), static_cast<std::int32_t>(top),
                         static_cast<std::uint32_t>(std::ceil(extent.widthPixels + 2.0f * padding)),
                         static_cast<std::uint32_t>(std::ceil(extent.heightPixels + 2.0f * padding)), {0.0f, 0.0f, 0.0f},
                         FIGURES_PANEL_ALPHA);
-  _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
+  _canvas.Print(text, margin + padding, top + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
 // Writes the frame the renderer has just captured to _file (Design/ADR/ADR-031), or throws saying why it could not.
@@ -687,6 +759,277 @@ void WriteCapture(NeuronClient::Renderer& _renderer, const std::filesystem::path
     throw std::runtime_error(std::format("The capture could not be written to {}: {}", winrt::to_string(_file.wstring()),
                                          NeuronClient::DescribeCurrentException()));
   }
+}
+
+// What the client keeps to command a skirmish (Design/ADR/ADR-034).
+struct Commanding
+{
+  StrategicCamera strategic;
+  Commander commander;
+  NeuronClient::Interface widgets;
+  CommanderLook look;
+  std::vector<NeuronCore::Float3> halfSizes; // by composite: half its box, which the pointer picks
+  std::vector<float> radii;                  // by composite: its sphere, from which a selected entity's ring stands out
+  std::vector<bool> ships;                   // by composite: whether it is a ship's design
+  NeuronCore::Float3 home;                   // where Home looks
+  float homeDistance;                        // and from how far
+  bool inspecting;                           // the orbit or the chase camera, from Alt+O or Alt+C until Home
+};
+
+// The skirmish's commanding, as it starts: the strategic camera looks at the side's core from HOME_DISTANCE, toward the
+// sector's middle, or for an observer at everything. _scale is the monitor's DPI over 96.
+[[nodiscard]] Commanding MakeCommanding(const NeuronClient::ClientSession& _session, const GameCore::WelcomeNames& _names,
+                                        const Scene& _scene, const WorldSample& _sample, float _scale)
+{
+  const std::span<const NeuronCore::CompositeModel> composites = _session.Composites();
+  std::vector<NeuronCore::Float3> halfSizes;
+  std::vector<float> radii;
+  std::vector<bool> ships;
+  halfSizes.reserve(composites.size());
+  radii.reserve(composites.size());
+  ships.reserve(composites.size());
+  for (std::size_t index = 0; index < composites.size(); ++index)
+  {
+    const NeuronCore::VoxelBounds bounds =
+      NeuronCore::CompositeBounds(_session.Models(), composites[index]).value_or(NeuronCore::VoxelBounds{});
+    const NeuronCore::Int3 extent = bounds.upper - bounds.lower;
+    halfSizes.push_back({0.5f * static_cast<float>(extent.x), 0.5f * static_cast<float>(extent.y), 0.5f * static_cast<float>(extent.z)});
+    radii.push_back(_scene.Models().Radius(static_cast<std::uint16_t>(index)));
+    const GameCore::DesignSpec* design = index < _names.composites.size() ? GameCore::FindDesign(_names.composites[index]) : nullptr;
+    ships.push_back(design != nullptr && design->kind == GameCore::DesignKind::Ship);
+  }
+
+  const std::vector<bool> structures = StructureComposites(_names);
+  const auto core = std::ranges::find_if(_sample.entities,
+                                         [&_session, &structures](const SampledEntity& _entity)
+                                         {
+                                           return _session.Side() != NeuronCore::OBSERVER_SIDE && _entity.side == _session.Side() &&
+                                                  _entity.composite < structures.size() && structures[_entity.composite];
+                                         });
+  NeuronCore::Float3 home{0.0f, 0.0f, 0.0f};
+  float homeDistance = HOME_DISTANCE;
+  float heading = 0.0f;
+  if (core != _sample.entities.end())
+  {
+    home = {core->position.x, 0.0f, core->position.z};
+    heading = std::atan2(-core->position.z, -core->position.x);
+  }
+  else if (!_sample.entities.empty())
+  {
+    std::vector<NeuronCore::Sphere> extents;
+    extents.reserve(_sample.entities.size());
+    for (const SampledEntity& entity : _sample.entities)
+    {
+      extents.push_back(_scene.Models().Extent(entity));
+    }
+    const NeuronCore::Sphere everything = NeuronCore::EnclosingSphere(extents);
+    home = {everything.center.x, 0.0f, everything.center.z};
+    homeDistance = everything.radius / std::tan(0.5f * StrategicCamera::FOV_Y_RADIANS);
+  }
+
+  NeuronClient::InterfaceStyle style = INTERFACE_STYLE;
+  style.text.sizePixels *= _scale;
+  style.paddingPixels = std::round(style.paddingPixels * _scale);
+  CommanderLook look = COMMANDER_LOOK;
+  look.ringWidthPixels *= _scale;
+  look.lineWidthPixels *= _scale;
+  look.markerPixels *= _scale;
+  return {StrategicCamera(home, homeDistance, heading),
+          Commander(_session.Side()),
+          NeuronClient::Interface(style),
+          look,
+          std::move(halfSizes),
+          std::move(radii),
+          std::move(ships),
+          home,
+          homeDistance,
+          false};
+}
+
+// The strategic camera's keys and pointer (Design/MvpPlan.md phase 4): the arrows, unless the tuning has them, and the
+// pointer at the screen's edges pan; and, while the interface leaves the pointer to the world, the wheel zooms and a
+// middle drag turns.
+void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _pointerIsWorlds, bool _arrows, NeuronClient::ClientSize _size,
+                    float _seconds)
+{
+  float right = 0.0f;
+  float ahead = 0.0f;
+  if (_arrows)
+  {
+    right += (_input.IsKeyDown(VK_RIGHT) ? 1.0f : 0.0f) - (_input.IsKeyDown(VK_LEFT) ? 1.0f : 0.0f);
+    ahead += (_input.IsKeyDown(VK_UP) ? 1.0f : 0.0f) - (_input.IsKeyDown(VK_DOWN) ? 1.0f : 0.0f);
+  }
+  if (_input.HasPointer())
+  {
+    const auto x = static_cast<float>(_input.PointerXPixels());
+    const auto y = static_cast<float>(_input.PointerYPixels());
+    right += x < EDGE_PIXELS ? -1.0f : (x >= static_cast<float>(_size.widthPixels) - EDGE_PIXELS ? 1.0f : 0.0f);
+    ahead += y < EDGE_PIXELS ? 1.0f : (y >= static_cast<float>(_size.heightPixels) - EDGE_PIXELS ? -1.0f : 0.0f);
+  }
+  const float step = PAN_SCREENS_PER_SECOND * _camera.Distance() * _seconds;
+  _camera.Pan(std::clamp(right, -1.0f, 1.0f) * step, std::clamp(ahead, -1.0f, 1.0f) * step);
+  if (_pointerIsWorlds)
+  {
+    _camera.Zoom(_input.WheelNotches());
+    if (_input.IsButtonDown(MouseButton::Middle))
+    {
+      _camera.Turn(_input.MouseDeltaXPixels(), _input.MouseDeltaYPixels());
+    }
+  }
+}
+
+// The order states the newest snapshot's payload carries (Design/ADR/ADR-033): none in a world that sends none.
+[[nodiscard]] std::vector<GameCore::ShipOrderState> OrderStatesOf(const NeuronCore::Snapshot& _snapshot)
+{
+  if (_snapshot.payload.empty())
+  {
+    return {};
+  }
+  return GameCore::DecodeOrderStates(_snapshot.payload).value_or(std::vector<GameCore::ShipOrderState>{});
+}
+
+// The selection panel's rows: each selected entity's composite's name and its id, and what it does, for a ship of the
+// side's.
+[[nodiscard]] std::vector<SelectionRow> SelectionRows(std::span<const std::uint32_t> _selection, const WorldSample& _sample,
+                                                      const GameCore::WelcomeNames& _names,
+                                                      std::span<const GameCore::ShipOrderState> _states, const std::vector<bool>& _ships,
+                                                      std::uint8_t _side)
+{
+  std::vector<SelectionRow> rows;
+  for (const std::uint32_t id : _selection)
+  {
+    const SampledEntity* entity = FindEntity(_sample, id);
+    if (entity == nullptr)
+    {
+      continue;
+    }
+    const std::wstring name = entity->composite < _names.composites.size()
+                                ? std::wstring(winrt::to_hstring(_names.composites[entity->composite]))
+                                : std::wstring(L"entity");
+    std::wstring text = std::format(L"{} {}", name, id);
+    if (entity->detonation.has_value())
+    {
+      text += L"   debris";
+    }
+    else if (entity->side == _side && entity->composite < _ships.size() && _ships[entity->composite])
+    {
+      const auto state = std::ranges::find(_states, id, &GameCore::ShipOrderState::ship);
+      text += state == _states.end() ? L"   idle" : (state->state == GameCore::ShipState::Moving ? L"   moving" : L"   holding");
+    }
+    rows.push_back({id, std::move(text)});
+  }
+  return rows;
+}
+
+// A frame of a skirmish's commanding (Design/ADR/ADR-034), before the frame draws. The HUD is laid out on _hud first, to
+// be drawn later over the world's overlay, and takes the input it owns. Then the debug keys behind Alt, and Space; the
+// camera, strategic or, from Alt+O or Alt+C until Home, the orbit or the chase camera; and the commander's selection and
+// orders, which go to the server at once. Returns the view the frame draws.
+[[nodiscard]] NeuronCore::PerspectiveView CommandSkirmish(Commanding& _command, Camera& _camera, NeuronClient::ClientSession& _session,
+                                                          const GameCore::WelcomeNames& _names, const Scene& _scene,
+                                                          const WorldSample& _sample, std::span<const GameCore::ShipOrderState> _states,
+                                                          const InputState& _input, NeuronClient::DeferredSurface& _hud,
+                                                          NeuronClient::ClientSize _size, float _seconds, double _nowSeconds, bool _tuning,
+                                                          const std::wstring& _sideName)
+{
+  const std::uint8_t side = _session.Side();
+  const bool observing = side == NeuronCore::OBSERVER_SIDE;
+  const NeuronCore::Snapshot& newest = _session.Buffer().Newest();
+
+  // What the pointer can pick, the whole entities, for it never picks debris (the concept's §9); and of them the side's
+  // ships, which it may order.
+  std::vector<std::uint32_t> orderable;
+  std::vector<NeuronClient::PickBox> boxes;
+  boxes.reserve(_sample.entities.size());
+  for (const SampledEntity& entity : _sample.entities)
+  {
+    if (entity.detonation.has_value())
+    {
+      continue;
+    }
+    boxes.push_back({entity.id, entity.position, NeuronCore::RotationOf(entity.rotation), _command.halfSizes[entity.composite]});
+    if (!observing && entity.side == side && _command.ships[entity.composite])
+    {
+      orderable.push_back(entity.id);
+    }
+  }
+  _command.commander.Keep(_sample);
+  const std::span<const std::uint32_t> selection = _command.commander.Selection();
+  const bool canOrder =
+    std::ranges::any_of(selection, [&orderable](std::uint32_t _id) { return std::ranges::find(orderable, _id) != orderable.end(); });
+
+  // The HUD.
+  const std::vector<SelectionRow> rows = SelectionRows(selection, _sample, _names, _states, _command.ships, side);
+  _command.widgets.Begin(_hud, _input);
+  const HudRequest request =
+    DrawHud(_command.widgets, static_cast<float>(_size.widthPixels), static_cast<float>(_size.heightPixels),
+            {_sideName, orderable.size(), _sample.renderTick / static_cast<double>(_session.Buffer().TickRate()), newest.paused}, rows,
+            !observing && !_command.inspecting, canOrder, _command.commander.IsMoveArmed());
+  _command.widgets.End();
+  const bool pointerIsWorlds = !_command.widgets.OwnsPointer();
+  if (request.chosen.has_value())
+  {
+    _command.commander.SelectOnly(*request.chosen);
+  }
+
+  // The debug keys, behind Alt, on the selection; Space; and Home, unless the tuning has it.
+  const bool alt = _input.IsKeyDown(VK_MENU);
+  const SampledEntity* first = selection.empty() ? nullptr : FindEntity(_sample, selection.front());
+  if (alt && first != nullptr && (_input.WasKeyPressed('O') || _input.WasKeyPressed('C')))
+  {
+    _camera.target = first->id;
+    _camera.followed.reset();
+    const NeuronCore::Sphere extent = _scene.Models().Extent(*first);
+    _camera.orbit.Frame(extent.center, extent.radius);
+    _camera.chasing = _input.WasKeyPressed('C');
+    if (_camera.chasing)
+    {
+      _camera.chase.Reset(first->position, NeuronCore::RotationOf(first->rotation), _scene.Models().Radius(first->composite));
+    }
+    _command.inspecting = true;
+  }
+  if (alt && _command.inspecting && _input.WasKeyPressed('F'))
+  {
+    _camera.chasing = false;
+    _camera.orbit.ToggleFlying();
+  }
+  if (alt && (_input.WasKeyPressed('E') || _input.WasKeyPressed('R')))
+  {
+    const NeuronCore::CommandKind kind = _input.WasKeyPressed('E') ? NeuronCore::CommandKind::Detonate : NeuronCore::CommandKind::Restore;
+    for (const std::uint32_t id : selection)
+    {
+      _session.Send({kind, id, {}});
+    }
+  }
+  if (_input.WasKeyPressed(VK_SPACE))
+  {
+    _session.Send({newest.paused ? NeuronCore::CommandKind::Resume : NeuronCore::CommandKind::Pause, 0, {}});
+  }
+  if (!_tuning && _input.WasKeyPressed(VK_HOME))
+  {
+    _command.inspecting = false;
+    _camera.target = 0;
+    _command.strategic.Frame(_command.home, _command.homeDistance);
+  }
+
+  // The camera, and the commander.
+  if (_command.inspecting)
+  {
+    SteerOrbit(_camera, _scene, _sample, _input, pointerIsWorlds, _size.heightPixels, _seconds);
+  }
+  else
+  {
+    SteerStrategic(_command.strategic, _input, pointerIsWorlds, !_tuning, _size, _seconds);
+  }
+  const NeuronCore::PerspectiveView view = _command.inspecting ? _camera.View(_size.widthPixels, _size.heightPixels)
+                                                               : _command.strategic.View(_size.widthPixels, _size.heightPixels);
+  const std::vector<GameCore::Order> orders =
+    _command.commander.Update(_input, pointerIsWorlds && !_command.inspecting, view, boxes, orderable, request.action, _nowSeconds);
+  for (const GameCore::Order& order : orders)
+  {
+    _session.Send({NeuronCore::CommandKind::Game, 0, GameCore::EncodeOrder(order)});
+  }
+  return view;
 }
 
 } // namespace
@@ -722,6 +1065,15 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   const NeuronClient::ClientSize size = window.Size();
   NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
                                   scene.Models().Models(), scene.Models().Fragments(), session.Sides());
+
+  // A world with sides, the skirmish, is commanded (Design/ADR/ADR-034); the space scene keeps its cameras and keys. The
+  // interface and the commander's marks take their sizes from the monitor's DPI as the game starts.
+  std::optional<Commanding> command;
+  if (!session.Sides().empty())
+  {
+    command.emplace(
+      MakeCommanding(session, names, scene, sample, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI));
+  }
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -749,9 +1101,23 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       const std::vector<SampledEntity> remembered = lastSeen.Remembered(sample);
       const NeuronClient::ClientSize current = window.Size();
       NeuronClient::InputState& input = window.Input();
-      Steer(camera, scene, sample, input, current.heightPixels, static_cast<float>(seconds));
-      Command(session, camera.target, buffer.Newest().paused, input);
-      Choose(controls, input, window.Handle());
+      std::optional<NeuronClient::DeferredSurface> hud;
+      std::optional<NeuronCore::PerspectiveView> commandView;
+      std::vector<GameCore::ShipOrderState> states;
+      if (command.has_value())
+      {
+        states = OrderStatesOf(buffer.Newest());
+        hud.emplace(renderer.Overlay());
+        commandView = CommandSkirmish(*command, camera, session, names, scene, sample, states, input, *hud, current,
+                                      static_cast<float>(seconds), now(), controls.tuning.shown, side);
+      }
+      else
+      {
+        SteerKeys(camera, scene, sample, input);
+        SteerOrbit(camera, scene, sample, input, true, current.heightPixels, static_cast<float>(seconds));
+        Command(session, camera.target, buffer.Newest().paused, input);
+      }
+      Choose(controls, input, window.Handle(), command.has_value());
       Tune(controls.tuning, input);
       const NeuronCore::WorldSettings tuned = TunedSettings(settings, controls.tuning);
       if (controls.tuning.shown && input.WasKeyPressed('P'))
@@ -804,9 +1170,16 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       {
         std::ranges::move(TuningFigures(tuned, controls.tuning), std::back_inserter(panel));
       }
+      // The world's overlay, the HUD over it, and the figures over both.
+      if (command.has_value() && commandView.has_value() && hud.has_value())
+      {
+        command->commander.Draw(renderer.Overlay(), *commandView, sample, states, command->radii, command->look, now());
+        hud->Replay();
+      }
       if (!panel.empty())
       {
-        DrawFigures(renderer.Overlay(), panel, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
+        DrawFigures(renderer.Overlay(), panel, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI,
+                    command.has_value() ? command->widgets.RowHeightPixels() : 0.0f);
       }
       if (scene.FitShadowView(sample))
       {
@@ -814,7 +1187,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(tuned, controls.emissiveGain);
       const std::vector<NeuronCore::Blast> blasts = scene.Blasts(sample);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample, remembered),
+      renderer.Render(commandView.value_or(camera.View(current.widthPixels, current.heightPixels)), scene.Place(sample, remembered),
                       {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false,
                        false, blasts, capturing});
       if (capturing)

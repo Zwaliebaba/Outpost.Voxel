@@ -72,6 +72,7 @@ private:
   ClientSize m_size{};
   InputState m_input;
   bool m_open = true;
+  bool m_trackingLeave = false; // the window has asked to hear when the pointer leaves it
 };
 
 } // namespace NeuronClient

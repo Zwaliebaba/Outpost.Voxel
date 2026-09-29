@@ -58,14 +58,25 @@ void AddQuad(std::vector<CanvasQuad>& _quads, const CanvasQuad& _quad)
   }
 }
 
+// A glyph's or a fill's quad, over its rectangle.
+[[nodiscard]] CanvasQuad RectangleQuad(std::int32_t _xPixels, std::int32_t _yPixels, std::uint32_t _widthPixels,
+                                       std::uint32_t _heightPixels, std::uint32_t _atlasX, std::uint32_t _atlasY, CanvasQuadKind _kind,
+                                       NeuronCore::Float3 _color, float _alpha) noexcept
+{
+  return {_xPixels, _yPixels, _widthPixels, _heightPixels, _atlasX, _atlasY, static_cast<std::uint32_t>(_kind),
+          _color,   _alpha,   0.0f,         0.0f,          0.0f,    0.0f,    0.0f};
+}
+
 // An underline or strikethrough: a fill along the baseline at _offset below it, _thickness thick and at least a pixel.
 void AddLine(TextRun& _run, float _baselineOriginX, float _baselineOriginY, float _offset, float _width, float _thickness,
              bool _rightToLeft)
 {
   const float left = _rightToLeft ? _baselineOriginX - _width : _baselineOriginX;
-  AddQuad(*_run.quads, {static_cast<std::int32_t>(std::lround(left)), static_cast<std::int32_t>(std::lround(_baselineOriginY + _offset)),
+  AddQuad(*_run.quads,
+          RectangleQuad(static_cast<std::int32_t>(std::lround(left)), static_cast<std::int32_t>(std::lround(_baselineOriginY + _offset)),
                         static_cast<std::uint32_t>(std::max(1L, std::lround(_width))),
-                        static_cast<std::uint32_t>(std::max(1L, std::lround(_thickness))), 0u, 0u, 1u, _run.color, _run.alpha});
+                        static_cast<std::uint32_t>(std::max(1L, std::lround(_thickness))), 0u, 0u, CanvasQuadKind::Fill, _run.color,
+                        _run.alpha));
 }
 
 // The canvas's IDWriteTextRenderer. DirectWrite calls it once for every glyph run, underline and strikethrough of a text
@@ -119,9 +130,9 @@ struct GlyphRunSink : winrt::implements<GlyphRunSink, IDWriteTextRenderer>
         {
           continue;
         }
-        AddQuad(*run.quads, {static_cast<std::int32_t>(std::lround(originX)) + glyph->offsetX,
-                             static_cast<std::int32_t>(std::lround(originY)) + glyph->offsetY, glyph->widthPixels, glyph->heightPixels,
-                             glyph->atlasX, glyph->atlasY, 0u, run.color, run.alpha});
+        AddQuad(*run.quads, RectangleQuad(static_cast<std::int32_t>(std::lround(originX)) + glyph->offsetX,
+                                          static_cast<std::int32_t>(std::lround(originY)) + glyph->offsetY, glyph->widthPixels,
+                                          glyph->heightPixels, glyph->atlasX, glyph->atlasY, CanvasQuadKind::Glyph, run.color, run.alpha));
       }
       return S_OK;
     }
@@ -242,7 +253,13 @@ Canvas::Canvas(const GraphicsDevice& _device, DescriptorHeap& _shaderHeap, DXGI_
 void Canvas::FillRectangle(std::int32_t _xPixels, std::int32_t _yPixels, std::uint32_t _widthPixels, std::uint32_t _heightPixels,
                            NeuronCore::Float3 _color, float _alpha)
 {
-  AddQuad(m_quads, {_xPixels, _yPixels, _widthPixels, _heightPixels, 0u, 0u, 1u, _color, _alpha});
+  AddQuad(m_quads, RectangleQuad(_xPixels, _yPixels, _widthPixels, _heightPixels, 0u, 0u, CanvasQuadKind::Fill, _color, _alpha));
+}
+
+void Canvas::DrawSegment(NeuronCore::Float2 _start, NeuronCore::Float2 _end, float _widthPixels, NeuronCore::Float3 _color, float _alpha)
+{
+  AddQuad(m_quads, {0, 0, 0u, 0u, 0u, 0u, static_cast<std::uint32_t>(CanvasQuadKind::Segment), _color, _alpha, _start.x, _start.y, _end.x,
+                    _end.y, 0.5f * _widthPixels});
 }
 
 TextExtent Canvas::Print(std::wstring_view _text, float _xPixels, float _yPixels, const TextStyle& _style, NeuronCore::Float3 _color,
@@ -300,8 +317,9 @@ IDWriteTextFormat* Canvas::FormatOf(const TextStyle& _style)
     }
   }
   winrt::com_ptr<IDWriteTextFormat> format;
-  winrt::check_hresult(m_factory->CreateTextFormat(_style.fontFamily, nullptr, _style.weight, DWRITE_FONT_STYLE_NORMAL,
-                                                   DWRITE_FONT_STRETCH_NORMAL, _style.sizePixels, L"en-us", format.put()));
+  winrt::check_hresult(m_factory->CreateTextFormat(_style.fontFamily, nullptr, static_cast<DWRITE_FONT_WEIGHT>(_style.weight),
+                                                   DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, _style.sizePixels, L"en-us",
+                                                   format.put()));
   winrt::check_hresult(format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP));
   m_formats.push_back({_style.fontFamily, _style.sizePixels, _style.weight, format});
   return m_formats.back().format.get();
