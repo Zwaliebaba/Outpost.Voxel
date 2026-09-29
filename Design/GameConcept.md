@@ -331,7 +331,7 @@ So the load moves from voxels to placements and events. The renderer was built f
 
 ### 12.2 Milestones and gates
 
-Each milestone gets a technical design before its code, as `AGENTS.md` asks, and its ADRs land with its commits. The next free number is ADR-023: ADR-019 and ADR-020 went to NVF's N-M1 and N-M2, for which the owner reserved them (NeuronVoxelFormat.md §10), and ADR-021 and ADR-022 to SpaceScene's S-M5. Each milestone also ends at a gate (G28): a measured figure, a threshold, and the change of course it triggers, with the budgets of G32 behind the thresholds.
+Each milestone gets a technical design before its code, as `AGENTS.md` asks, and its ADRs land with its commits. The next free number is ADR-024: ADR-019 and ADR-020 went to NVF's N-M1 and N-M2, for which the owner reserved them (NeuronVoxelFormat.md §10), ADR-021 and ADR-022 to SpaceScene's S-M5, and ADR-023 to the layout of `Tests/` and `Tools/`. Each milestone also ends at a gate (G28): a measured figure, a threshold, and the change of course it triggers, with the budgets of G32 behind the thresholds.
 
 Combat comes before command, as the owner decided on 2026-09-29 (§14, question 29). Ships choose their own targets (§8.1), so fleets fight on the bench before anyone commands them, the bench is a proving ground for the designs authored in MagicaVoxel, and the shape test comes a milestone sooner.
 
