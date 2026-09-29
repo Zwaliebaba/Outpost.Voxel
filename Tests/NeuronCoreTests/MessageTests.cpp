@@ -338,11 +338,11 @@ public:
     Assert::AreEqual(std::uint64_t{0xFFFFFFFFFFFFFFFFull}, manifest[1].hash);
     const NeuronCore::Welcome expectedWelcome = SampleWelcome();
     Assert::AreEqual(expectedWelcome.composites.size(), decodedWelcome.composites.size());
-    const NeuronCore::CompositeComponent& far = decodedWelcome.composites[3].components[1];
-    Assert::AreEqual(std::uint16_t{2}, far.model);
-    Assert::AreEqual(-NeuronCore::MAX_COMPONENT_TRANSLATION, far.translation.x, L"a translation's sign");
-    Assert::AreEqual(NeuronCore::MAX_COMPONENT_TRANSLATION, far.translation.z);
-    Assert::AreEqual(QUARTER_TURN_ABOUT_Y.y, far.rotation.y);
+    const NeuronCore::CompositeComponent& distant = decodedWelcome.composites[3].components[1];
+    Assert::AreEqual(std::uint16_t{2}, distant.model);
+    Assert::AreEqual(-NeuronCore::MAX_COMPONENT_TRANSLATION, distant.translation.x, L"a translation's sign");
+    Assert::AreEqual(NeuronCore::MAX_COMPONENT_TRANSLATION, distant.translation.z);
+    Assert::AreEqual(QUARTER_TURN_ABOUT_Y.y, distant.rotation.y);
     Assert::AreEqual(expectedWelcome.sides.size(), decodedWelcome.sides.size());
     Assert::IsTrue(decodedWelcome.sides[1].red == 220 && decodedWelcome.sides[1].green == 80 && decodedWelcome.sides[1].blue == 60,
                    L"a side's color");

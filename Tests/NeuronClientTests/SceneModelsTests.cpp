@@ -170,8 +170,8 @@ struct DoubleBox
 
 [[nodiscard]] DoubleBox CompositeBox(std::span<const NeuronCore::VoxModel> _models, const NeuronCore::CompositeModel& _composite)
 {
-  constexpr double FAR = std::numeric_limits<double>::max();
-  DoubleBox box{{FAR, FAR, FAR}, {-FAR, -FAR, -FAR}};
+  constexpr double LARGEST = std::numeric_limits<double>::max();
+  DoubleBox box{{LARGEST, LARGEST, LARGEST}, {-LARGEST, -LARGEST, -LARGEST}};
   ForEachCenter(
     _models, _composite,
     [&box](Double3 _center)

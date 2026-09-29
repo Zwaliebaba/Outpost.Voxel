@@ -166,9 +166,9 @@ public:
     {
       CompositeModel composite{{{0, {}, IDENTITY}, {1, {}, IDENTITY}, {2, {}, IDENTITY}, {1, {}, IDENTITY}}};
       Scatter(random, composite);
-      constexpr std::int64_t FAR = std::numeric_limits<std::int64_t>::max();
-      std::array<std::int64_t, 3> lower{FAR, FAR, FAR};
-      std::array<std::int64_t, 3> upper{-FAR, -FAR, -FAR};
+      constexpr std::int64_t LARGEST = std::numeric_limits<std::int64_t>::max();
+      std::array<std::int64_t, 3> lower{LARGEST, LARGEST, LARGEST};
+      std::array<std::int64_t, 3> upper{-LARGEST, -LARGEST, -LARGEST};
       std::array<double, 3> sum{};
       double count = 0.0;
       ForEachDoubledCenter(models, composite,
@@ -192,8 +192,8 @@ public:
       for (std::size_t axis = 0; axis < 3; ++axis)
       {
         const std::wstring what = std::format(L"trial {}, axis {}", trial, axis);
-        Assert::AreEqual(lower[axis], std::int64_t{measuredLower[axis]}, (what + L": the box's lower corner").c_str());
-        Assert::AreEqual(upper[axis], std::int64_t{measuredUpper[axis]}, (what + L": the box's upper corner").c_str());
+        Assert::AreEqual(static_cast<std::int32_t>(lower[axis]), measuredLower[axis], (what + L": the box's lower corner").c_str());
+        Assert::AreEqual(static_cast<std::int32_t>(upper[axis]), measuredUpper[axis], (what + L": the box's upper corner").c_str());
         Assert::AreEqual(sum[axis] / count, static_cast<double>(measuredCentroid[axis]), 1.0e-4, (what + L": the centroid").c_str());
       }
     }
