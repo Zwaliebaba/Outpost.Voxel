@@ -41,6 +41,7 @@ A skirmish starts from the command line: `Outpost.exe --skirmish --seed 7`. Side
 | G10, G42, G52: grades and refinery ships | One grade; the core's refinery only | Grades, refinery ships |
 | G29: the profile | Mass, inertia, thrust, turn rate, speed cap, sensor range, clear lines, silhouette, price, build time, command points | The rest: the armor over vital modules, arcs for the design card |
 | G43: the build order | A ship appears whole when its build completes | Ships built voxel by voxel |
+| The concept's §5.6: repair | None: a damaged ship stays damaged, and a retreat (G59) saves it for a later fight | Repair at the shipyard, and "retreat for repair" as a standing order |
 | G49, G59: the condition readout | Bars for the weakest vital module and the hull | Status markers, the inspect view, the reason a weapon is silent |
 | G62: squadrons by bearing | A group moves keeping its members' offsets | Formations by bearing, the "break and bear" stance |
 | G64: the research tree | Six items, one lab | About twenty items, three labs |
