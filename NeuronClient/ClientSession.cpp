@@ -3,6 +3,7 @@
 #include "ClientSession.h"
 
 #include "Hash.h"
+#include "NvfModel.h"
 
 #include <format>
 #include <utility>
@@ -73,16 +74,17 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
       return Refuse(SessionRefusal::WrongProtocol, std::format("the server speaks protocol {}, and this client {}",
                                                                welcome->protocolVersion, NeuronCore::PROTOCOL_VERSION));
     }
-    // Every model the welcome names, from the client's own copy of its file, before anything is drawn (§6.2).
+    // Every model the welcome names, from the client's own copy of its file, before anything is drawn (§6.2). The file is
+    // the model's .nvf (Design/ADR/ADR-026).
     std::vector<NeuronCore::VoxModel> models;
     models.reserve(welcome->manifest.size());
     for (const NeuronCore::ManifestEntry& entry : welcome->manifest)
     {
-      const std::string file = entry.name + ".vox";
-      const std::expected<std::vector<std::uint8_t>, NeuronCore::VoxError> contents = NeuronCore::ReadVoxFile(m_modelDirectory / file);
+      const std::string file = entry.name + ".nvf";
+      const std::expected<std::vector<std::uint8_t>, NeuronCore::NvfError> contents = NeuronCore::ReadNvfFile(m_modelDirectory / file);
       if (!contents)
       {
-        return Refuse(SessionRefusal::ModelNotLoaded, file + ": " + NeuronCore::VoxErrorName(contents.error()));
+        return Refuse(SessionRefusal::ModelNotLoaded, file + ": " + NeuronCore::NvfErrorName(contents.error()));
       }
       const std::uint64_t hash = NeuronCore::Fnv1aHash64(*contents);
       if (hash != entry.hash)
@@ -90,12 +92,12 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
         return Refuse(SessionRefusal::ModelMismatch,
                       std::format("{}: this file's hash is {:016x}, and the server's {:016x}", file, hash, entry.hash));
       }
-      std::expected<NeuronCore::VoxModel, NeuronCore::VoxError> model = NeuronCore::ParseVoxModel(*contents);
+      const std::expected<NeuronCore::NvfModel, NeuronCore::NvfError> model = NeuronCore::ParseNvfModel(*contents);
       if (!model)
       {
-        return Refuse(SessionRefusal::ModelNotLoaded, file + ": " + NeuronCore::VoxErrorName(model.error()));
+        return Refuse(SessionRefusal::ModelNotLoaded, file + ": " + NeuronCore::NvfErrorName(model.error()));
       }
-      models.push_back(std::move(*model));
+      models.push_back(NeuronCore::FlattenNvfModel(*model));
     }
     m_models = std::move(models);
     m_settings = welcome->settings;

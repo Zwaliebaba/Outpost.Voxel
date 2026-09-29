@@ -35,7 +35,7 @@ namespace
 
 std::filesystem::path GameDataDirectory()
 {
-  const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.vox";
+  const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.nvf";
   std::optional<std::filesystem::path> found = FindAbove(std::filesystem::current_path(), relative);
   if (!found)
   {

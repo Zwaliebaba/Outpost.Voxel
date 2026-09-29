@@ -45,7 +45,7 @@ struct SessionError
 class ClientSession
 {
 public:
-  // Says Hello through _transport. The welcome's models are read from _modelDirectory, each from <name>.vox.
+  // Says Hello through _transport. The welcome's models are read from _modelDirectory, each from <name>.nvf.
   ClientSession(std::unique_ptr<NeuronCore::Transport> _transport, std::filesystem::path _modelDirectory);
 
   // Takes every message waiting, each as having arrived at _arrivalSeconds on the client's clock. On a refusal the

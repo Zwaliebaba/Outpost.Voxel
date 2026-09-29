@@ -6,7 +6,7 @@
 #include "Hash.h"
 #include "LoopbackTransport.h"
 #include "Message.h"
-#include "VoxModel.h"
+#include "NvfModel.h"
 
 #include <array>
 #include <cstddef>
@@ -44,7 +44,7 @@ constexpr NeuronCore::WorldSettings SETTINGS{
   std::vector<NeuronCore::ManifestEntry> manifest;
   for (const char* name : MODEL_NAMES)
   {
-    const auto bytes = NeuronCore::ReadVoxFile(GameDataDirectory() / (std::string(name) + ".vox"));
+    const auto bytes = NeuronCore::ReadNvfFile(GameDataDirectory() / (std::string(name) + ".nvf"));
     Assert::IsTrue(bytes.has_value(), L"GameData holds the model");
     manifest.push_back({name, NeuronCore::Fnv1aHash64(bytes.value_or(std::vector<std::uint8_t>{}))});
   }
@@ -156,25 +156,25 @@ public:
     std::vector<NeuronCore::ManifestEntry> manifest = GameDataManifest();
     manifest.push_back({"NoSuchModel", 1});
     Send(*link.server, WelcomeOf(std::move(manifest)));
-    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "NoSuchModel.vox: FileNotFound");
+    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "NoSuchModel.nvf: FileNotFound");
     Assert::IsFalse(link.session->IsWelcomed(), L"a welcome it cannot keep is not kept");
   }
 
   TEST_METHOD(RefusesAModelItsReaderRefuses)
   {
-    // A file of the right name and hash that is not a .vox file.
+    // A file of the right name and hash that is not an .nvf file.
     const std::filesystem::path directory = std::filesystem::temp_directory_path() / "OutpostClientSessionTests";
     std::filesystem::create_directories(directory);
-    const std::string text = "not a vox file";
+    const std::string text = "not an nvf file";
     const std::vector<std::uint8_t> bytes(text.begin(), text.end());
     {
-      std::ofstream file(directory / "Garbage.vox", std::ios::binary | std::ios::trunc);
+      std::ofstream file(directory / "Garbage.nvf", std::ios::binary | std::ios::trunc);
       file.write(text.data(), static_cast<std::streamsize>(text.size()));
       Assert::IsTrue(file.good(), L"writing the file");
     }
     Link link = Connect(directory);
     Send(*link.server, WelcomeOf({{"Garbage", NeuronCore::Fnv1aHash64(bytes)}}));
-    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "Garbage.vox: NotAVoxFile");
+    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "Garbage.nvf: NotAnNvfFile");
     std::filesystem::remove_all(directory);
   }
 
@@ -185,7 +185,7 @@ public:
     const std::uint64_t hash = manifest[1].hash;
     manifest[1].hash = 0x0123456789ABCDEFull;
     Send(*link.server, WelcomeOf(std::move(manifest)));
-    const std::string detail = std::format("CapitalShip.vox: this file's hash is {:016x}, and the server's 0123456789abcdef", hash);
+    const std::string detail = std::format("CapitalShip.nvf: this file's hash is {:016x}, and the server's 0123456789abcdef", hash);
     ExpectRefusal(link, NeuronClient::SessionRefusal::ModelMismatch, detail.c_str());
   }
 

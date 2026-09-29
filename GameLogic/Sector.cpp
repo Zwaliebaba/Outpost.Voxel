@@ -4,6 +4,7 @@
 
 #include "Hash.h"
 #include "Lighting.h"
+#include "NvfModel.h"
 #include "Quaternion.h"
 #include "VoxModel.h"
 
@@ -25,7 +26,8 @@ constexpr float RADIANS_PER_DEGREE = std::numbers::pi_v<float> / 180.0f;
 constexpr float TWO_PI = 2.0f * std::numbers::pi_v<float>;
 constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
-// The models the world places, in the manifest's order. Each is read from <name>.vox (Design/Archive/SpaceScene.md §6.2).
+// The models the world places, in the manifest's order. Each is read from <name>.nvf (Design/Archive/SpaceScene.md §6.2,
+// Design/ADR/ADR-026).
 constexpr std::array<const char*, MODEL_COUNT> MODEL_NAMES{"MilitaryStation", "CapitalShip", "Frigate"};
 
 // §5.2: an orbit's radius is 1.3 to 2 keep-out radii, in a plane tilted up to 45 degrees from the horizontal, flown one
@@ -137,18 +139,18 @@ struct ModelMeasure
 
 [[nodiscard]] std::expected<ModelMeasure, SectorError> MeasureModel(const std::filesystem::path& _path, const std::string& _file)
 {
-  const auto bytes = NeuronCore::ReadVoxFile(_path);
+  const auto bytes = NeuronCore::ReadNvfFile(_path);
   if (!bytes)
   {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(bytes.error()));
+    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::NvfErrorName(bytes.error()));
   }
-  const auto model = NeuronCore::ParseVoxModel(*bytes);
+  const auto model = NeuronCore::ParseNvfModel(*bytes);
   if (!model)
   {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(model.error()));
+    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::NvfErrorName(model.error()));
   }
 
-  const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(*model);
+  const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(NeuronCore::FlattenNvfModel(*model));
   if (!bounds)
   {
     return Refuse(SectorRefusal::ModelNotLoaded, _file + ": holds no visible voxel");
@@ -264,7 +266,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
   sector->m_parameters = _parameters;
   for (std::size_t model = 0; model < MODEL_COUNT; ++model)
   {
-    const std::string file = std::string(MODEL_NAMES[model]) + ".vox";
+    const std::string file = std::string(MODEL_NAMES[model]) + ".nvf";
     const auto measure = MeasureModel(_modelDirectory / file, file);
     if (!measure)
     {

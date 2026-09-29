@@ -1,6 +1,6 @@
 # ADR-018 — The client: its session, its time and the space scene
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M4 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§6.4, §13, §14, §15) · **Amends:** [ADR-015](ADR-015-client-server-boundary.md), with the client's time it left to this ADR; [ADR-003](ADR-003-engine-and-game-layout.md), whose `--vox` is retired; and SpaceScene §13 and §14, for as long as the question of §17 is open and S-M8 has not come · **Amended by:** [ADR-021](ADR-021-sky.md), which lights the space scene from the welcome rather than with the station's settings
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M4 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§6.4, §13, §14, §15) · **Amends:** [ADR-015](ADR-015-client-server-boundary.md), with the client's time it left to this ADR; [ADR-003](ADR-003-engine-and-game-layout.md), whose `--vox` is retired; and SpaceScene §13 and §14, for as long as the question of §17 is open and S-M8 has not come · **Amended by:** [ADR-021](ADR-021-sky.md), which lights the space scene from the welcome rather than with the station's settings; and [ADR-026](ADR-026-game-reads-nvf.md), whose session and sector read each model from `<name>.nvf`
 
 ## Context
 

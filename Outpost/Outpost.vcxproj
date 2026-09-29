@@ -221,17 +221,76 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="$(SolutionDir)GameData\MilitaryStation.vox">
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidA.nvf">
       <DestinationFolders>$(OutDir)GameData</DestinationFolders>
     </CopyFileToFolders>
-  </ItemGroup>
-  <ItemGroup>
-    <CopyFileToFolders Include="..\GameData\CapitalShip.vox">
-      <FileType>Document</FileType>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidB.nvf">
       <DestinationFolders>$(OutDir)GameData</DestinationFolders>
     </CopyFileToFolders>
-    <CopyFileToFolders Include="..\GameData\Frigate.vox">
-      <FileType>Document</FileType>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidC.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CapitalShip.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CargoHold.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CommandModule.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Cruiser.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Frigate.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Gunship.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Lab.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Lancer.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Laser.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MassDriver.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MilitaryStation.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Miner.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MiningLaser.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Reactor.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\ReactorLarge.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Refinery.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Sensor.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\SensorArray.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Shipyard.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\StationCore.nvf">
+      <DestinationFolders>$(OutDir)GameData</DestinationFolders>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Thruster.nvf">
       <DestinationFolders>$(OutDir)GameData</DestinationFolders>
     </CopyFileToFolders>
   </ItemGroup>

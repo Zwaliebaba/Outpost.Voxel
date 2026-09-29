@@ -364,7 +364,7 @@ public:
     for (std::size_t model = 0; model < GameLogic::MODEL_COUNT; ++model)
     {
       Assert::AreEqual(std::string(NAMES[model]), manifest[model].name);
-      const Bytes file = GameDataBytes((std::string(NAMES[model]) + ".vox").c_str());
+      const Bytes file = GameDataBytes((std::string(NAMES[model]) + ".nvf").c_str());
       Assert::AreEqual(NeuronCore::Fnv1aHash64(file), manifest[model].hash, L"the manifest hashes the model's file");
     }
 
@@ -745,7 +745,7 @@ public:
     Assert::IsFalse(missing.has_value(), L"a folder without the models");
     Assert::AreEqual(std::string("ModelNotLoaded"),
                      std::string(GameLogic::SectorRefusalName(missing ? GameLogic::SectorRefusal::BadParameter : missing.error().refusal)));
-    Assert::AreEqual(std::string("MilitaryStation.vox: FileNotFound"), missing ? std::string() : missing.error().detail,
+    Assert::AreEqual(std::string("MilitaryStation.nvf: FileNotFound"), missing ? std::string() : missing.error().detail,
                      L"names the model and why");
 
     const auto empty = MakeSector({.stations = 0, .frigates = 0, .capitalShips = 0});

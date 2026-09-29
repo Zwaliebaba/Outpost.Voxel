@@ -581,7 +581,7 @@ std::expected<NvfModel, NvfError> ParseNvfModel(std::span<const std::uint8_t> _b
   return Parse(_bytes);
 }
 
-std::expected<NvfModel, NvfError> LoadNvfModel(const std::filesystem::path& _path)
+std::expected<std::vector<std::uint8_t>, NvfError> ReadNvfFile(const std::filesystem::path& _path)
 {
   std::ifstream file(_path, std::ios::binary | std::ios::ate);
   if (!file.is_open())
@@ -599,7 +599,26 @@ std::expected<NvfModel, NvfError> LoadNvfModel(const std::filesystem::path& _pat
   {
     return std::unexpected(NvfError::ReadFailed);
   }
-  return ParseNvfModel(bytes);
+  return bytes;
+}
+
+std::expected<NvfModel, NvfError> LoadNvfModel(const std::filesystem::path& _path)
+{
+  return ReadNvfFile(_path).and_then([](const std::vector<std::uint8_t>& _bytes) { return ParseNvfModel(_bytes); });
+}
+
+VoxModel FlattenNvfModel(const NvfModel& _model)
+{
+  VoxModel flat{};
+  flat.records = _model.records;
+  flat.palette = _model.palette;
+  flat.instances.reserve(_model.parts.size());
+  for (const NvfPart& part : _model.parts)
+  {
+    const Int3 origin = part.parent == NVF_NO_PARENT ? part.translation : flat.instances[part.parent].origin + part.translation;
+    flat.instances.push_back({origin, part.size, part.firstVoxel, part.voxelCount, IDENTITY_ROTATION, part.path});
+  }
+  return flat;
 }
 
 std::expected<std::vector<std::uint8_t>, NvfError> SerializeNvfModel(const NvfModel& _model)
