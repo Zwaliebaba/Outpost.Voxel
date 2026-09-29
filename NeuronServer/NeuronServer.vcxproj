@@ -161,6 +161,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CommandLog.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ServerHost.h" />
     <ClInclude Include="World.h" />
@@ -169,6 +170,7 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="CommandLog.cpp" />
     <ClCompile Include="ServerHost.cpp" />
   </ItemGroup>
   <ItemGroup>

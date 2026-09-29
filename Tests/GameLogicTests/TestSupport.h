@@ -20,7 +20,7 @@ namespace GameLogicTests
 // The sector _parameters describe, from the repository's models. A refusal fails the test.
 [[nodiscard]] std::unique_ptr<GameLogic::Sector> MakeSector(const GameLogic::SectorParameters& _parameters);
 
-// The sector as it is now: its entities, in the order of their ids, and its detonations.
+// The sector as it is now, as an observer sees it: its entities, in the order of their ids, and its detonations.
 [[nodiscard]] NeuronCore::Snapshot Describe(const GameLogic::Sector& _sector);
 
 // The centers of _snapshot's stations.

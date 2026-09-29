@@ -2,6 +2,11 @@
 
 #include "ServerHost.h"
 
+#include "CommandLog.h"
+
+#include "Hash.h"
+
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -20,13 +25,32 @@ ServerHost::~ServerHost()
   Stop();
 }
 
-void ServerHost::AddSession(std::unique_ptr<NeuronCore::Transport> _transport)
+void ServerHost::AddSession(std::unique_ptr<NeuronCore::Transport> _transport, std::uint8_t _side)
 {
   if (IsRunning())
   {
     throw std::logic_error("A session joins a server host only while the host is stopped.");
   }
-  m_sessions.push_back({std::move(_transport), false});
+  if (m_log != nullptr)
+  {
+    throw std::logic_error("A session joins a server host only before the host logs, since the log names every session.");
+  }
+  if (_side > m_world.Sides().size())
+  {
+    throw std::invalid_argument(std::format("A session plays side {}, and the world has {}.", _side, m_world.Sides().size()));
+  }
+  m_sessions.push_back({std::move(_transport), _side, static_cast<std::uint32_t>(m_sessionSides.size()), false});
+  m_sessionSides.push_back(_side);
+}
+
+void ServerHost::Log(std::ostream& _log, std::span<const std::uint8_t> _world)
+{
+  if (m_tick != 0 || m_log != nullptr)
+  {
+    throw std::logic_error("A server host logs once, from its first step, so that its log replays from the start.");
+  }
+  m_log = &_log;
+  WriteLog(EncodeLogHeader(_world, m_world.Manifest(), m_sessionSides));
 }
 
 void ServerHost::Step()
@@ -43,24 +67,35 @@ void ServerHost::Step()
     m_world.Advance(m_worldTick);
   }
 
-  // The pause freezes the world, not the clock: the snapshots go on, each the same as the last, and nothing in them
-  // moves (§6.3).
-  NeuronCore::Snapshot snapshot{m_tick, m_worldTick, m_paused, {}, {}, {}};
-  m_world.Describe(snapshot);
-  if (m_paused)
+  // Each side's snapshot is described and encoded at most once a tick: for each side a welcomed session plays, and,
+  // while the host logs, for the observer and every side (Design/ADR/ADR-032).
+  std::vector<std::vector<std::uint8_t>> snapshots(m_world.Sides().size() + 1);
+  const auto snapshot = [this, &snapshots](std::uint8_t _side) -> const std::vector<std::uint8_t>&
   {
-    for (NeuronCore::EntityState& entity : snapshot.entities)
+    std::vector<std::uint8_t>& bytes = snapshots[_side];
+    if (bytes.empty())
     {
-      entity.velocity = {0.0f, 0.0f, 0.0f};
+      bytes = EncodeSnapshot(_side);
     }
-  }
-  const std::vector<std::uint8_t> bytes = NeuronCore::EncodeMessage(snapshot);
+    return bytes;
+  };
   for (Session& session : m_sessions)
   {
     if (session.welcomed)
     {
-      static_cast<void>(session.transport->Send(bytes));
+      static_cast<void>(session.transport->Send(snapshot(session.side)));
     }
+  }
+  if (m_log != nullptr)
+  {
+    LoggedTick tick{m_tick, {}};
+    tick.snapshotHashes.reserve(snapshots.size());
+    for (std::size_t side = 0; side < snapshots.size(); ++side)
+    {
+      tick.snapshotHashes.push_back(NeuronCore::Fnv1aHash64(snapshot(static_cast<std::uint8_t>(side))));
+    }
+    WriteLog(EncodeLogRecord(tick));
+    m_log->flush();
   }
   std::erase_if(m_sessions, [](const Session& _session) { return !_session.transport->IsOpen(); });
 }
@@ -108,6 +143,11 @@ std::size_t ServerHost::SessionCount() const noexcept
   return m_sessions.size();
 }
 
+std::uint64_t ServerHost::RefusedCommands() const noexcept
+{
+  return m_refusedCommands;
+}
+
 void ServerHost::Serve(Session& _session)
 {
   while (const std::optional<std::vector<std::uint8_t>> bytes = _session.transport->Receive())
@@ -137,6 +177,7 @@ void ServerHost::Serve(Session& _session)
                                         std::vector<NeuronCore::ManifestEntry>(manifest.begin(), manifest.end()),
                                         std::vector<NeuronCore::CompositeModel>(composites.begin(), composites.end()),
                                         std::vector<NeuronCore::SideColor>(sides.begin(), sides.end()),
+                                        _session.side,
                                         std::vector<std::uint8_t>(payload.begin(), payload.end())};
       static_cast<void>(_session.transport->Send(NeuronCore::EncodeMessage(welcome)));
       _session.welcomed = true;
@@ -148,12 +189,18 @@ void ServerHost::Serve(Session& _session)
       _session.transport->Close();
       return;
     }
-    Apply(*command);
+    Apply(*command, _session);
   }
 }
 
-void ServerHost::Apply(const NeuronCore::Command& _command)
+void ServerHost::Apply(const NeuronCore::Command& _command, const Session& _session)
 {
+  // A command the world refuses for the session's side is counted, and the session goes on (G34).
+  if (m_world.Refuses(_command, _session.side).has_value())
+  {
+    ++m_refusedCommands;
+    return;
+  }
   switch (_command.kind)
   {
   case NeuronCore::CommandKind::Pause:
@@ -168,6 +215,10 @@ void ServerHost::Apply(const NeuronCore::Command& _command)
   case NeuronCore::CommandKind::Restore:
     m_world.Restore(_command.entity);
     break;
+  }
+  if (m_log != nullptr)
+  {
+    WriteLog(EncodeLogRecord(LoggedCommand{m_tick, m_worldTick, _session.index, _command}));
   }
 }
 
@@ -194,6 +245,27 @@ void ServerHost::Run(const std::stop_token& _stop)
       start = Clock::now() - TickTime(ran);
     }
   }
+}
+
+std::vector<std::uint8_t> ServerHost::EncodeSnapshot(std::uint8_t _side) const
+{
+  // The pause freezes the world, not the clock: the snapshots go on, each the same as the last, and nothing in them
+  // moves (§6.3).
+  NeuronCore::Snapshot snapshot{m_tick, m_worldTick, m_paused, {}, {}, {}};
+  m_world.Describe(snapshot, _side);
+  if (m_paused)
+  {
+    for (NeuronCore::EntityState& entity : snapshot.entities)
+    {
+      entity.velocity = {0.0f, 0.0f, 0.0f};
+    }
+  }
+  return NeuronCore::EncodeMessage(snapshot);
+}
+
+void ServerHost::WriteLog(std::span<const std::uint8_t> _bytes)
+{
+  m_log->write(reinterpret_cast<const char*>(_bytes.data()), static_cast<std::streamsize>(_bytes.size()));
 }
 
 std::chrono::nanoseconds ServerHost::TickTime(std::uint64_t _ticks) const noexcept

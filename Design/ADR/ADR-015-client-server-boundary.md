@@ -1,6 +1,6 @@
 # ADR-015 — The client/server boundary
 
-**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick · **Amended by:** [ADR-018](ADR-018-client.md), with the client's time; and [ADR-029](ADR-029-protocol-composites-and-sides.md), protocol version 2, whose entities are composites of sides and whose messages carry the game's payload
+**Status:** accepted, 2026-09-28 · **Lands with:** S-M3 of [`Design/Archive/SpaceScene.md`](../Archive/SpaceScene.md) (§6, §15, §16) · **Amends:** SpaceScene §6.2's snapshot, which gains a world tick · **Amended by:** [ADR-018](ADR-018-client.md), with the client's time; [ADR-029](ADR-029-protocol-composites-and-sides.md), protocol version 2, whose entities are composites of sides and whose messages carry the game's payload; and [ADR-032](ADR-032-sides-sessions-and-fog.md), whose sessions each play a side and receive what it sees, which lifts the foreclosure of a snapshot that differs between sessions, and whose host judges each command for its side and logs what it applies
 
 ## Context
 

@@ -60,7 +60,7 @@ constexpr NeuronCore::WorldSettings SETTINGS{
 [[nodiscard]] NeuronCore::Welcome WelcomeOf(std::vector<NeuronCore::ManifestEntry> _manifest)
 {
   std::vector<NeuronCore::CompositeModel> composites = NeuronCore::SingleModelComposites(_manifest.size());
-  return {NeuronCore::PROTOCOL_VERSION,    30, 0, SETTINGS, std::move(_manifest), std::move(composites), {SIDE},
+  return {NeuronCore::PROTOCOL_VERSION,    30, 0, SETTINGS, std::move(_manifest), std::move(composites), {SIDE}, 1,
           {PAYLOAD.begin(), PAYLOAD.end()}};
 }
 

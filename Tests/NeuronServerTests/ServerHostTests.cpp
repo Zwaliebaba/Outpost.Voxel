@@ -1,19 +1,19 @@
 #include "pch.h"
 
+#include "TestSupport.h"
+
 #include "ServerHost.h"
-#include "World.h"
 
 #include "LoopbackTransport.h"
 #include "Message.h"
-#include "Transport.h"
 
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <format>
-#include <optional>
-#include <span>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -25,151 +25,23 @@ namespace NeuronServerTests
 namespace
 {
 
-using Bytes = std::vector<std::uint8_t>;
-
-// The one entity the test world holds, and the one it does not.
-constexpr std::uint32_t SHIP = 7;
-constexpr std::uint32_t NO_SUCH_ENTITY = 8;
-
-// A world of one ship of one side that moves one unit along x each tick, and remembers what the host asked of it. Its
-// welcome carries a payload the host must pass on unread.
-class TestWorld final : public NeuronServer::World
+[[nodiscard]] std::vector<std::uint32_t> EntitiesOf(const NeuronCore::Snapshot& _snapshot)
 {
-public:
-  [[nodiscard]] std::uint32_t TickRate() const noexcept override
+  std::vector<std::uint32_t> ids;
+  ids.reserve(_snapshot.entities.size());
+  for (const NeuronCore::EntityState& entity : _snapshot.entities)
   {
-    return 30;
+    ids.push_back(entity.id);
   }
-
-  [[nodiscard]] const NeuronCore::WorldSettings& Settings() const noexcept override
-  {
-    return m_settings;
-  }
-
-  [[nodiscard]] std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept override
-  {
-    return m_manifest;
-  }
-
-  [[nodiscard]] std::span<const NeuronCore::CompositeModel> Composites() const noexcept override
-  {
-    return m_composites;
-  }
-
-  [[nodiscard]] std::span<const NeuronCore::SideColor> Sides() const noexcept override
-  {
-    return m_sides;
-  }
-
-  [[nodiscard]] std::span<const std::uint8_t> WelcomePayload() const noexcept override
-  {
-    return m_payload;
-  }
-
-  void Advance(std::uint64_t _worldTick) override
-  {
-    advanced.push_back(_worldTick);
-    if (!m_detonation)
-    {
-      m_position.x += 1.0f;
-    }
-  }
-
-  void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override
-  {
-    if (_entity == SHIP && !m_detonation)
-    {
-      m_detonation = NeuronCore::DetonationEvent{SHIP, 99, _worldTick, {30.0f, 0.0f, 0.0f}};
-    }
-  }
-
-  void Restore(std::uint32_t _entity) override
-  {
-    if (_entity == SHIP)
-    {
-      m_detonation.reset();
-    }
-  }
-
-  void Describe(NeuronCore::Snapshot& _snapshot) const override
-  {
-    _snapshot.entities.push_back({SHIP, 0, 1, m_position, {0.0f, 0.0f, 0.0f, 1.0f}, {30.0f, 0.0f, 0.0f}});
-    if (m_detonation)
-    {
-      _snapshot.detonations.push_back(*m_detonation);
-    }
-  }
-
-  // The world ticks Advance was called with, in order.
-  std::vector<std::uint64_t> advanced;
-
-private:
-  NeuronCore::WorldSettings m_settings{
-    {0.0f, 1.0f, 0.0f}, {0.7f, 0.7f, 0.7f}, 0.0047f, {0.05f, 0.05f, 0.05f}, {0.05f, 0.05f, 0.05f}, 1, {0.0f, 0.0f, 0.0f, 1.0f}};
-  std::vector<NeuronCore::ManifestEntry> m_manifest{{"Frigate", 0x1234u}};
-  std::vector<NeuronCore::CompositeModel> m_composites{{{{0, {0, 0, 0}, {0.0f, 0.0f, 0.0f, 1.0f}}}}};
-  std::vector<NeuronCore::SideColor> m_sides{{200, 40, 40}};
-  std::vector<std::uint8_t> m_payload{1, 2, 3};
-  NeuronCore::Float3 m_position{0.0f, 0.0f, 0.0f};
-  std::optional<NeuronCore::DetonationEvent> m_detonation;
-};
-
-// The client's end of a loopback: what it has received, decoded against the test world's one composite and one side.
-struct Client
-{
-  std::unique_ptr<NeuronCore::Transport> transport;
-
-  void Send(const NeuronCore::Message& _message) const
-  {
-    Assert::IsTrue(transport->Send(NeuronCore::EncodeMessage(_message)), L"the client sends");
-  }
-
-  // Every message waiting, decoded, and the bytes they came in.
-  [[nodiscard]] std::vector<NeuronCore::Message> ReceiveAll(std::vector<Bytes>* _bytes = nullptr) const
-  {
-    std::vector<NeuronCore::Message> messages;
-    while (std::optional<Bytes> bytes = transport->Receive())
-    {
-      const auto message = NeuronCore::DecodeMessage(*bytes, {1, 1});
-      Assert::IsTrue(message.has_value(), L"the server's message decodes");
-      messages.push_back(message.value_or(NeuronCore::Message{}));
-      if (_bytes != nullptr)
-      {
-        _bytes->push_back(std::move(*bytes));
-      }
-    }
-    return messages;
-  }
-};
-
-// A client of _host that has said Hello, in _protocolVersion.
-[[nodiscard]] Client Join(NeuronServer::ServerHost& _host, std::uint32_t _protocolVersion = NeuronCore::PROTOCOL_VERSION)
-{
-  NeuronCore::LoopbackPair pair = NeuronCore::MakeLoopbackPair();
-  _host.AddSession(std::move(pair.server));
-  Client client{std::move(pair.client)};
-  client.Send(NeuronCore::Hello{_protocolVersion});
-  return client;
-}
-
-[[nodiscard]] std::vector<NeuronCore::Snapshot> SnapshotsOf(const std::vector<NeuronCore::Message>& _messages)
-{
-  std::vector<NeuronCore::Snapshot> snapshots;
-  for (const NeuronCore::Message& message : _messages)
-  {
-    if (const auto* snapshot = std::get_if<NeuronCore::Snapshot>(&message))
-    {
-      snapshots.push_back(*snapshot);
-    }
-  }
-  return snapshots;
+  return ids;
 }
 
 } // namespace
 
 // Design/Archive/SpaceScene.md §6 and §15: the handshake and a refused version, a snapshot a step with consecutive ticks, the
-// same bytes to every client, pause and resume, detonate and restore, and a thread that starts and stops cleanly. No
-// test times the thread.
+// same bytes to every session of a side, pause and resume, detonate and restore, and a thread that starts and stops
+// cleanly. Design/ADR/ADR-032: each session plays a side, receives what its side sees, and has a command on another side's
+// entity refused. No test times the thread.
 TEST_CLASS(ServerHostTests)
 {
 public:
@@ -177,7 +49,7 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     host.Step();
     const std::vector<NeuronCore::Message> messages = client.ReceiveAll();
     Assert::AreEqual(std::size_t{2}, messages.size(), L"a welcome and the tick's snapshot");
@@ -189,7 +61,8 @@ public:
     Assert::AreEqual(std::size_t{1}, welcome->manifest.size());
     Assert::AreEqual(std::string("Frigate"), welcome->manifest.front().name);
     Assert::AreEqual(std::size_t{1}, welcome->composites.size(), L"the world's composite");
-    Assert::AreEqual(std::size_t{1}, welcome->sides.size(), L"and its side");
+    Assert::AreEqual(std::size_t{2}, welcome->sides.size(), L"and its sides");
+    Assert::IsTrue(welcome->sessionSide == 1, L"and the side the session plays");
     Assert::IsTrue(welcome->payload == std::vector<std::uint8_t>{1, 2, 3}, L"and its payload, unread");
     const auto* snapshot = std::get_if<NeuronCore::Snapshot>(&messages[1]);
     Assert::IsTrue(snapshot != nullptr && snapshot->tick == 1 && snapshot->entities.size() == 1, L"then the first snapshot");
@@ -201,14 +74,14 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client other = Join(host, NeuronCore::PROTOCOL_VERSION + 1);
+    const Client other = Join(host, 1, NeuronCore::PROTOCOL_VERSION + 1);
     NeuronCore::LoopbackPair early = NeuronCore::MakeLoopbackPair();
-    host.AddSession(std::move(early.server));
+    host.AddSession(std::move(early.server), 1);
     Assert::IsTrue(early.client->Send(NeuronCore::EncodeMessage(NeuronCore::Command{NeuronCore::CommandKind::Pause, 0})));
-    const Client twice = Join(host);
+    const Client twice = Join(host, 1);
     twice.Send(NeuronCore::Hello{NeuronCore::PROTOCOL_VERSION});
     NeuronCore::LoopbackPair garbage = NeuronCore::MakeLoopbackPair();
-    host.AddSession(std::move(garbage.server));
+    host.AddSession(std::move(garbage.server), 1);
     Assert::IsTrue(garbage.client->Send(Bytes{1, 2, 3}));
     host.Step();
 
@@ -225,7 +98,7 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     for (std::uint32_t i = 0; i < 50; ++i)
     {
       host.Step();
@@ -240,12 +113,12 @@ public:
     }
   }
 
-  TEST_METHOD(EveryClientReceivesTheSameBytes)
+  TEST_METHOD(EverySessionOfASideReceivesTheSameBytes)
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client first = Join(host);
-    const Client second = Join(host);
+    const Client first = Join(host, 1);
+    const Client second = Join(host, 1);
     for (std::uint32_t i = 0; i < 10; ++i)
     {
       host.Step();
@@ -264,7 +137,7 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     host.Step();
     client.Send(NeuronCore::Command{NeuronCore::CommandKind::Pause, 0});
     for (std::uint32_t i = 0; i < 5; ++i)
@@ -298,7 +171,7 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     host.Step();
     host.Step();
     client.Send(NeuronCore::Command{NeuronCore::CommandKind::Detonate, NO_SUCH_ENTITY});
@@ -316,11 +189,85 @@ public:
     Assert::IsTrue(snapshots[3].detonations.empty(), L"restored");
   }
 
+  // Each session receives what its side sees, and the observer all of it: side 1 its own ship, side 2 its own, until the
+  // world reveals each to the other (ADR-032).
+  TEST_METHOD(SendsEachSideWhatItSees)
+  {
+    TestWorld world;
+    NeuronServer::ServerHost host(world);
+    const Client first = Join(host, 1);
+    const Client second = Join(host, 2);
+    const Client observer = Join(host, NeuronCore::OBSERVER_SIDE);
+    host.Step();
+    world.revealed = true;
+    host.Step();
+
+    const std::vector<NeuronCore::Message> secondMessages = second.ReceiveAll();
+    const std::vector<NeuronCore::Message> observerMessages = observer.ReceiveAll();
+    const auto* secondWelcome = std::get_if<NeuronCore::Welcome>(secondMessages.data());
+    const auto* observerWelcome = std::get_if<NeuronCore::Welcome>(observerMessages.data());
+    Assert::IsTrue(secondWelcome != nullptr && secondWelcome->sessionSide == 2, L"side 2's session is told its side");
+    Assert::IsTrue(observerWelcome != nullptr && observerWelcome->sessionSide == NeuronCore::OBSERVER_SIDE, L"and the observer so");
+
+    const std::vector<NeuronCore::Snapshot> firstSnapshots = SnapshotsOf(first.ReceiveAll());
+    const std::vector<NeuronCore::Snapshot> secondSnapshots = SnapshotsOf(secondMessages);
+    const std::vector<NeuronCore::Snapshot> observerSnapshots = SnapshotsOf(observerMessages);
+    Assert::IsTrue(firstSnapshots.size() == 2 && secondSnapshots.size() == 2 && observerSnapshots.size() == 2, L"a snapshot a step each");
+    Assert::IsTrue(EntitiesOf(firstSnapshots[0]) == std::vector<std::uint32_t>{SHIP}, L"side 1 sees its own ship");
+    Assert::IsTrue(EntitiesOf(secondSnapshots[0]) == std::vector<std::uint32_t>{ENEMY}, L"side 2 its own");
+    Assert::IsTrue(EntitiesOf(observerSnapshots[0]) == std::vector<std::uint32_t>{SHIP, ENEMY}, L"the observer both");
+    Assert::IsTrue(EntitiesOf(firstSnapshots[1]) == std::vector<std::uint32_t>{SHIP, ENEMY}, L"revealed, side 1 sees both");
+    Assert::IsTrue(EntitiesOf(secondSnapshots[1]) == std::vector<std::uint32_t>{SHIP, ENEMY}, L"and side 2 too");
+  }
+
+  // A command on another side's entity is refused, counted and forgotten: the session stays open and the world does not
+  // hear of it. The observer's is applied, as its own side's would be (G34, ADR-032).
+  TEST_METHOD(RefusesACommandOnAnotherSidesEntity)
+  {
+    TestWorld world;
+    NeuronServer::ServerHost host(world);
+    const Client first = Join(host, 1);
+    const Client second = Join(host, 2);
+    const Client observer = Join(host, NeuronCore::OBSERVER_SIDE);
+    host.Step();
+    second.Send(NeuronCore::Command{NeuronCore::CommandKind::Detonate, SHIP});
+    host.Step();
+    Assert::AreEqual(std::uint64_t{1}, host.RefusedCommands(), L"side 2 may not detonate side 1's ship");
+    Assert::AreEqual(std::size_t{3}, host.SessionCount(), L"and its session stays open");
+    Assert::IsTrue(second.transport->IsOpen());
+    Assert::IsTrue(SnapshotsOf(first.ReceiveAll()).back().detonations.empty(), L"nothing detonated");
+
+    observer.Send(NeuronCore::Command{NeuronCore::CommandKind::Detonate, SHIP});
+    host.Step();
+    Assert::AreEqual(std::uint64_t{1}, host.RefusedCommands(), L"the observer's command is not refused");
+    Assert::AreEqual(std::size_t{1}, SnapshotsOf(first.ReceiveAll()).back().detonations.size(), L"and it detonates the ship");
+  }
+
+  // A session plays one of the world's sides or observes: side 3 of a world of two is a caller's mistake, and a session
+  // that joins once the host logs would be missing from its log.
+  TEST_METHOD(TakesASessionOnlyOfASideTheWorldHas)
+  {
+    TestWorld world;
+    NeuronServer::ServerHost host(world);
+    host.AddSession(NeuronCore::MakeLoopbackPair().server, 2);
+    Assert::IsTrue(Throws<std::invalid_argument>([&host] { host.AddSession(NeuronCore::MakeLoopbackPair().server, 3); }),
+                   L"side 3 of a world of two");
+    Assert::AreEqual(std::size_t{1}, host.SessionCount(), L"only the session of side 2 joined");
+
+    std::stringstream log;
+    host.Log(log, {});
+    Assert::IsTrue(Throws<std::logic_error>([&host] { host.AddSession(NeuronCore::MakeLoopbackPair().server, 1); }),
+                   L"no session joins once the host logs");
+    Assert::IsTrue(Throws<std::logic_error>([&host, &log] { host.Log(log, {}); }), L"and the host logs once");
+    host.Step();
+    Assert::IsTrue(Throws<std::logic_error>([&host, &log] { host.Log(log, {}); }), L"and the host logs only from the start");
+  }
+
   TEST_METHOD(DropsAClientThatCloses)
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     host.Step();
     Assert::AreEqual(std::size_t{1}, host.SessionCount());
     client.transport->Close();
@@ -334,13 +281,13 @@ public:
   {
     TestWorld world;
     NeuronServer::ServerHost host(world);
-    const Client client = Join(host);
+    const Client client = Join(host, 1);
     host.Start();
     Assert::IsTrue(host.IsRunning());
     bool refused = false;
     try
     {
-      host.AddSession(NeuronCore::MakeLoopbackPair().server);
+      host.AddSession(NeuronCore::MakeLoopbackPair().server, 1);
     }
     catch (const std::logic_error&)
     {

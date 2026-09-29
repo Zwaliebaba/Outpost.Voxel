@@ -532,7 +532,7 @@ void Sector::Restore(std::uint32_t _entity)
   }
 }
 
-void Sector::Describe(NeuronCore::Snapshot& _snapshot) const
+void Sector::Describe(NeuronCore::Snapshot& _snapshot, std::uint8_t /*_side*/) const
 {
   for (const Entity& entity : m_entities)
   {

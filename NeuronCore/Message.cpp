@@ -311,6 +311,9 @@ void Write(ByteWriter& _writer, const Welcome& _welcome)
     _writer.U8(side.blue);
     _writer.U8(0); // reserved
   }
+  _writer.U8(_welcome.sessionSide);
+  _writer.U8(0); // reserved
+  _writer.U16(0);
   _writer.U32(static_cast<std::uint32_t>(_welcome.payload.size()));
   _writer.Raw(_welcome.payload);
 }
@@ -435,6 +438,10 @@ void Write(ByteWriter& _writer, const Command& _command)
     reservedSet = reservedSet || _reader.U8() != 0;
     welcome.sides.push_back({red, green, blue});
   }
+  welcome.sessionSide = _reader.U8();
+  const std::uint8_t sessionReserved = _reader.U8();
+  const std::uint16_t sessionReservedWide = _reader.U16();
+  reservedSet = reservedSet || sessionReserved != 0 || sessionReservedWide != 0;
   const std::span<const std::uint8_t> payload = _reader.Bytes(_reader.U32());
   welcome.payload.assign(payload.begin(), payload.end());
   if (!_reader.Exhausted())
@@ -481,6 +488,10 @@ void Write(ByteWriter& _writer, const Command& _command)
   if (!std::ranges::all_of(components, [modelCount](const CompositeComponent& _component) { return _component.model < modelCount; }))
   {
     return std::unexpected(ProtocolError::BadModelIndex);
+  }
+  if (welcome.sessionSide > welcome.sides.size())
+  {
+    return std::unexpected(ProtocolError::BadSide);
   }
   return welcome;
 }
