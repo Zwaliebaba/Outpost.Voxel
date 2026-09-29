@@ -517,19 +517,26 @@ These are where the phases start, not measurements. The phase that introduces a 
 
 ### 8.1 Designs and classes
 
-| Design | Class | Voxels, about | Fit | Command points | Available |
+| Design | Class | Voxels, measured in phase 1 | Fit | Command points | Available |
 |---|---|---|---|---|---|
-| `Miner` | Frigate | 1,000 | Command module, reactor, 2 thrusters, mining laser, cargo hold, sensor | 1 | From the start |
-| `Gunship` | Frigate | 1,500 | Command module, reactor, 2 thrusters, 2 mass drivers, sensor | 1 | From the start |
-| `Lancer` | Frigate | 1,500 | Command module, reactor, 2 thrusters, 2 lasers, sensor | 1 | After Lasers |
-| `Cruiser` | Capital | 10,000 | Command module, reactor, 4 thrusters, 2 mass drivers, 2 lasers, sensor | 4 | After Capital hulls and Lasers |
-| `StationCore` | Station, the skirmish's own | 30,000 | Command module, reactor, shipyard, lab, refinery, sensor array, 4 mass drivers | — | Placed by the skirmish |
+| `Miner` | Frigate | 1,210 | Command module, reactor, 2 thrusters, mining laser, cargo hold, sensor | 1 | From the start |
+| `Gunship` | Frigate | 1,155 | Command module, reactor, 2 thrusters, 2 mass drivers, sensor | 1 | From the start |
+| `Lancer` | Frigate | 1,119 | Command module, reactor, 2 thrusters, 2 lasers, sensor | 1 | After Lasers |
+| `Cruiser` | Capital | 9,017 | Command module, large reactor, 4 thrusters, 2 mass drivers, 2 lasers, sensor | 4 | After Capital hulls and Lasers |
+| `StationCore` | Station, the skirmish's own | 28,955 | Command module, large reactor, shipyard, lab, refinery, sensor array, 4 mass drivers | — | Placed by the skirmish |
+
+Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate, 10,000 for the cruiser and 30,000 for the core. It kept the frigates near 1,150 and gave the cruiser 63 % heavy armor. That way two thrusters move a frigate, and four the cruiser, within a quarter of the class targets below. The cruiser and the core carry the large reactor, since their fits draw more than a small one supplies ([ADR-024](ADR/ADR-024-game-core.md)).
 
 **Class targets.** The two classes aim at ADR-017's class figures, which the owner accepted by eye:
 - a frigate: 60 units/s at most, about 30 units/s² of acceleration, and a 45°/s turn;
 - a capital ship: 20 units/s, about 5 units/s², and an 8°/s turn.
 
 **Class limits.** A frigate's box is about 32 × 16 × 48 with a budget of 2,000 voxels. A capital ship's is about 64 × 24 × 96 with a budget of 12,000. Profiles land within 25 % of the targets.
+
+**Measured in phase 1** (ADR-024).
+- **Acceleration.** The frigates accelerate at 25.1 to 34.9 units/s², and the cruiser at 5.7.
+- **Half turns.** The frigates turn half a turn in 4.3 to 4.6 s, and the cruiser in 23.4 s, against 4.0 s and 22.5 s at their caps alone.
+- **Prices.** A gunship costs 3,819 credits and builds in 25.5 s, and a cruiser costs 28,848 and builds in 192 s.
 
 **Materials.** The light class has density 1 and toughness 10, and the heavy class density 3 and toughness 30. A heavy voxel costs four times a light one.
 
