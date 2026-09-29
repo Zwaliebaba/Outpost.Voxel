@@ -376,18 +376,29 @@ public:
 
   TEST_METHOD(DrawsWithItsSidesPalettes)
   {
-    // Each model's own palette, then its variant for each side, model after model (NeuronCore::SidePaletteIndex).
+    // Each model's own palette, then its variant for each side, model after model (NeuronCore::SidePaletteIndex); then
+    // the remembered variant of each, which an entity remembered out of sight draws with (NeuronCore::RememberedPaletteIndex,
+    // Design/ADR/ADR-032).
     const std::vector<NeuronCore::VoxModel> scene{RandomBlock(), TwoPartModel()};
     const NeuronCore::CompositeModel composite = HullAndModule();
     const SceneModels models(scene, {&composite, 1}, 2);
     for (std::uint8_t side = 0; side <= 2; ++side)
     {
       std::vector<NeuronCore::Placement> placements;
-      models.Place({5, 0, side, {0.0f, 0.0f, 0.0f}, IDENTITY, {0.0f, 0.0f, 0.0f}, std::nullopt}, placements);
+      std::vector<NeuronCore::Placement> remembered;
+      const SampledEntity entity{5, 0, side, {0.0f, 0.0f, 0.0f}, IDENTITY, {0.0f, 0.0f, 0.0f}, std::nullopt};
+      models.Place(entity, placements);
+      models.Place(entity, remembered, true);
       const std::array<std::uint32_t, 3> expected{side, 3u + side, 3u + side};
+      Assert::AreEqual(placements.size(), remembered.size(), L"remembered, it draws the same parts");
       for (std::size_t index = 0; index < placements.size(); ++index)
       {
-        Assert::AreEqual(expected[index], placements[index].paletteIndex, std::format(L"side {}, placement {}", side, index).c_str());
+        const std::wstring what = std::format(L"side {}, placement {}", side, index);
+        Assert::AreEqual(expected[index], placements[index].paletteIndex, what.c_str());
+        Assert::AreEqual(expected[index] + 6u, remembered[index].paletteIndex, (what + L", remembered").c_str());
+        Assert::IsTrue(remembered[index].transform.translation.x == placements[index].transform.translation.x &&
+                         remembered[index].firstRecord == placements[index].firstRecord,
+                       (what + L", where it is seen").c_str());
       }
     }
   }

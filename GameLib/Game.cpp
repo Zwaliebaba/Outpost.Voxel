@@ -9,6 +9,7 @@
 #include "FailureReport.h"
 #include "FrameQueries.h"
 #include "InputState.h"
+#include "LastSeen.h"
 #include "Renderer.h"
 #include "SnapshotBuffer.h"
 
@@ -16,6 +17,7 @@
 #include "OrbitCamera.h"
 #include "Scene.h"
 
+#include "Catalogue.h"
 #include "WelcomeNames.h"
 
 #include "Blast.h"
@@ -190,15 +192,18 @@ struct GpuFigures
   }
 };
 
-// What the frame shows of the world (§13): the server's clock and how far behind it the frame is drawn, the entities
-// and the detonations in progress, and the camera's target and what the welcome names it (Design/ADR/ADR-030).
+// What the frame shows of the world (§13): the server's clock and how far behind it the frame is drawn, the side the
+// session plays, the entities, the detonations in progress and the structures remembered out of sight (Design/ADR/ADR-032),
+// and the camera's target and what the welcome names it (Design/ADR/ADR-030).
 struct WorldFigures
 {
   std::uint64_t tick;
   std::uint32_t tickRate;
   double behindMilliseconds;
+  std::wstring side; // empty in a world without sides
   std::size_t entities;
   std::size_t detonations;
+  std::size_t remembered;
   bool paused;
   std::uint32_t target;
   std::wstring targetName; // empty when the welcome names nothing
@@ -266,6 +271,40 @@ template <typename Now> void AwaitWorld(NeuronClient::ClientSession& _session, c
     name.append(", ").append(_names.sides[_entity.side - 1u]);
   }
   return std::wstring(winrt::to_hstring(name));
+}
+
+// What the figures say the session plays (Design/ADR/ADR-032): its side, by number and by the name the welcome gives it,
+// or that it observes; nothing in a world without sides, as the space scene's is.
+[[nodiscard]] std::wstring SideOf(const NeuronClient::ClientSession& _session, const GameCore::WelcomeNames& _names)
+{
+  if (_session.Sides().empty())
+  {
+    return {};
+  }
+  if (_session.Side() == NeuronCore::OBSERVER_SIDE)
+  {
+    return L"observer";
+  }
+  std::string side = std::format("side {}", _session.Side());
+  if (_session.Side() <= _names.sides.size())
+  {
+    side.append(", ").append(_names.sides[_session.Side() - 1u]);
+  }
+  return std::wstring(winrt::to_hstring(side));
+}
+
+// The composites whose entities the client remembers out of sight (Design/ADR/ADR-032): each the welcome names for a
+// structure's design in GameCore's catalogue, the core in the MVP.
+[[nodiscard]] std::vector<bool> StructureComposites(const GameCore::WelcomeNames& _names)
+{
+  std::vector<bool> structures;
+  structures.reserve(_names.composites.size());
+  for (const std::string& name : _names.composites)
+  {
+    const GameCore::DesignSpec* design = GameCore::FindDesign(name);
+    structures.push_back(design != nullptr && design->kind == GameCore::DesignKind::Structure);
+  }
+  return structures;
 }
 
 [[nodiscard]] const SampledEntity* FindEntity(const WorldSample& _sample, std::uint32_t _id) noexcept
@@ -570,7 +609,13 @@ void PrintTuning(const NeuronCore::WorldSettings& _tuned, const Tuning& _tuning,
   }
   figures.push_back(
     std::format(L"server tick {} at {} a second, drawn {:.0f} ms behind", _world.tick, _world.tickRate, _world.behindMilliseconds));
-  figures.push_back(std::format(L"{} entities, {} detonated", _world.entities, _world.detonations));
+  if (!_world.side.empty())
+  {
+    figures.push_back(_world.side);
+  }
+  figures.push_back(_world.remembered == 0
+                      ? std::format(L"{} entities, {} detonated", _world.entities, _world.detonations)
+                      : std::format(L"{} entities, {} detonated, {} remembered", _world.entities, _world.detonations, _world.remembered));
   if (_world.target != 0)
   {
     figures.push_back(std::format(L"target {}{}{}{}", _world.target, _world.targetName.empty() ? L"" : L": ", _world.targetName,
@@ -653,6 +698,8 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   NeuronClient::ClientSession session(std::move(_transport), _options.modelDirectory);
   AwaitWorld(session, now);
   const GameCore::WelcomeNames names = NamesOf(session);
+  const std::wstring side = SideOf(session, names);
+  NeuronClient::LastSeen lastSeen(StructureComposites(names));
 
   // --capture's file and the tick of the world it names (Design/ADR/ADR-031): the frame is drawn at that tick, the first time
   // the render time reaches it. Without --capture, that time never comes.
@@ -698,6 +745,8 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       const bool capturing = renderTick >= captureTick;
       const double drawnTick = capturing ? captureTick : renderTick;
       sample = buffer.Sample(drawnTick);
+      lastSeen.See(sample);
+      const std::vector<SampledEntity> remembered = lastSeen.Remembered(sample);
       const NeuronClient::ClientSize current = window.Size();
       NeuronClient::InputState& input = window.Input();
       Steer(camera, scene, sample, input, current.heightPixels, static_cast<float>(seconds));
@@ -736,9 +785,11 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       const WorldFigures world{buffer.Newest().tick,
                                buffer.TickRate(),
                                (static_cast<double>(buffer.Newest().tick) - drawnTick) * 1000.0 / buffer.TickRate(),
+                               side,
                                sample.entities.size(),
                                static_cast<std::size_t>(std::ranges::count_if(sample.entities, [](const SampledEntity& _entity)
                                                                               { return _entity.detonation.has_value(); })),
+                               remembered.size(),
                                buffer.Newest().paused,
                                camera.target,
                                targeted != nullptr ? NameOf(names, *targeted) : std::wstring{},
@@ -763,7 +814,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       }
       const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(tuned, controls.emissiveGain);
       const std::vector<NeuronCore::Blast> blasts = scene.Blasts(sample);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
+      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample, remembered),
                       {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false,
                        false, blasts, capturing});
       if (capturing)

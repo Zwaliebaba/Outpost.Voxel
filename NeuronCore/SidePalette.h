@@ -28,4 +28,12 @@ inline constexpr std::uint32_t SIDE_PALETTE_ENTRY = PALETTE_ENTRY_COUNT;
   return _model * static_cast<std::uint32_t>(_sideCount + 1) + _side;
 }
 
+// Where the same palette stands as a remembered entity draws it, dimmed (Design/ADR/ADR-032): after the palettes of every
+// one of the scene's _modelCount models, in the same order.
+[[nodiscard]] constexpr std::uint32_t RememberedPaletteIndex(std::uint32_t _model, std::uint32_t _side, std::size_t _sideCount,
+                                                             std::size_t _modelCount) noexcept
+{
+  return static_cast<std::uint32_t>(_modelCount * (_sideCount + 1)) + SidePaletteIndex(_model, _side, _sideCount);
+}
+
 } // namespace NeuronCore

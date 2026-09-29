@@ -39,7 +39,8 @@ VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxM
   m_recordCount = static_cast<std::uint32_t>(records.size());
   m_records = CreateStaticBuffer(_device, std::as_bytes(std::span(records)), L"Voxel records");
 
-  m_paletteValues.reserve(_models.size() * (_sides.size() + 1));
+  const std::size_t drawn = _models.size() * (_sides.size() + 1);
+  m_paletteValues.reserve(2 * drawn);
   for (const NeuronCore::VoxModel& model : _models)
   {
     m_paletteValues.push_back(MakePaletteConstants(model.palette));
@@ -47,6 +48,10 @@ VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxM
     {
       m_paletteValues.push_back(MakePaletteConstants(NeuronCore::SidePalette(model.palette, side)));
     }
+  }
+  for (std::size_t palette = 0; palette < drawn; ++palette)
+  {
+    m_paletteValues.push_back(RememberedPaletteConstants(m_paletteValues[palette]));
   }
   m_palettes = CreateStaticBuffer(_device, std::as_bytes(std::span(m_paletteValues)), L"Palettes");
 

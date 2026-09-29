@@ -127,6 +127,7 @@ public:
     Assert::AreEqual(NeuronCore::PROTOCOL_VERSION, std::get<NeuronCore::Hello>(hello).protocolVersion);
     Assert::IsTrue(link.session->Poll(0.0).has_value(), L"nothing has come yet");
     Assert::IsFalse(link.session->IsWelcomed());
+    Assert::IsTrue(link.session->Side() == NeuronCore::OBSERVER_SIDE, L"no side before the welcome");
 
     Send(*link.server, WelcomeOf(GameDataManifest()));
     Send(*link.server,
@@ -145,6 +146,7 @@ public:
     Assert::AreEqual(std::uint16_t{2}, link.session->Composites()[2].components.front().model);
     Assert::AreEqual(std::size_t{1}, link.session->Sides().size(), L"its side");
     Assert::IsTrue(link.session->Sides().front().blue == SIDE.blue, L"its color");
+    Assert::IsTrue(link.session->Side() == 1, L"and the side the session plays (Design/ADR/ADR-032)");
     Assert::AreEqual(PAYLOAD.size(), link.session->WelcomePayload().size(), L"its payload, unread");
     Assert::IsTrue(link.session->WelcomePayload().back() == PAYLOAD.back(), L"byte for byte");
   }

@@ -44,9 +44,11 @@ public:
     return m_models;
   }
 
-  // The placements _sample's entities draw, in the order of their ids and then of their parts, with their ids (§7.3).
-  // Throws std::runtime_error when their voxels would reach NO_VOXEL.
-  [[nodiscard]] std::vector<NeuronCore::Placement> Place(const NeuronClient::WorldSample& _sample) const;
+  // The placements _sample's entities draw, in the order of their ids and then of their parts, with their ids (§7.3),
+  // then those of _remembered, the entities remembered out of sight, dimmed (Design/ADR/ADR-032). Throws
+  // std::runtime_error when their voxels would reach NO_VOXEL.
+  [[nodiscard]] std::vector<NeuronCore::Placement> Place(const NeuronClient::WorldSample& _sample,
+                                                         std::span<const NeuronClient::SampledEntity> _remembered = {}) const;
 
   // The light of _sample's detonations, in the order of their entities (Design/ADR/ADR-025).
   [[nodiscard]] std::vector<NeuronCore::Blast> Blasts(const NeuronClient::WorldSample& _sample) const;

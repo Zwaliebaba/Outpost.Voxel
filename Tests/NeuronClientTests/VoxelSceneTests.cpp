@@ -84,6 +84,8 @@ public:
 
   // Design/ADR/ADR-029: each model's own palette, then its variant for each side, model after model, where
   // NeuronCore::SidePaletteIndex finds them. A side's variant differs from the model's own in the side's entry alone.
+  // Design/ADR/ADR-032: then the remembered variant of each, where NeuronCore::RememberedPaletteIndex finds it, a third of
+  // the albedo and no light of its own.
   TEST_METHOD(HoldsEachSidesPalettes)
   {
     RunGpuTest(
@@ -93,7 +95,7 @@ public:
         models[1].palette[3].red = 7;
         const std::array<NeuronCore::SideColor, 2> sides{{{40, 120, 220}, {220, 80, 60}}};
         const NeuronClient::VoxelScene scene(_device, models, NeuronCore::SceneFragments(models), sides);
-        Assert::AreEqual(6u, scene.PaletteCount(), L"three for each model");
+        Assert::AreEqual(12u, scene.PaletteCount(), L"three for each model, and each remembered");
         for (std::uint32_t model = 0; model < models.size(); ++model)
         {
           for (std::uint32_t side = 0; side <= sides.size(); ++side)
@@ -114,6 +116,15 @@ public:
               Assert::AreEqual(NeuronCore::SrgbToLinear(expected.green), albedo.y, (what + L", green").c_str());
               Assert::AreEqual(NeuronCore::SrgbToLinear(expected.blue), albedo.z, (what + L", blue").c_str());
               Assert::AreEqual(NeuronCore::EmissiveScale(expected), palette.materials[entry].emissiveScale, (what + L", glow").c_str());
+
+              const NeuronClient::PaletteMaterial& remembered =
+                scene.PaletteValues(NeuronCore::RememberedPaletteIndex(model, side, sides.size(), models.size())).materials[entry];
+              Assert::AreEqual(albedo.x * NeuronClient::REMEMBERED_ALBEDO_SCALE, remembered.albedo.x, (what + L", remembered red").c_str());
+              Assert::AreEqual(albedo.y * NeuronClient::REMEMBERED_ALBEDO_SCALE, remembered.albedo.y,
+                               (what + L", remembered green").c_str());
+              Assert::AreEqual(albedo.z * NeuronClient::REMEMBERED_ALBEDO_SCALE, remembered.albedo.z,
+                               (what + L", remembered blue").c_str());
+              Assert::AreEqual(0.0f, remembered.emissiveScale, (what + L", remembered glow").c_str());
             }
           }
         }

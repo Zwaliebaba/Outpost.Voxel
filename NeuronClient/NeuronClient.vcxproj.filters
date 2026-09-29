@@ -15,6 +15,7 @@
     <ClInclude Include="DescriptorHeap.h" />
     <ClInclude Include="FailureReport.h" />
     <ClInclude Include="GpuResources.h" />
+    <ClInclude Include="LastSeen.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="PaletteConstants.h" />
@@ -58,6 +59,7 @@
     <ClCompile Include="DescriptorHeap.cpp" />
     <ClCompile Include="FailureReport.cpp" />
     <ClCompile Include="GpuResources.cpp" />
+    <ClCompile Include="LastSeen.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
     <ClCompile Include="PaletteConstants.cpp" />

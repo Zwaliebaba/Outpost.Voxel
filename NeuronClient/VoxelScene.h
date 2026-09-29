@@ -21,8 +21,9 @@ class GraphicsDevice;
 
 // The scene's models on the GPU (Design/Archive/SpaceScene.md §7.1): every model's voxel records in one buffer, model after
 // model as NeuronCore::SceneRecords lays them out; their palettes in another, each model's own and then its variant for
-// each side, model after model (NeuronCore::SidePaletteIndex, Design/ADR/ADR-029); and the fragments each model breaks
-// into when it detonates in two more, as NeuronCore::SceneFragments lays them out (Design/ADR/ADR-024), all uploaded once.
+// each side, model after model (NeuronCore::SidePaletteIndex, Design/ADR/ADR-029), then the remembered variant of each
+// in the same order (NeuronCore::RememberedPaletteIndex, Design/ADR/ADR-032); and the fragments each model breaks into
+// when it detonates in two more, as NeuronCore::SceneFragments lays them out (Design/ADR/ADR-024), all uploaded once.
 // A model's records are stored once however many placements draw them. The buffers rest in the common state and are
 // promoted by each read.
 class VoxelScene
@@ -56,7 +57,7 @@ public:
     return m_fragments->GetGPUVirtualAddress();
   }
 
-  // The palettes as one StructuredBuffer<PaletteConstants>, by model and side.
+  // The palettes as one StructuredBuffer<PaletteConstants>, by model and side, then remembered.
   [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Palettes() const noexcept
   {
     return m_palettes->GetGPUVirtualAddress();

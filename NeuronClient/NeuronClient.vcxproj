@@ -190,6 +190,7 @@
     <ClInclude Include="FrameQueries.h" />
     <ClInclude Include="GlyphAtlas.h" />
     <ClInclude Include="GpuResources.h" />
+    <ClInclude Include="LastSeen.h" />
     <ClInclude Include="GraphicsDevice.h" />
     <ClInclude Include="InputState.h" />
     <ClInclude Include="LightingConstants.h" />
@@ -231,6 +232,7 @@
     <ClCompile Include="FrameQueries.cpp" />
     <ClCompile Include="GlyphAtlas.cpp" />
     <ClCompile Include="GpuResources.cpp" />
+    <ClCompile Include="LastSeen.cpp" />
     <ClCompile Include="GraphicsDevice.cpp" />
     <ClCompile Include="InputState.cpp" />
     <ClCompile Include="LightingConstants.cpp" />

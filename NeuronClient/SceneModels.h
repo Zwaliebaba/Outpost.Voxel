@@ -49,9 +49,10 @@ public:
   }
 
   // Appends the placements that draw _entity, one per part of each of its composite's components, component after
-  // component and in the order of their parts. Their ids are NeuronCore::AssignVoxelIds's to give. Throws
-  // std::out_of_range for a composite the welcome did not name.
-  void Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements) const;
+  // component and in the order of their parts, with its side's palettes, or their remembered variants for an entity
+  // _remembered out of sight (NeuronCore::RememberedPaletteIndex, Design/ADR/ADR-032). Their ids are
+  // NeuronCore::AssignVoxelIds's to give. Throws std::out_of_range for a composite the welcome did not name.
+  void Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements, bool _remembered = false) const;
 
   // The light of _entity's detonation, in the world (Design/ADR/ADR-025): from the mean of its composite's voxels,
   // drifting as its debris drifts, scaled by its composite's radius, with the event's seed and the time since; nothing
