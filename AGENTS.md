@@ -261,6 +261,8 @@ python Build\RunClangTidy.py          # needs a Developer PowerShell (INCLUDE mu
 
 **R20 — NVF has one specification and two implementations.** [`Design/NeuronVoxelFormat.md`](Design/NeuronVoxelFormat.md) §4 is the specification. `NeuronCore/NvfModel.cpp` implements it for the engine and `NvfImport`, and the Blender extension's `Tools/Blender/NeuronVoxelFormat/NvfFormat.py` for Blender (design N7, §8). The golden file, `Tools/Golden/Golden.nvf`, keeps the two in agreement: each one's tests write it byte for byte and read it back, and corrupt it alike into the same refusals, checked in the order [ADR-019](Design/ADR/ADR-019-nvf-format.md) fixes. A change to the format changes §4, both implementations and the golden file in one commit, and is an ADR. CI runs both suites, the C++ on Windows and the Python on Linux.
 
+**R21 — The world and the opponent run on the tick and the seed.** Neither reads a clock: the world's time is its tick number times the period ([`Design/SpaceScene.md`](Design/SpaceScene.md) S11, §5.4), and the opponent budgets its thinking in work, never in time. Neither draws randomness from anything but `PcgHash` of the seed. So a sector runs the same from the same arguments, tick for tick, within one build, and a skirmish replays from its seed, its build, its libraries and the server's command log ([`Design/GameConcept.md`](Design/GameConcept.md) G41 and G53). The sector's tests already run a seed twice and compare the bytes (ADR-017); the opponent's will too, and a logged skirmish will replay. The host's thread, which only decides when a tick runs and never what is in it (ADR-015), is outside the rule. Review enforces the rest.
+
 ---
 
 ## 6. Working rules
