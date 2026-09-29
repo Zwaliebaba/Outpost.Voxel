@@ -65,6 +65,10 @@ inline constexpr float WORLD_BOUND = 16384.0f;
 // How far a ship keeps from a station's sphere, beyond its own (§5.2).
 inline constexpr float KEEP_OUT_MARGIN = 50.0f;
 
+// The lighting and the sky every world of space shares, the sector's and the skirmish's (§11, §12.1): the sun and the
+// ambient as the owner tuned them, and a sky drawn from _skySeed.
+[[nodiscard]] NeuronCore::WorldSettings SpaceSettings(std::uint32_t _skySeed) noexcept;
+
 // A sector of space, the space scene's world (§5): stations laid out from a seed, flights of ships on routes around and
 // between them, and the detonations of either. It loads its models itself, to measure them and to hash their files for
 // the welcome.
@@ -84,6 +88,8 @@ public:
   [[nodiscard]] std::uint32_t TickRate() const noexcept override;
   [[nodiscard]] const NeuronCore::WorldSettings& Settings() const noexcept override;
   [[nodiscard]] std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept override;
+  // Each model alone, as the space scene draws it: composite i is model i, and no entity has a side (Design/ADR/ADR-029).
+  [[nodiscard]] std::span<const NeuronCore::CompositeModel> Composites() const noexcept override;
   void Advance(std::uint64_t _worldTick) override;
   void Detonate(std::uint32_t _entity, std::uint64_t _worldTick) override;
   void Restore(std::uint32_t _entity) override;
@@ -137,6 +143,7 @@ private:
   SectorParameters m_parameters{};
   NeuronCore::WorldSettings m_settings{};
   std::vector<NeuronCore::ManifestEntry> m_manifest;
+  std::vector<NeuronCore::CompositeModel> m_composites;
   std::array<float, MODEL_COUNT> m_radii{};
   std::array<ShipClass, MODEL_COUNT> m_classes{};
   std::vector<Entity> m_entities; // entity id is its index plus one

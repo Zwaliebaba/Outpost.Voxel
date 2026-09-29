@@ -4,6 +4,7 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/Tests/">
+    <Project Path="Tests/GameCoreTests/GameCoreTests.vcxproj" Id="a1954841-921e-42a2-be85-be0c8b3d8b88" />
     <Project Path="Tests/GameLogicTests/GameLogicTests.vcxproj" Id="2a584d41-f090-4054-860d-f44707eaac6d" />
     <Project Path="Tests/NeuronClientTests/NeuronClientTests.vcxproj" Id="9234d571-49cb-48df-9e49-b6e0b376acdc" />
     <Project Path="Tests/NeuronCoreTests/NeuronCoreTests.vcxproj" Id="b6f9c408-d369-4128-90ca-4275e64cc79c" />
@@ -12,6 +13,7 @@
   <Folder Name="/Tools/">
     <Project Path="Tools/NvfImport/NvfImport.vcxproj" />
   </Folder>
+  <Project Path="GameCore/GameCore.vcxproj" Id="da25d5e5-dbf9-4b2a-b421-aca0e5c7d821" />
   <Project Path="GameLib/GameLib.vcxproj" Id="e5891d84-4b87-48af-abc0-f46631cc953a" />
   <Project Path="GameLogic/GameLogic.vcxproj" Id="49c10099-f3bf-439c-af42-575febbec087" />
   <Project Path="NeuronClient/NeuronClient.vcxproj" Id="666af8da-0704-489a-8862-a3ebc37b1e84" />

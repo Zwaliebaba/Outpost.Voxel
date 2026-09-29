@@ -6,6 +6,7 @@
 #include "GraphicsDevice.h"
 
 #include "Placement.h"
+#include "SidePalette.h"
 
 #include <stdexcept>
 #include <string>
@@ -13,7 +14,8 @@
 namespace NeuronClient
 {
 
-VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments)
+VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments,
+                       std::span<const NeuronCore::SideColor> _sides)
 {
   // The .vox reader accepts a turned model only for a marker, which the renderer does not draw: a marker becomes a
   // hardpoint in the .nvf (Design/Archive/NeuronVoxelFormat.md §6.1).
@@ -37,10 +39,14 @@ VoxelScene::VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxM
   m_recordCount = static_cast<std::uint32_t>(records.size());
   m_records = CreateStaticBuffer(_device, std::as_bytes(std::span(records)), L"Voxel records");
 
-  m_paletteValues.reserve(_models.size());
+  m_paletteValues.reserve(_models.size() * (_sides.size() + 1));
   for (const NeuronCore::VoxModel& model : _models)
   {
     m_paletteValues.push_back(MakePaletteConstants(model.palette));
+    for (const NeuronCore::SideColor& side : _sides)
+    {
+      m_paletteValues.push_back(MakePaletteConstants(NeuronCore::SidePalette(model.palette, side)));
+    }
   }
   m_palettes = CreateStaticBuffer(_device, std::as_bytes(std::span(m_paletteValues)), L"Palettes");
 

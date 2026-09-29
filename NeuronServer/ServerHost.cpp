@@ -45,7 +45,7 @@ void ServerHost::Step()
 
   // The pause freezes the world, not the clock: the snapshots go on, each the same as the last, and nothing in them
   // moves (§6.3).
-  NeuronCore::Snapshot snapshot{m_tick, m_worldTick, m_paused, {}, {}};
+  NeuronCore::Snapshot snapshot{m_tick, m_worldTick, m_paused, {}, {}, {}};
   m_world.Describe(snapshot);
   if (m_paused)
   {
@@ -112,7 +112,7 @@ void ServerHost::Serve(Session& _session)
 {
   while (const std::optional<std::vector<std::uint8_t>> bytes = _session.transport->Receive())
   {
-    const auto message = NeuronCore::DecodeMessage(*bytes, m_world.Manifest().size());
+    const auto message = NeuronCore::DecodeMessage(*bytes, {m_world.Composites().size(), m_world.Sides().size()});
     if (!message)
     {
       _session.transport->Close();
@@ -127,8 +127,17 @@ void ServerHost::Serve(Session& _session)
         return;
       }
       const std::span<const NeuronCore::ManifestEntry> manifest = m_world.Manifest();
-      const NeuronCore::Welcome welcome{NeuronCore::PROTOCOL_VERSION, m_world.TickRate(), m_tick, m_world.Settings(),
-                                        std::vector<NeuronCore::ManifestEntry>(manifest.begin(), manifest.end())};
+      const std::span<const NeuronCore::CompositeModel> composites = m_world.Composites();
+      const std::span<const NeuronCore::SideColor> sides = m_world.Sides();
+      const std::span<const std::uint8_t> payload = m_world.WelcomePayload();
+      const NeuronCore::Welcome welcome{NeuronCore::PROTOCOL_VERSION,
+                                        m_world.TickRate(),
+                                        m_tick,
+                                        m_world.Settings(),
+                                        std::vector<NeuronCore::ManifestEntry>(manifest.begin(), manifest.end()),
+                                        std::vector<NeuronCore::CompositeModel>(composites.begin(), composites.end()),
+                                        std::vector<NeuronCore::SideColor>(sides.begin(), sides.end()),
+                                        std::vector<std::uint8_t>(payload.begin(), payload.end())};
       static_cast<void>(_session.transport->Send(NeuronCore::EncodeMessage(welcome)));
       _session.welcomed = true;
       continue;

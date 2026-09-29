@@ -73,11 +73,15 @@ constexpr std::uint32_t SHADOW_FLIP_LIMIT = 4;
 [[nodiscard]] float TwinHeat(std::span<const NeuronCore::Placement> _placements, std::uint32_t _voxel) noexcept
 {
   const std::uint32_t found = NeuronCore::FindPlacement(_placements, _voxel);
-  if (found == NeuronCore::NO_PLACEMENT || !_placements[found].detonation.has_value())
+  if (found == NeuronCore::NO_PLACEMENT)
   {
     return 0.0f;
   }
   const NeuronCore::Placement& placement = _placements[found];
+  if (!placement.detonation.has_value())
+  {
+    return 0.0f;
+  }
   const NeuronCore::PartFragments& fragments = placement.detonation->fragments;
   const std::uint32_t fragment = fragments.fragmentOf[_voxel - placement.firstVoxel];
   return NeuronCore::FragmentHeat(fragments.fragments[fragment], NeuronCore::MakePlacementHeat(placement));

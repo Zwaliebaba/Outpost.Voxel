@@ -5,11 +5,13 @@
 
 #include "Blast.h"
 #include "Float3.h"
+#include "Message.h"
 #include "OrthographicView.h"
 #include "Placement.h"
 #include "Sphere.h"
 #include "VoxModel.h"
 
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <vector>
@@ -32,8 +34,10 @@ inline constexpr float EXPOSURE = 1.772f;
 class Scene
 {
 public:
-  // _toSun is the direction the sun's light comes from.
-  Scene(std::span<const NeuronCore::VoxModel> _models, NeuronCore::Float3 _toSun);
+  // _models, _composites and _sideCount are the welcome's (NeuronClient::SceneModels), and _toSun is the direction the sun's
+  // light comes from.
+  Scene(std::span<const NeuronCore::VoxModel> _models, std::span<const NeuronCore::CompositeModel> _composites, std::size_t _sideCount,
+        NeuronCore::Float3 _toSun);
 
   [[nodiscard]] const NeuronClient::SceneModels& Models() const noexcept
   {

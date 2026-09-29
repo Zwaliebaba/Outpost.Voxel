@@ -142,7 +142,7 @@ WorldSample SnapshotBuffer::Sample(double _renderTick) const
     {
       ++detonation;
     }
-    SampledEntity sampled{entity.id, entity.modelIndex, entity.position, entity.rotation, entity.velocity, std::nullopt};
+    SampledEntity sampled{entity.id, entity.composite, entity.side, entity.position, entity.rotation, entity.velocity, std::nullopt};
     if (detonation != after.detonations.end() && detonation->entity == entity.id)
     {
       // Debris stands where its entity froze, posed from the event; before the event it is the whole model at rest.

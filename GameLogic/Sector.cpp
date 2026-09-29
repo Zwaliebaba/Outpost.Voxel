@@ -2,8 +2,10 @@
 
 #include "Sector.h"
 
+#include "Composite.h"
 #include "Hash.h"
 #include "Lighting.h"
+#include "NvfModel.h"
 #include "Quaternion.h"
 #include "VoxModel.h"
 
@@ -25,7 +27,8 @@ constexpr float RADIANS_PER_DEGREE = std::numbers::pi_v<float> / 180.0f;
 constexpr float TWO_PI = 2.0f * std::numbers::pi_v<float>;
 constexpr Float3 WORLD_UP{0.0f, 1.0f, 0.0f};
 
-// The models the world places, in the manifest's order. Each is read from <name>.vox (Design/Archive/SpaceScene.md §6.2).
+// The models the world places, in the manifest's order. Each is read from <name>.nvf (Design/Archive/SpaceScene.md §6.2,
+// Design/ADR/ADR-028).
 constexpr std::array<const char*, MODEL_COUNT> MODEL_NAMES{"MilitaryStation", "CapitalShip", "Frigate"};
 
 // §5.2: an orbit's radius is 1.3 to 2 keep-out radii, in a plane tilted up to 45 degrees from the horizontal, flown one
@@ -137,18 +140,18 @@ struct ModelMeasure
 
 [[nodiscard]] std::expected<ModelMeasure, SectorError> MeasureModel(const std::filesystem::path& _path, const std::string& _file)
 {
-  const auto bytes = NeuronCore::ReadVoxFile(_path);
+  const auto bytes = NeuronCore::ReadNvfFile(_path);
   if (!bytes)
   {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(bytes.error()));
+    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::NvfErrorName(bytes.error()));
   }
-  const auto model = NeuronCore::ParseVoxModel(*bytes);
+  const auto model = NeuronCore::ParseNvfModel(*bytes);
   if (!model)
   {
-    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::VoxErrorName(model.error()));
+    return Refuse(SectorRefusal::ModelNotLoaded, _file + ": " + NeuronCore::NvfErrorName(model.error()));
   }
 
-  const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(*model);
+  const std::optional<NeuronCore::VoxelBounds> bounds = NeuronCore::OccupiedBounds(NeuronCore::FlattenNvfModel(*model));
   if (!bounds)
   {
     return Refuse(SectorRefusal::ModelNotLoaded, _file + ": holds no visible voxel");
@@ -264,7 +267,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
   sector->m_parameters = _parameters;
   for (std::size_t model = 0; model < MODEL_COUNT; ++model)
   {
-    const std::string file = std::string(MODEL_NAMES[model]) + ".vox";
+    const std::string file = std::string(MODEL_NAMES[model]) + ".nvf";
     const auto measure = MeasureModel(_modelDirectory / file, file);
     if (!measure)
     {
@@ -273,6 +276,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
     sector->m_radii[model] = measure->radius;
     sector->m_manifest.push_back({MODEL_NAMES[model], measure->hash});
   }
+  sector->m_composites = NeuronCore::SingleModelComposites(MODEL_COUNT);
   sector->m_classes[CAPITAL_SHIP_MODEL] = {sector->m_radii[CAPITAL_SHIP_MODEL],
                                            CAPITAL_SHIP_CRUISE,
                                            WINGMAN_LOW_SPEED * CAPITAL_SHIP_CRUISE,
@@ -417,13 +421,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
     sector->m_flights.push_back({members, std::move(route), members.front()});
   }
 
-  sector->m_settings = {NeuronCore::SunDirection(SUN_DEGREES * RADIANS_PER_DEGREE, SUN_DEGREES * RADIANS_PER_DEGREE),
-                        {SUN_RADIANCE, SUN_RADIANCE, SUN_RADIANCE},
-                        SUN_ANGULAR_RADIUS,
-                        {AMBIENT_UPPER, AMBIENT_UPPER, AMBIENT_UPPER},
-                        {AMBIENT_LOWER, AMBIENT_LOWER, AMBIENT_LOWER},
-                        _parameters.seed,
-                        GALACTIC_PLANE};
+  sector->m_settings = SpaceSettings(_parameters.seed);
   if (lifetime > 0.0f)
   {
     sector->m_lifetimeTicks =
@@ -437,6 +435,17 @@ std::uint32_t Sector::TickRate() const noexcept
   return m_parameters.tickRate;
 }
 
+NeuronCore::WorldSettings SpaceSettings(std::uint32_t _skySeed) noexcept
+{
+  return {NeuronCore::SunDirection(SUN_DEGREES * RADIANS_PER_DEGREE, SUN_DEGREES * RADIANS_PER_DEGREE),
+          {SUN_RADIANCE, SUN_RADIANCE, SUN_RADIANCE},
+          SUN_ANGULAR_RADIUS,
+          {AMBIENT_UPPER, AMBIENT_UPPER, AMBIENT_UPPER},
+          {AMBIENT_LOWER, AMBIENT_LOWER, AMBIENT_LOWER},
+          _skySeed,
+          GALACTIC_PLANE};
+}
+
 const NeuronCore::WorldSettings& Sector::Settings() const noexcept
 {
   return m_settings;
@@ -445,6 +454,11 @@ const NeuronCore::WorldSettings& Sector::Settings() const noexcept
 std::span<const NeuronCore::ManifestEntry> Sector::Manifest() const noexcept
 {
   return m_manifest;
+}
+
+std::span<const NeuronCore::CompositeModel> Sector::Composites() const noexcept
+{
+  return m_composites;
 }
 
 void Sector::Advance(std::uint64_t _worldTick)
@@ -530,12 +544,12 @@ void Sector::Describe(NeuronCore::Snapshot& _snapshot) const
     {
       const Float3 velocity = entity.detonation ? Float3{0.0f, 0.0f, 0.0f} : entity.motion.forward * entity.motion.speed;
       _snapshot.entities.push_back(
-        {entity.id, entity.model, entity.motion.position, NeuronCore::QuaternionOf(ShipRotation(entity.motion)), velocity});
+        {entity.id, entity.model, 0, entity.motion.position, NeuronCore::QuaternionOf(ShipRotation(entity.motion)), velocity});
     }
     else
     {
       _snapshot.entities.push_back(
-        {entity.id, entity.model, entity.position, NeuronCore::QuaternionOf(entity.rotation), {0.0f, 0.0f, 0.0f}});
+        {entity.id, entity.model, 0, entity.position, NeuronCore::QuaternionOf(entity.rotation), {0.0f, 0.0f, 0.0f}});
     }
   }
   for (const Entity& entity : m_entities)

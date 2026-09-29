@@ -3,10 +3,11 @@
 #include "ClientSession.h"
 #include "TestSupport.h"
 
+#include "Composite.h"
 #include "Hash.h"
 #include "LoopbackTransport.h"
 #include "Message.h"
-#include "VoxModel.h"
+#include "NvfModel.h"
 
 #include <array>
 #include <cstddef>
@@ -35,6 +36,10 @@ using NeuronClient::SessionError;
 // The models GameData holds, as the game's server names them.
 constexpr std::array<const char*, 3> MODEL_NAMES{"MilitaryStation", "CapitalShip", "Frigate"};
 
+// The welcome's one side, and a payload the engine carries unread (Design/ADR/ADR-029).
+constexpr NeuronCore::SideColor SIDE{40, 120, 220};
+constexpr std::array<std::uint8_t, 3> PAYLOAD{5, 6, 7};
+
 constexpr NeuronCore::WorldSettings SETTINGS{
   {0.0f, 1.0f, 0.0f}, {0.7f, 0.7f, 0.7f}, 0.005f, {0.05f, 0.05f, 0.05f}, {0.05f, 0.05f, 0.05f}, 7u, {0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -44,16 +49,19 @@ constexpr NeuronCore::WorldSettings SETTINGS{
   std::vector<NeuronCore::ManifestEntry> manifest;
   for (const char* name : MODEL_NAMES)
   {
-    const auto bytes = NeuronCore::ReadVoxFile(GameDataDirectory() / (std::string(name) + ".vox"));
+    const auto bytes = NeuronCore::ReadNvfFile(GameDataDirectory() / (std::string(name) + ".nvf"));
     Assert::IsTrue(bytes.has_value(), L"GameData holds the model");
     manifest.push_back({name, NeuronCore::Fnv1aHash64(bytes.value_or(std::vector<std::uint8_t>{}))});
   }
   return manifest;
 }
 
+// A welcome that names _manifest's models, each alone as a composite, and one side.
 [[nodiscard]] NeuronCore::Welcome WelcomeOf(std::vector<NeuronCore::ManifestEntry> _manifest)
 {
-  return {NeuronCore::PROTOCOL_VERSION, 30, 0, SETTINGS, std::move(_manifest)};
+  std::vector<NeuronCore::CompositeModel> composites = NeuronCore::SingleModelComposites(_manifest.size());
+  return {NeuronCore::PROTOCOL_VERSION,    30, 0, SETTINGS, std::move(_manifest), std::move(composites), {SIDE},
+          {PAYLOAD.begin(), PAYLOAD.end()}};
 }
 
 // A client session over a loopback, and the server's end of it, which the test speaks for.
@@ -79,7 +87,7 @@ void Send(NeuronCore::Transport& _transport, const NeuronCore::Message& _message
 {
   const std::optional<std::vector<std::uint8_t>> bytes = _server.Receive();
   Assert::IsTrue(bytes.has_value(), L"the client sent a message");
-  const auto message = NeuronCore::DecodeMessage(bytes.value_or(std::vector<std::uint8_t>{}), MODEL_NAMES.size());
+  const auto message = NeuronCore::DecodeMessage(bytes.value_or(std::vector<std::uint8_t>{}), {MODEL_NAMES.size(), 1});
   Assert::IsTrue(message.has_value(), L"the client's message decodes");
   return message.value_or(NeuronCore::Message{});
 }
@@ -121,7 +129,8 @@ public:
     Assert::IsFalse(link.session->IsWelcomed());
 
     Send(*link.server, WelcomeOf(GameDataManifest()));
-    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {{9, 2, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 60.0f}}}, {}});
+    Send(*link.server,
+         NeuronCore::Snapshot{1, 1, false, {{9, 2, 1, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 60.0f}}}, {}, {}});
     Assert::IsTrue(link.session->Poll(0.5).has_value(), L"welcomed");
     Assert::IsTrue(link.session->IsWelcomed());
     Assert::AreEqual(std::size_t{3}, link.session->Models().size());
@@ -132,6 +141,12 @@ public:
     Assert::AreEqual(30u, link.session->Buffer().TickRate());
     Assert::AreEqual(std::uint64_t{1}, link.session->Buffer().Newest().tick, L"the snapshot in the buffer");
     Assert::AreEqual(9u, link.session->Buffer().Newest().entities.front().id);
+    Assert::AreEqual(std::size_t{3}, link.session->Composites().size(), L"the welcome's composites");
+    Assert::AreEqual(std::uint16_t{2}, link.session->Composites()[2].components.front().model);
+    Assert::AreEqual(std::size_t{1}, link.session->Sides().size(), L"its side");
+    Assert::IsTrue(link.session->Sides().front().blue == SIDE.blue, L"its color");
+    Assert::AreEqual(PAYLOAD.size(), link.session->WelcomePayload().size(), L"its payload, unread");
+    Assert::IsTrue(link.session->WelcomePayload().back() == PAYLOAD.back(), L"byte for byte");
   }
 
   TEST_METHOD(SendsItsCommands)
@@ -156,25 +171,25 @@ public:
     std::vector<NeuronCore::ManifestEntry> manifest = GameDataManifest();
     manifest.push_back({"NoSuchModel", 1});
     Send(*link.server, WelcomeOf(std::move(manifest)));
-    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "NoSuchModel.vox: FileNotFound");
+    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "NoSuchModel.nvf: FileNotFound");
     Assert::IsFalse(link.session->IsWelcomed(), L"a welcome it cannot keep is not kept");
   }
 
   TEST_METHOD(RefusesAModelItsReaderRefuses)
   {
-    // A file of the right name and hash that is not a .vox file.
+    // A file of the right name and hash that is not an .nvf file.
     const std::filesystem::path directory = std::filesystem::temp_directory_path() / "OutpostClientSessionTests";
     std::filesystem::create_directories(directory);
-    const std::string text = "not a vox file";
+    const std::string text = "not an nvf file";
     const std::vector<std::uint8_t> bytes(text.begin(), text.end());
     {
-      std::ofstream file(directory / "Garbage.vox", std::ios::binary | std::ios::trunc);
+      std::ofstream file(directory / "Garbage.nvf", std::ios::binary | std::ios::trunc);
       file.write(text.data(), static_cast<std::streamsize>(text.size()));
       Assert::IsTrue(file.good(), L"writing the file");
     }
     Link link = Connect(directory);
     Send(*link.server, WelcomeOf({{"Garbage", NeuronCore::Fnv1aHash64(bytes)}}));
-    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "Garbage.vox: NotAVoxFile");
+    ExpectRefusal(link, NeuronClient::SessionRefusal::ModelNotLoaded, "Garbage.nvf: NotAnNvfFile");
     std::filesystem::remove_all(directory);
   }
 
@@ -185,7 +200,7 @@ public:
     const std::uint64_t hash = manifest[1].hash;
     manifest[1].hash = 0x0123456789ABCDEFull;
     Send(*link.server, WelcomeOf(std::move(manifest)));
-    const std::string detail = std::format("CapitalShip.vox: this file's hash is {:016x}, and the server's 0123456789abcdef", hash);
+    const std::string detail = std::format("CapitalShip.nvf: this file's hash is {:016x}, and the server's 0123456789abcdef", hash);
     ExpectRefusal(link, NeuronClient::SessionRefusal::ModelMismatch, detail.c_str());
   }
 
@@ -215,7 +230,7 @@ public:
     }
     {
       Link link = Connect(GameDataDirectory());
-      Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}});
+      Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}, {}});
       ExpectRefusal(link, NeuronClient::SessionRefusal::BadMessage, "a Snapshot before the Welcome");
     }
     {
@@ -238,7 +253,7 @@ public:
     // What the server sent before it closed the link is taken first.
     Link link = Connect(GameDataDirectory());
     Send(*link.server, WelcomeOf(GameDataManifest()));
-    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}});
+    Send(*link.server, NeuronCore::Snapshot{1, 1, false, {}, {}, {}});
     link.server->Close();
     ExpectRefusal(link, NeuronClient::SessionRefusal::Closed, "the server closed the session");
     Assert::IsTrue(link.session->IsWelcomed(), L"the welcome was taken");

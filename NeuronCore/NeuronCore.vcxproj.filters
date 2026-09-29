@@ -39,6 +39,8 @@
     <ClInclude Include="Half.h" />
     <ClInclude Include="Sky.h" />
     <ClInclude Include="StarCatalog.h" />
+    <ClInclude Include="Composite.h" />
+    <ClInclude Include="SidePalette.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Blast.cpp" />
@@ -71,5 +73,7 @@
     <ClCompile Include="Half.cpp" />
     <ClCompile Include="Sky.cpp" />
     <ClCompile Include="StarCatalog.cpp" />
+    <ClCompile Include="Composite.cpp" />
+    <ClCompile Include="SidePalette.cpp" />
   </ItemGroup>
 </Project>

@@ -31,7 +31,8 @@ using Bytes = std::vector<std::uint8_t>;
 constexpr std::uint32_t SHIP = 7;
 constexpr std::uint32_t NO_SUCH_ENTITY = 8;
 
-// A world of one ship that moves one unit along x each tick, and remembers what the host asked of it.
+// A world of one ship of one side that moves one unit along x each tick, and remembers what the host asked of it. Its
+// welcome carries a payload the host must pass on unread.
 class TestWorld final : public NeuronServer::World
 {
 public:
@@ -48,6 +49,21 @@ public:
   [[nodiscard]] std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept override
   {
     return m_manifest;
+  }
+
+  [[nodiscard]] std::span<const NeuronCore::CompositeModel> Composites() const noexcept override
+  {
+    return m_composites;
+  }
+
+  [[nodiscard]] std::span<const NeuronCore::SideColor> Sides() const noexcept override
+  {
+    return m_sides;
+  }
+
+  [[nodiscard]] std::span<const std::uint8_t> WelcomePayload() const noexcept override
+  {
+    return m_payload;
   }
 
   void Advance(std::uint64_t _worldTick) override
@@ -77,7 +93,7 @@ public:
 
   void Describe(NeuronCore::Snapshot& _snapshot) const override
   {
-    _snapshot.entities.push_back({SHIP, 0, m_position, {0.0f, 0.0f, 0.0f, 1.0f}, {30.0f, 0.0f, 0.0f}});
+    _snapshot.entities.push_back({SHIP, 0, 1, m_position, {0.0f, 0.0f, 0.0f, 1.0f}, {30.0f, 0.0f, 0.0f}});
     if (m_detonation)
     {
       _snapshot.detonations.push_back(*m_detonation);
@@ -91,11 +107,14 @@ private:
   NeuronCore::WorldSettings m_settings{
     {0.0f, 1.0f, 0.0f}, {0.7f, 0.7f, 0.7f}, 0.0047f, {0.05f, 0.05f, 0.05f}, {0.05f, 0.05f, 0.05f}, 1, {0.0f, 0.0f, 0.0f, 1.0f}};
   std::vector<NeuronCore::ManifestEntry> m_manifest{{"Frigate", 0x1234u}};
+  std::vector<NeuronCore::CompositeModel> m_composites{{{{0, {0, 0, 0}, {0.0f, 0.0f, 0.0f, 1.0f}}}}};
+  std::vector<NeuronCore::SideColor> m_sides{{200, 40, 40}};
+  std::vector<std::uint8_t> m_payload{1, 2, 3};
   NeuronCore::Float3 m_position{0.0f, 0.0f, 0.0f};
   std::optional<NeuronCore::DetonationEvent> m_detonation;
 };
 
-// The client's end of a loopback: what it has received, decoded against the test world's one model.
+// The client's end of a loopback: what it has received, decoded against the test world's one composite and one side.
 struct Client
 {
   std::unique_ptr<NeuronCore::Transport> transport;
@@ -111,7 +130,7 @@ struct Client
     std::vector<NeuronCore::Message> messages;
     while (std::optional<Bytes> bytes = transport->Receive())
     {
-      const auto message = NeuronCore::DecodeMessage(*bytes, 1);
+      const auto message = NeuronCore::DecodeMessage(*bytes, {1, 1});
       Assert::IsTrue(message.has_value(), L"the server's message decodes");
       messages.push_back(message.value_or(NeuronCore::Message{}));
       if (_bytes != nullptr)
@@ -169,6 +188,9 @@ public:
     Assert::AreEqual(std::uint64_t{0}, welcome->tick, L"the tick before the first snapshot");
     Assert::AreEqual(std::size_t{1}, welcome->manifest.size());
     Assert::AreEqual(std::string("Frigate"), welcome->manifest.front().name);
+    Assert::AreEqual(std::size_t{1}, welcome->composites.size(), L"the world's composite");
+    Assert::AreEqual(std::size_t{1}, welcome->sides.size(), L"and its side");
+    Assert::IsTrue(welcome->payload == std::vector<std::uint8_t>{1, 2, 3}, L"and its payload, unread");
     const auto* snapshot = std::get_if<NeuronCore::Snapshot>(&messages[1]);
     Assert::IsTrue(snapshot != nullptr && snapshot->tick == 1 && snapshot->entities.size() == 1, L"then the first snapshot");
   }

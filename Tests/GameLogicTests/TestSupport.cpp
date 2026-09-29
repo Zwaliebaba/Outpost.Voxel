@@ -35,7 +35,7 @@ namespace
 
 std::filesystem::path GameDataDirectory()
 {
-  const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.vox";
+  const std::filesystem::path relative = std::filesystem::path("GameData") / "MilitaryStation.nvf";
   std::optional<std::filesystem::path> found = FindAbove(std::filesystem::current_path(), relative);
   if (!found)
   {
@@ -66,7 +66,7 @@ std::vector<NeuronCore::Float3> StationCenters(const NeuronCore::Snapshot& _snap
   std::vector<NeuronCore::Float3> centers;
   for (const NeuronCore::EntityState& entity : _snapshot.entities)
   {
-    if (entity.modelIndex == GameLogic::STATION_MODEL)
+    if (entity.composite == GameLogic::STATION_MODEL)
     {
       centers.push_back(entity.position);
     }
@@ -78,7 +78,7 @@ std::uint16_t ModelOf(const NeuronCore::Snapshot& _snapshot, std::uint32_t _id)
 {
   const auto entity = std::ranges::find(_snapshot.entities, _id, &NeuronCore::EntityState::id);
   Assert::IsTrue(entity != _snapshot.entities.end(), std::format(L"entity {} is in the snapshot", _id).c_str());
-  return entity == _snapshot.entities.end() ? std::uint16_t{0} : entity->modelIndex;
+  return entity == _snapshot.entities.end() ? std::uint16_t{0} : entity->composite;
 }
 
 } // namespace GameLogicTests

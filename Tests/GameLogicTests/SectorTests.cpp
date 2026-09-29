@@ -147,7 +147,7 @@ void MeasureSlots(const GameLogic::Sector& _sector, const std::vector<const Neur
     {
       continue;
     }
-    const GameLogic::ShipClass& shipClass = _sector.ClassOf(leader->modelIndex);
+    const GameLogic::ShipClass& shipClass = _sector.ClassOf(leader->composite);
     const NeuronCore::Rotation frame = NeuronCore::RotationOf(leader->rotation);
     std::size_t slot = 0;
     for (const std::uint32_t id : _sector.FlightMembers(flight))
@@ -184,11 +184,11 @@ void MeasureSlots(const GameLogic::Sector& _sector, const std::vector<const Neur
     const std::vector<const NeuronCore::EntityState*> whole = WholeById(snapshot);
     for (const NeuronCore::EntityState& ship : snapshot.entities)
     {
-      if (ship.modelIndex == GameLogic::STATION_MODEL)
+      if (ship.composite == GameLogic::STATION_MODEL)
       {
         continue;
       }
-      const float keepOut = _sector.KeepOutRadius(ship.modelIndex);
+      const float keepOut = _sector.KeepOutRadius(ship.composite);
       for (const Float3& station : stations)
       {
         measure.clearance = std::min(measure.clearance, NeuronCore::Length(ship.position - station) - keepOut);
@@ -198,7 +198,7 @@ void MeasureSlots(const GameLogic::Sector& _sector, const std::vector<const Neur
       {
         continue;
       }
-      const GameLogic::ShipClass& shipClass = _sector.ClassOf(ship.modelIndex);
+      const GameLogic::ShipClass& shipClass = _sector.ClassOf(ship.composite);
       const float speed = NeuronCore::Length(ship.velocity);
       const float speedBefore = NeuronCore::Length(before->velocity);
       measure.speed = std::max(measure.speed, speed / shipClass.maxSpeed);
@@ -283,7 +283,7 @@ struct Client
     std::vector<NeuronCore::Message> messages;
     while (std::optional<Bytes> bytes = transport->Receive())
     {
-      const auto message = NeuronCore::DecodeMessage(*bytes, GameLogic::MODEL_COUNT);
+      const auto message = NeuronCore::DecodeMessage(*bytes, {GameLogic::MODEL_COUNT, 0});
       Assert::IsTrue(message.has_value(), L"the server's message decodes");
       messages.push_back(message.value_or(NeuronCore::Message{}));
       _bytes.push_back(std::move(*bytes));
@@ -338,7 +338,7 @@ public:
     {
       const std::uint16_t model = i < 4 ? GameLogic::STATION_MODEL : i < 12 ? GameLogic::CAPITAL_SHIP_MODEL : GameLogic::FRIGATE_MODEL;
       Assert::AreEqual(static_cast<std::uint32_t>(i + 1), snapshot.entities[i].id, L"ids from 1, in order");
-      Assert::IsTrue(model == snapshot.entities[i].modelIndex, L"stations, then capital ships, then frigates");
+      Assert::IsTrue(model == snapshot.entities[i].composite, L"stations, then capital ships, then frigates");
     }
     Assert::IsTrue(snapshot.detonations.empty(), L"nothing has detonated");
 
@@ -365,7 +365,7 @@ public:
     for (std::size_t model = 0; model < GameLogic::MODEL_COUNT; ++model)
     {
       Assert::AreEqual(std::string(NAMES[model]), manifest[model].name);
-      const Bytes file = GameDataBytes((std::string(NAMES[model]) + ".vox").c_str());
+      const Bytes file = GameDataBytes((std::string(NAMES[model]) + ".nvf").c_str());
       Assert::AreEqual(NeuronCore::Fnv1aHash64(file), manifest[model].hash, L"the manifest hashes the model's file");
     }
 
@@ -578,7 +578,7 @@ public:
                        event->velocity.z == blewUp->velocity.z,
                      L"and carries the velocity it had");
 
-      const GameLogic::ShipClass& shipClass = sector->ClassOf(resumed->modelIndex);
+      const GameLogic::ShipClass& shipClass = sector->ClassOf(resumed->composite);
       const float speedBefore = NeuronCore::Length(blewUp->velocity);
       const float speed = NeuronCore::Length(resumed->velocity);
       Assert::IsTrue(IsWhole(after, id), L"restored whole");
@@ -747,7 +747,7 @@ public:
     Assert::IsFalse(missing.has_value(), L"a folder without the models");
     Assert::AreEqual(std::string("ModelNotLoaded"),
                      std::string(GameLogic::SectorRefusalName(missing ? GameLogic::SectorRefusal::BadParameter : missing.error().refusal)));
-    Assert::AreEqual(std::string("MilitaryStation.vox: FileNotFound"), missing ? std::string() : missing.error().detail,
+    Assert::AreEqual(std::string("MilitaryStation.nvf: FileNotFound"), missing ? std::string() : missing.error().detail,
                      L"names the model and why");
 
     const auto empty = MakeSector({.stations = 0, .frigates = 0, .capitalShips = 0});

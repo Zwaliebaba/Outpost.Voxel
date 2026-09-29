@@ -43,5 +43,6 @@
     <ClCompile Include="HalfTests.cpp" />
     <ClCompile Include="SkyTests.cpp" />
     <ClCompile Include="StarCatalogTests.cpp" />
+    <ClCompile Include="CompositeTests.cpp" />
   </ItemGroup>
 </Project>

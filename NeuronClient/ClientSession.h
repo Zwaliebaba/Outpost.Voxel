@@ -45,7 +45,7 @@ struct SessionError
 class ClientSession
 {
 public:
-  // Says Hello through _transport. The welcome's models are read from _modelDirectory, each from <name>.vox.
+  // Says Hello through _transport. The welcome's models are read from _modelDirectory, each from <name>.nvf.
   ClientSession(std::unique_ptr<NeuronCore::Transport> _transport, std::filesystem::path _modelDirectory);
 
   // Takes every message waiting, each as having arrived at _arrivalSeconds on the client's clock. On a refusal the
@@ -71,10 +71,27 @@ public:
     return m_manifest;
   }
 
-  // The models the welcome names, in its order, which the snapshots' model indices name; empty until it has come.
+  // The models the welcome names, in its order, which its composites name; empty until it has come.
   [[nodiscard]] std::span<const NeuronCore::VoxModel> Models() const noexcept
   {
     return m_models;
+  }
+
+  // What the welcome says an entity may be drawn as, and the sides' colors (Design/ADR/ADR-029); empty until it has come.
+  [[nodiscard]] std::span<const NeuronCore::CompositeModel> Composites() const noexcept
+  {
+    return m_composites;
+  }
+
+  [[nodiscard]] std::span<const NeuronCore::SideColor> Sides() const noexcept
+  {
+    return m_sides;
+  }
+
+  // The game's payload in the welcome, which the engine carried unread; empty until the welcome has come.
+  [[nodiscard]] std::span<const std::uint8_t> WelcomePayload() const noexcept
+  {
+    return m_welcomePayload;
   }
 
   // The snapshots, at the welcome's tick rate once it has come; empty until then.
@@ -97,6 +114,9 @@ private:
   NeuronCore::WorldSettings m_settings{};
   std::vector<NeuronCore::ManifestEntry> m_manifest;
   std::vector<NeuronCore::VoxModel> m_models;
+  std::vector<NeuronCore::CompositeModel> m_composites;
+  std::vector<NeuronCore::SideColor> m_sides;
+  std::vector<std::uint8_t> m_welcomePayload;
   SnapshotBuffer m_buffer{1};
   std::optional<SessionError> m_error; // the refusal, once the session has ended
 };

@@ -89,7 +89,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)GameCore;$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
@@ -110,7 +110,7 @@
       <EnableEnhancedInstructionSet>CPUExtensionRequirementsARMv87</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)GameCore;$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>false</FunctionLevelLinking>
@@ -131,7 +131,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)GameCore;$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -152,7 +152,7 @@
       <EnableEnhancedInstructionSet>CPUExtensionRequirementsARMv87</EnableEnhancedInstructionSet>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)GameCore;$(SolutionDir)NeuronClient;$(SolutionDir)NeuronCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -179,6 +179,9 @@
     <ClCompile Include="Scene.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\GameCore\GameCore.vcxproj">
+      <Project>{DA25D5E5-DBF9-4B2A-B421-ACA0E5C7D821}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\NeuronCore\NeuronCore.vcxproj">
       <Project>{6F240CD6-124F-489C-B8CF-1BABEBC02F72}</Project>
     </ProjectReference>

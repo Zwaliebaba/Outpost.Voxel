@@ -9,5 +9,6 @@
     <ClCompile Include="RouteTests.cpp" />
     <ClCompile Include="SectorTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
+    <ClCompile Include="SkirmishTests.cpp" />
   </ItemGroup>
 </Project>

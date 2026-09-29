@@ -7,6 +7,7 @@
 #include "PaletteConstants.h"
 
 #include "Fragmentation.h"
+#include "Message.h"
 #include "VoxModel.h"
 
 #include <cstdint>
@@ -19,19 +20,22 @@ namespace NeuronClient
 class GraphicsDevice;
 
 // The scene's models on the GPU (Design/Archive/SpaceScene.md §7.1): every model's voxel records in one buffer, model after
-// model as NeuronCore::SceneRecords lays them out, their palettes in another, one per model, and the fragments each model
-// breaks into when it detonates in two more, as NeuronCore::SceneFragments lays them out (Design/ADR/ADR-024), all uploaded
-// once. A model's records are stored once however many placements draw them. The buffers rest in the common state and
-// are promoted by each read.
+// model as NeuronCore::SceneRecords lays them out; their palettes in another, each model's own and then its variant for
+// each side, model after model (NeuronCore::SidePaletteIndex, Design/ADR/ADR-029); and the fragments each model breaks
+// into when it detonates in two more, as NeuronCore::SceneFragments lays them out (Design/ADR/ADR-024), all uploaded once.
+// A model's records are stored once however many placements draw them. The buffers rest in the common state and are
+// promoted by each read.
 class VoxelScene
 {
 public:
-  // _fragments are _models' own, which the client also poses its detonated placements with, so that they are broken once.
-  // Throws std::invalid_argument for no voxel at all, for a turned model, which the renderer never draws
-  // (Design/Archive/NeuronVoxelFormat.md §6.1), and for fragments that are not of these models' records.
-  VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments);
+  // _fragments are _models' own, which the client also poses its detonated placements with, so that they are broken
+  // once, and _sides the colors of the world's sides, none for a world without them. Throws std::invalid_argument for no
+  // voxel at all, for a turned model, which the renderer never draws (Design/Archive/NeuronVoxelFormat.md §6.1), and for
+  // fragments that are not of these models' records.
+  VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments,
+             std::span<const NeuronCore::SideColor> _sides = {});
 
-  // A scene that breaks _models itself, for one that nothing else poses.
+  // A scene without sides that breaks _models itself, for one that nothing else poses.
   VoxelScene(GraphicsDevice& _device, std::span<const NeuronCore::VoxModel> _models);
 
   // The records as one StructuredBuffer<uint>.
@@ -52,7 +56,7 @@ public:
     return m_fragments->GetGPUVirtualAddress();
   }
 
-  // The palettes as one StructuredBuffer<PaletteConstants>, by model.
+  // The palettes as one StructuredBuffer<PaletteConstants>, by model and side.
   [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS Palettes() const noexcept
   {
     return m_palettes->GetGPUVirtualAddress();
@@ -68,15 +72,15 @@ public:
     return m_fragmentCount;
   }
 
-  [[nodiscard]] std::uint32_t ModelCount() const noexcept
+  [[nodiscard]] std::uint32_t PaletteCount() const noexcept
   {
     return static_cast<std::uint32_t>(m_paletteValues.size());
   }
 
-  // What model _model's palette holds, for the twins the tests compare with.
-  [[nodiscard]] const PaletteConstants& PaletteValues(std::uint32_t _model) const noexcept
+  // What palette _palette holds, for the twins the tests compare with.
+  [[nodiscard]] const PaletteConstants& PaletteValues(std::uint32_t _palette) const noexcept
   {
-    return m_paletteValues[_model];
+    return m_paletteValues[_palette];
   }
 
 private:

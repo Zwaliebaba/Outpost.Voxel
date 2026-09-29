@@ -24,8 +24,9 @@ constexpr bool DEBUG_BUILD = false;
 #endif
 
 constexpr std::wstring_view USAGE =
-  L"Outpost.exe [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] [--debris-lifetime "
-  L"<seconds>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds>]";
+  L"Outpost.exe [--skirmish] [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] [--debris-lifetime "
+  L"<seconds>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds> | --capture "
+  L"<file>.png [--capture-at <seconds>]]";
 
 // --bench's timeline runs at 60 frames a second, so an hour is 216,000 frames in each of the two variants.
 constexpr std::uint32_t BENCH_SECONDS_MAXIMUM = 3600;
@@ -37,6 +38,9 @@ constexpr std::uint32_t SHIPS_MAXIMUM = 100000;
 
 // A day: debris that outlasts it may as well last for ever, which 0, the default, says (§5.5).
 constexpr float DEBRIS_LIFETIME_MAXIMUM_SECONDS = 86400.0f;
+
+// An hour of the world's time, as long as the longest --bench, is as late as --capture-at waits (Design/ADR/ADR-031).
+constexpr double CAPTURE_AT_MAXIMUM_SECONDS = 3600.0;
 
 [[nodiscard]] std::wstring Mistake(std::wstring_view _what)
 {
@@ -66,7 +70,7 @@ constexpr float DEBRIS_LIFETIME_MAXIMUM_SECONDS = 86400.0f;
 }
 
 // A number of seconds, whole or with a decimal point, such as 30 or 2.5.
-[[nodiscard]] bool ParseSeconds(std::wstring_view _text, float& _value) noexcept
+template <typename Real> [[nodiscard]] bool ParseSeconds(std::wstring_view _text, Real& _value) noexcept
 {
   std::array<char, 16> narrow{};
   if (_text.empty() || _text.size() > narrow.size() || std::ranges::count(_text, L'.') > 1)
@@ -86,6 +90,13 @@ constexpr float DEBRIS_LIFETIME_MAXIMUM_SECONDS = 86400.0f;
   return result.ec == std::errc{} && result.ptr == end;
 }
 
+// Whether _file's name ends in .png, in any case, as a PNG file's does.
+[[nodiscard]] bool IsPngFile(const std::filesystem::path& _file)
+{
+  const std::wstring extension = _file.extension().wstring();
+  return CompareStringOrdinal(extension.c_str(), -1, L".png", -1, TRUE) == CSTR_EQUAL;
+}
+
 // The executable's folder, where the build copies GameData (§13).
 [[nodiscard]] std::filesystem::path ExecutableFolder()
 {
@@ -99,13 +110,23 @@ constexpr float DEBRIS_LIFETIME_MAXIMUM_SECONDS = 86400.0f;
 std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstring> _arguments)
 {
   // The client and the server read the same GameData until they are separate programs (Design/Archive/SpaceScene.md §6.2).
-  Options options{{ExecutableFolder() / L"GameData", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}}, {}, std::nullopt};
+  Options options{{ExecutableFolder() / L"GameData", std::nullopt, {false, std::nullopt, DEBUG_BUILD, false}, std::nullopt, false},
+                  {},
+                  std::nullopt,
+                  std::nullopt};
   std::optional<std::wstring_view> worldOption; // the first option that shapes the world beyond its seed
+  bool skirmish = false;
+  std::optional<std::filesystem::path> captureFile;
+  std::optional<double> captureAtSeconds;
   for (std::size_t i = 0; i < _arguments.size(); ++i)
   {
     const std::wstring_view argument = _arguments[i];
     const bool hasValue = i + 1 < _arguments.size();
-    if (argument == L"--seed" && hasValue)
+    if (argument == L"--skirmish")
+    {
+      skirmish = true;
+    }
+    else if (argument == L"--seed" && hasValue)
     {
       if (!ParseNumber(_arguments[++i], options.world.seed))
       {
@@ -191,6 +212,26 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
       }
       options.benchSeconds = seconds;
     }
+    else if (argument == L"--capture" && hasValue)
+    {
+      const std::filesystem::path file = _arguments[++i];
+      if (!IsPngFile(file))
+      {
+        return std::unexpected(Mistake(std::format(L"--capture takes the file to write, ending in .png, not {}.", _arguments[i])));
+      }
+      captureFile = file;
+    }
+    else if (argument == L"--capture-at" && hasValue)
+    {
+      double seconds = 0.0;
+      if (!ParseSeconds(_arguments[++i], seconds) || seconds > CAPTURE_AT_MAXIMUM_SECONDS)
+      {
+        return std::unexpected(
+          Mistake(std::format(L"--capture-at takes seconds of the world's time from 0 to {:.0f}, such as 5 or 2.5, not {}.",
+                              CAPTURE_AT_MAXIMUM_SECONDS, _arguments[i])));
+      }
+      captureAtSeconds = seconds;
+    }
     else
     {
       return std::unexpected(Mistake(std::format(L"{} is not an option here{}.", argument, hasValue ? L"" : L", or it needs a value")));
@@ -199,6 +240,34 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
   if (options.game.device.warp && options.game.device.adapter)
   {
     return std::unexpected(Mistake(L"--warp and --adapter each choose the adapter; give one of them."));
+  }
+  // --capture writes one frame and ends the run (Design/ADR/ADR-031), as --bench ends it with its figures.
+  if (captureAtSeconds && !captureFile)
+  {
+    return std::unexpected(Mistake(L"--capture-at says when --capture takes its frame, so it goes with --capture <file>.png."));
+  }
+  if (captureFile)
+  {
+    if (options.benchSeconds)
+    {
+      return std::unexpected(Mistake(L"--bench and --capture each end the run in their own way; give one of them."));
+    }
+    options.game.capture = GameLib::CaptureOptions{*captureFile, captureAtSeconds.value_or(0.0)};
+  }
+  // --skirmish lays out the MVP's sector from the seed (Design/ADR/ADR-030), and the client's first view frames all of it.
+  if (skirmish)
+  {
+    if (worldOption)
+    {
+      return std::unexpected(
+        Mistake(std::format(L"--skirmish lays out its sector from the seed, so {} does not go with it.", *worldOption)));
+    }
+    if (options.benchSeconds)
+    {
+      return std::unexpected(Mistake(L"--bench runs the one-station preset, so --skirmish does not go with it."));
+    }
+    options.skirmish = GameLogic::SkirmishParameters{.seed = options.world.seed};
+    options.game.overview = true;
   }
   // --bench runs the one-station preset until S-M8's space bench (§14): one station and no ships, from the seed.
   if (options.benchSeconds)

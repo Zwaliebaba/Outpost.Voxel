@@ -15,13 +15,76 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="$(SolutionDir)GameData\MilitaryStation.vox">
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidA.nvf">
       <Filter>GameData</Filter>
     </CopyFileToFolders>
-    <CopyFileToFolders Include="..\GameData\Frigate.vox">
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidB.nvf">
       <Filter>GameData</Filter>
     </CopyFileToFolders>
-    <CopyFileToFolders Include="..\GameData\CapitalShip.vox">
+    <CopyFileToFolders Include="$(SolutionDir)GameData\AsteroidC.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CapitalShip.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CargoHold.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\CommandModule.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Cruiser.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Frigate.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Gunship.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Lab.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Lancer.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Laser.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MassDriver.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MilitaryStation.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Miner.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\MiningLaser.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Reactor.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\ReactorLarge.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Refinery.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Sensor.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\SensorArray.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Shipyard.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\StationCore.nvf">
+      <Filter>GameData</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="$(SolutionDir)GameData\Thruster.nvf">
       <Filter>GameData</Filter>
     </CopyFileToFolders>
   </ItemGroup>

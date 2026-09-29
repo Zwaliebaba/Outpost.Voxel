@@ -40,6 +40,22 @@ class GraphicsDevice;
 [[nodiscard]] std::vector<std::byte> ReadTexture2D(GraphicsDevice& _device, ID3D12Resource* _texture, D3D12_RESOURCE_STATES _state,
                                                    std::uint32_t _bytesPerPixel);
 
+// A 2D texture's copy on its way back to the CPU: the readback buffer it lands in, and where the texture's rows lie there.
+struct TextureReadback
+{
+  winrt::com_ptr<ID3D12Resource> buffer;
+  std::uint64_t sizeBytes;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+  std::uint32_t rows;
+};
+
+// Records on _list the copy of _texture into a new readback buffer. The texture must be in COPY_SOURCE when the list runs.
+[[nodiscard]] TextureReadback RecordTextureReadback(const GraphicsDevice& _device, ID3D12GraphicsCommandList* _list,
+                                                    ID3D12Resource* _texture);
+
+// The copied texture's rows, packed tightly, _bytesPerPixel times its width to a row. The GPU must have run the copy.
+[[nodiscard]] std::vector<std::byte> ReadTextureReadback(const TextureReadback& _readback, std::uint32_t _bytesPerPixel);
+
 // A transition of every subresource of _resource.
 [[nodiscard]] D3D12_RESOURCE_BARRIER Transition(ID3D12Resource* _resource, D3D12_RESOURCE_STATES _before,
                                                 D3D12_RESOURCE_STATES _after) noexcept;

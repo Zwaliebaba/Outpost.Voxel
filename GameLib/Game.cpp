@@ -3,6 +3,7 @@
 #include "Game.h"
 
 #include "Canvas.h"
+#include "CapturedFrame.h"
 #include "ClientSession.h"
 #include "Clock.h"
 #include "FailureReport.h"
@@ -14,6 +15,8 @@
 #include "ChaseCamera.h"
 #include "OrbitCamera.h"
 #include "Scene.h"
+
+#include "WelcomeNames.h"
 
 #include "Blast.h"
 #include "DebugView.h"
@@ -31,13 +34,17 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <filesystem>
 #include <format>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace GameLib
@@ -184,7 +191,7 @@ struct GpuFigures
 };
 
 // What the frame shows of the world (§13): the server's clock and how far behind it the frame is drawn, the entities
-// and the detonations in progress, and the camera's target.
+// and the detonations in progress, and the camera's target and what the welcome names it (Design/ADR/ADR-030).
 struct WorldFigures
 {
   std::uint64_t tick;
@@ -194,6 +201,7 @@ struct WorldFigures
   std::size_t detonations;
   bool paused;
   std::uint32_t target;
+  std::wstring targetName; // empty when the welcome names nothing
   bool chasing;
 };
 
@@ -225,6 +233,41 @@ template <typename Now> void AwaitWorld(NeuronClient::ClientSession& _session, c
   }
 }
 
+// The names the welcome's payload gives the composites and the sides (Design/ADR/ADR-030), which the figures show: none
+// for a world that sends none, as the space scene's does. Throws when the payload is refused, or names other counts than
+// the welcome holds.
+[[nodiscard]] GameCore::WelcomeNames NamesOf(const NeuronClient::ClientSession& _session)
+{
+  std::expected<GameCore::WelcomeNames, GameCore::NamesError> names = GameCore::DecodeWelcomeNames(_session.WelcomePayload());
+  if (!names)
+  {
+    throw std::runtime_error(std::format("The welcome's names were refused: {}.", GameCore::NamesErrorName(names.error())));
+  }
+  const bool named = !names->composites.empty() || !names->sides.empty();
+  if (named && (names->composites.size() != _session.Composites().size() || names->sides.size() != _session.Sides().size()))
+  {
+    throw std::runtime_error(std::format("The welcome names {} composites and {} sides, of its {} and {}.", names->composites.size(),
+                                         names->sides.size(), _session.Composites().size(), _session.Sides().size()));
+  }
+  return std::move(*names);
+}
+
+// What the figures call _entity: its composite's name and its side's, as the welcome names them; nothing when it names
+// none.
+[[nodiscard]] std::wstring NameOf(const GameCore::WelcomeNames& _names, const SampledEntity& _entity)
+{
+  if (_entity.composite >= _names.composites.size())
+  {
+    return {};
+  }
+  std::string name = _names.composites[_entity.composite];
+  if (_entity.side != 0 && _entity.side <= _names.sides.size())
+  {
+    name.append(", ").append(_names.sides[_entity.side - 1u]);
+  }
+  return std::wstring(winrt::to_hstring(name));
+}
+
 [[nodiscard]] const SampledEntity* FindEntity(const WorldSample& _sample, std::uint32_t _id) noexcept
 {
   const auto found = std::ranges::lower_bound(_sample.entities, _id, {}, &SampledEntity::id);
@@ -248,6 +291,30 @@ template <typename Now> void AwaitWorld(NeuronClient::ClientSession& _session, c
   return from == _sample.entities.begin() ? &_sample.entities.back() : &*std::prev(from);
 }
 
+// The first view (§13): the first entity, a station of the sector's, framed and targeted; or for an overview every entity
+// framed, and none targeted until N chooses one (Design/ADR/ADR-030).
+[[nodiscard]] Camera FirstView(const Scene& _scene, const WorldSample& _sample, bool _overview)
+{
+  if (_sample.entities.empty())
+  {
+    return {OrbitCamera({0.0f, 0.0f, 0.0f}, 100.0f), ChaseCamera{}, false, 0, std::nullopt};
+  }
+  if (!_overview)
+  {
+    const SampledEntity& first = _sample.entities.front();
+    const NeuronCore::Sphere framed = _scene.Models().Extent(first);
+    return {OrbitCamera(framed.center, framed.radius), ChaseCamera{}, false, first.id, std::nullopt};
+  }
+  std::vector<NeuronCore::Sphere> extents;
+  extents.reserve(_sample.entities.size());
+  for (const SampledEntity& entity : _sample.entities)
+  {
+    extents.push_back(_scene.Models().Extent(entity));
+  }
+  const NeuronCore::Sphere everything = NeuronCore::EnclosingSphere(extents);
+  return {OrbitCamera(everything.center, everything.radius), ChaseCamera{}, false, 0, std::nullopt};
+}
+
 void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, const InputState& _input, std::uint32_t _heightPixels,
            float _seconds)
 {
@@ -264,7 +331,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
       _camera.orbit.Frame(extent.center, extent.radius);
       if (_camera.chasing)
       {
-        _camera.chase.Reset(chosen->position, NeuronCore::RotationOf(chosen->rotation), _scene.Models().Radius(chosen->modelIndex));
+        _camera.chase.Reset(chosen->position, NeuronCore::RotationOf(chosen->rotation), _scene.Models().Radius(chosen->composite));
       }
     }
   }
@@ -277,7 +344,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
   if (_input.WasKeyPressed('C') && target != nullptr)
   {
     _camera.chasing = !_camera.chasing;
-    _camera.chase.Reset(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex));
+    _camera.chase.Reset(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->composite));
   }
   if (_input.WasKeyPressed(VK_TAB))
   {
@@ -296,8 +363,7 @@ void Steer(Camera& _camera, const Scene& _scene, const WorldSample& _sample, con
     _camera.followed = target->position;
     if (_camera.chasing)
     {
-      _camera.chase.Follow(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->modelIndex),
-                           _seconds);
+      _camera.chase.Follow(target->position, NeuronCore::RotationOf(target->rotation), _scene.Models().Radius(target->composite), _seconds);
     }
   }
   else
@@ -507,7 +573,8 @@ void PrintTuning(const NeuronCore::WorldSettings& _tuned, const Tuning& _tuning,
   figures.push_back(std::format(L"{} entities, {} detonated", _world.entities, _world.detonations));
   if (_world.target != 0)
   {
-    figures.push_back(std::format(L"target {}{}", _world.target, _world.chasing ? L", chased" : L""));
+    figures.push_back(std::format(L"target {}{}{}{}", _world.target, _world.targetName.empty() ? L"" : L": ", _world.targetName,
+                                  _world.chasing ? L", chased" : L""));
   }
   if (_world.paused)
   {
@@ -558,6 +625,25 @@ void DrawFigures(NeuronClient::Canvas& _canvas, const std::vector<std::wstring>&
   _canvas.Print(text, margin + padding, margin + padding, style, {1.0f, 1.0f, 1.0f}, 1.0f);
 }
 
+// Writes the frame the renderer has just captured to _file (Design/ADR/ADR-031), or throws saying why it could not.
+void WriteCapture(NeuronClient::Renderer& _renderer, const std::filesystem::path& _file)
+{
+  const std::optional<NeuronClient::CapturedFrame> frame = _renderer.TakeCapture();
+  if (!frame.has_value())
+  {
+    throw std::logic_error("The frame to capture was not kept.");
+  }
+  try
+  {
+    NeuronClient::WritePng(*frame, _file);
+  }
+  catch (...)
+  {
+    throw std::runtime_error(std::format("The capture could not be written to {}: {}", winrt::to_string(_file.wstring()),
+                                         NeuronClient::DescribeCurrentException()));
+  }
+}
+
 } // namespace
 
 void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport> _transport)
@@ -566,25 +652,29 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   const auto now = [start] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); };
   NeuronClient::ClientSession session(std::move(_transport), _options.modelDirectory);
   AwaitWorld(session, now);
+  const GameCore::WelcomeNames names = NamesOf(session);
+
+  // --capture's file and the tick of the world it names (Design/ADR/ADR-031): the frame is drawn at that tick, the first time
+  // the render time reaches it. Without --capture, that time never comes.
+  const std::filesystem::path captureFile = _options.capture ? _options.capture->file : std::filesystem::path{};
+  const double captureTick =
+    _options.capture ? _options.capture->worldSeconds * session.Buffer().TickRate() : std::numeric_limits<double>::infinity();
 
   // The world's lighting and sky, from the welcome (Design/Archive/SpaceScene.md §11, §12.1).
   const NeuronCore::WorldSettings settings = session.Settings();
   const std::vector<NeuronCore::StarRecord> stars =
     NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);
-  Scene scene(session.Models(), settings.toSun);
+  Scene scene(session.Models(), session.Composites(), session.Sides().size(), settings.toSun);
   const float brightestEmissive = BrightestEmissiveScale(session.Models());
   WorldSample sample = session.Buffer().Sample(session.Buffer().RenderTick(now()));
   scene.FitShadowView(sample);
 
-  // The first entity, a station of the sector's, is the first target.
-  const SampledEntity* first = sample.entities.empty() ? nullptr : &sample.entities.front();
-  const NeuronCore::Sphere framed = first != nullptr ? scene.Models().Extent(*first) : NeuronCore::Sphere{{0.0f, 0.0f, 0.0f}, 100.0f};
-  Camera camera{OrbitCamera(framed.center, framed.radius), ChaseCamera{}, false, first != nullptr ? first->id : 0u, std::nullopt};
+  Camera camera = FirstView(scene, sample, _options.overview);
 
   NeuronClient::Window window({L"Outpost", _options.windowSize});
   const NeuronClient::ClientSize size = window.Size();
   NeuronClient::Renderer renderer({_options.device, window.Handle(), size.widthPixels, size.heightPixels, scene.ShadowView(), stars},
-                                  scene.Models().Models(), scene.Models().Fragments());
+                                  scene.Models().Models(), scene.Models().Fragments(), session.Sides());
   try
   {
     // A borderless window has no title bar to show it (§13), so the debugger's output says it too.
@@ -605,7 +695,9 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       ThrowOnRefusal(session.Poll(now()));
       NeuronClient::SnapshotBuffer& buffer = session.Buffer();
       const double renderTick = buffer.RenderTick(now());
-      sample = buffer.Sample(renderTick);
+      const bool capturing = renderTick >= captureTick;
+      const double drawnTick = capturing ? captureTick : renderTick;
+      sample = buffer.Sample(drawnTick);
       const NeuronClient::ClientSize current = window.Size();
       NeuronClient::InputState& input = window.Input();
       Steer(camera, scene, sample, input, current.heightPixels, static_cast<float>(seconds));
@@ -640,14 +732,16 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
         gpuSince = GpuFigures{};
       }
       renderer.Resize(current.widthPixels, current.heightPixels);
+      const SampledEntity* targeted = FindEntity(sample, camera.target);
       const WorldFigures world{buffer.Newest().tick,
                                buffer.TickRate(),
-                               (static_cast<double>(buffer.Newest().tick) - renderTick) * 1000.0 / buffer.TickRate(),
+                               (static_cast<double>(buffer.Newest().tick) - drawnTick) * 1000.0 / buffer.TickRate(),
                                sample.entities.size(),
                                static_cast<std::size_t>(std::ranges::count_if(sample.entities, [](const SampledEntity& _entity)
                                                                               { return _entity.detonation.has_value(); })),
                                buffer.Newest().paused,
                                camera.target,
+                               targeted != nullptr ? NameOf(names, *targeted) : std::wstring{},
                                camera.chasing};
       const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, world, framesPerSecond, gpu, brightestEmissive);
       if (titleDue)
@@ -671,7 +765,18 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       const std::vector<NeuronCore::Blast> blasts = scene.Blasts(sample);
       renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
                       {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false,
-                       false, blasts});
+                       false, blasts, capturing});
+      if (capturing)
+      {
+        WriteCapture(renderer, captureFile);
+        return;
+      }
+    }
+    // The window closed before the capture's time came, so nothing was written (Design/ADR/ADR-031).
+    if (_options.capture)
+    {
+      throw std::runtime_error(
+        std::format("The window closed before the world's {} seconds, so no capture was written.", _options.capture->worldSeconds));
     }
   }
   catch (...)

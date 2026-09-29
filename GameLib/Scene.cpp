@@ -10,8 +10,9 @@
 namespace GameLib
 {
 
-Scene::Scene(std::span<const NeuronCore::VoxModel> _models, NeuronCore::Float3 _toSun)
-  : m_models(_models),
+Scene::Scene(std::span<const NeuronCore::VoxModel> _models, std::span<const NeuronCore::CompositeModel> _composites, std::size_t _sideCount,
+             NeuronCore::Float3 _toSun)
+  : m_models(_models, _composites, _sideCount),
     m_toSun(_toSun)
 {
 }

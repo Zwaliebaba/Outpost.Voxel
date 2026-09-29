@@ -5,10 +5,13 @@
 #include "Blast.h"
 #include "Float3.h"
 #include "Fragmentation.h"
+#include "Message.h"
 #include "Placement.h"
+#include "RigidTransform.h"
 #include "Sphere.h"
 #include "VoxModel.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -17,17 +20,21 @@
 namespace NeuronClient
 {
 
-// The models a welcome names, measured for drawing its entities (Design/Archive/SpaceScene.md §5.1, §7). An entity stands where
-// the middle of its model's box is, turned by its rotation, and draws as one placement for each part of its model, with
-// the part's origin folded into the placement's transform (§7.1, §7.2). A detonated one draws its parts' debris, blasted
-// from the mean of its model's voxels with the entity's velocity at the event and the event's seed, at the time since
-// the event, each part broken into the fragments its model breaks into (§5.5, §7.7, Design/ADR/ADR-024): so every client
-// poses the same debris from the same event.
+// The models and composites a welcome names, measured for drawing its entities (Design/Archive/SpaceScene.md §5.1, §7;
+// Design/ADR/ADR-029). An entity stands where the middle of its composite's box is, turned by its rotation, and draws as
+// one placement for each part of each of its composite's components, with the component's turn and translation and the
+// part's origin folded into the placement's transform (§7.1, §7.2). Each placement takes its model's palette as the
+// entity's side draws it (NeuronCore::SidePaletteIndex). A detonated entity draws its parts' debris, blasted from the mean
+// of its composite's voxels with the entity's velocity at the event and the event's seed, at the time since the event,
+// each part broken into the fragments its model breaks into (§5.5, §7.7, Design/ADR/ADR-024): so every client poses the
+// same debris from the same event.
 class SceneModels
 {
 public:
-  // Throws std::invalid_argument for a model with no voxel, which no entity can stand in the middle of.
-  explicit SceneModels(std::span<const NeuronCore::VoxModel> _models);
+  // _sideCount is the number of sides the welcome names. Throws std::invalid_argument for a component that names a model
+  // _models lacks, and for a composite with no voxel, which no entity can stand in the middle of.
+  SceneModels(std::span<const NeuronCore::VoxModel> _models, std::span<const NeuronCore::CompositeModel> _composites,
+              std::size_t _sideCount);
 
   // The models, whose records the scene's record buffer holds model after model (NeuronCore::SceneRecords).
   [[nodiscard]] std::span<const NeuronCore::VoxModel> Models() const noexcept
@@ -41,38 +48,52 @@ public:
     return m_fragments;
   }
 
-  // Appends the placements that draw _entity, one per part of its model in the order of its parts. Their ids are
-  // NeuronCore::AssignVoxelIds's to give. Throws std::out_of_range for a model the welcome did not name.
+  // Appends the placements that draw _entity, one per part of each of its composite's components, component after
+  // component and in the order of their parts. Their ids are NeuronCore::AssignVoxelIds's to give. Throws
+  // std::out_of_range for a composite the welcome did not name.
   void Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements) const;
 
-  // The light of _entity's detonation, in the world (Design/ADR/ADR-025): from the mean of its model's voxels, drifting as
-  // its debris drifts, scaled by its model's radius, with the event's seed and the time since; nothing while it is whole.
+  // The light of _entity's detonation, in the world (Design/ADR/ADR-025): from the mean of its composite's voxels,
+  // drifting as its debris drifts, scaled by its composite's radius, with the event's seed and the time since; nothing
+  // while it is whole.
   [[nodiscard]] std::optional<NeuronCore::Blast> Blast(const SampledEntity& _entity) const;
 
-  // The sphere around what _entity draws now: its model's, whole, or its debris's at its time.
+  // The sphere around what _entity draws now: its composite's, whole, or its debris's at its time.
   [[nodiscard]] NeuronCore::Sphere Extent(const SampledEntity& _entity) const;
 
   // The sphere around everything _entity can draw from now on: whole where it is, and its debris at every time, from its
   // event or, while it is whole, as if it detonated now at its velocity. The sun's view is fitted around it.
   [[nodiscard]] NeuronCore::Sphere Reach(const SampledEntity& _entity) const;
 
-  // The radius of model _model's sphere, about the middle of its box.
-  [[nodiscard]] float Radius(std::uint16_t _model) const;
+  // The radius of composite _composite's sphere, about the middle of its box.
+  [[nodiscard]] float Radius(std::uint16_t _composite) const;
 
 private:
+  // One part of one of a composite's components.
+  struct Part
+  {
+    NeuronCore::Placement whole;          // untransformed, with its model's own palette
+    NeuronCore::RigidTransform component; // from its model's space into the composite's
+    bool isIdentity;                      // the component leaves its model where it is
+    NeuronCore::Float3 origin;            // of the part's space, in its model's
+    std::uint32_t model;
+    std::uint32_t part; // within its model
+  };
+
   struct Measure
   {
     NeuronCore::Float3 middle;   // of its box, where an entity's position puts it
     float radius;                // of the sphere about the middle
     NeuronCore::Float3 centroid; // of its voxels' centers, the blast origin
-    std::uint32_t firstPart;     // its parts' whole placements in m_parts
+    std::uint32_t firstPart;     // its parts in m_parts
     std::uint32_t partCount;
   };
 
   std::vector<NeuronCore::VoxModel> m_models;
   NeuronCore::SceneFragments m_fragments; // what a detonated placement's fragments view
+  std::size_t m_sideCount;
   std::vector<Measure> m_measures;
-  std::vector<NeuronCore::Placement> m_parts; // every model's parts, whole and untransformed, model after model
+  std::vector<Part> m_parts; // every composite's parts, composite after composite
 };
 
 } // namespace NeuronClient

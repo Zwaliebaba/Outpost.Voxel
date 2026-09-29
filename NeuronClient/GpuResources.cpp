@@ -96,45 +96,59 @@ winrt::com_ptr<ID3D12Resource> CreateTexture2D(const GraphicsDevice& _device, DX
 std::vector<std::byte> ReadTexture2D(GraphicsDevice& _device, ID3D12Resource* _texture, D3D12_RESOURCE_STATES _state,
                                      std::uint32_t _bytesPerPixel)
 {
-  const D3D12_RESOURCE_DESC desc = _texture->GetDesc();
-  D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
-  UINT rows = 0;
-  UINT64 rowBytes = 0;
-  UINT64 totalBytes = 0;
-  _device.Device()->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &rows, &rowBytes, &totalBytes);
-  const winrt::com_ptr<ID3D12Resource> readback = CreateBuffer(_device, D3D12_HEAP_TYPE_READBACK, totalBytes, L"Texture readback");
-
+  TextureReadback readback{};
   _device.Execute(
     [&](ID3D12GraphicsCommandList* _list)
     {
       const D3D12_RESOURCE_BARRIER toCopy = Transition(_texture, _state, D3D12_RESOURCE_STATE_COPY_SOURCE);
       _list->ResourceBarrier(1, &toCopy);
-      D3D12_TEXTURE_COPY_LOCATION destination{};
-      destination.pResource = readback.get();
-      destination.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-      destination.PlacedFootprint = footprint;
-      D3D12_TEXTURE_COPY_LOCATION source{};
-      source.pResource = _texture;
-      source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-      source.SubresourceIndex = 0;
-      _list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+      readback = RecordTextureReadback(_device, _list, _texture);
       const D3D12_RESOURCE_BARRIER back = Transition(_texture, D3D12_RESOURCE_STATE_COPY_SOURCE, _state);
       _list->ResourceBarrier(1, &back);
     });
+  return ReadTextureReadback(readback, _bytesPerPixel);
+}
 
-  const std::size_t packedRowBytes = static_cast<std::size_t>(desc.Width) * _bytesPerPixel;
-  std::vector<std::byte> pixels(packedRowBytes * rows);
+TextureReadback RecordTextureReadback(const GraphicsDevice& _device, ID3D12GraphicsCommandList* _list, ID3D12Resource* _texture)
+{
+  const D3D12_RESOURCE_DESC desc = _texture->GetDesc();
+  TextureReadback readback{};
+  UINT rows = 0;
+  UINT64 rowBytes = 0;
+  UINT64 totalBytes = 0;
+  _device.Device()->GetCopyableFootprints(&desc, 0, 1, 0, &readback.footprint, &rows, &rowBytes, &totalBytes);
+  readback.buffer = CreateBuffer(_device, D3D12_HEAP_TYPE_READBACK, totalBytes, L"Texture readback");
+  readback.sizeBytes = totalBytes;
+  readback.rows = rows;
+
+  D3D12_TEXTURE_COPY_LOCATION destination{};
+  destination.pResource = readback.buffer.get();
+  destination.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  destination.PlacedFootprint = readback.footprint;
+  D3D12_TEXTURE_COPY_LOCATION source{};
+  source.pResource = _texture;
+  source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  source.SubresourceIndex = 0;
+  _list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+  return readback;
+}
+
+std::vector<std::byte> ReadTextureReadback(const TextureReadback& _readback, std::uint32_t _bytesPerPixel)
+{
+  const std::size_t packedRowBytes = static_cast<std::size_t>(_readback.footprint.Footprint.Width) * _bytesPerPixel;
+  std::vector<std::byte> pixels(packedRowBytes * _readback.rows);
   void* mapped = nullptr;
-  const D3D12_RANGE everything{0, static_cast<SIZE_T>(totalBytes)};
-  winrt::check_hresult(readback->Map(0, &everything, &mapped));
+  const D3D12_RANGE everything{0, static_cast<SIZE_T>(_readback.sizeBytes)};
+  winrt::check_hresult(_readback.buffer->Map(0, &everything, &mapped));
   const auto* source = static_cast<const std::byte*>(mapped);
-  for (UINT row = 0; row < rows; ++row)
+  for (std::uint32_t row = 0; row < _readback.rows; ++row)
   {
     std::memcpy(pixels.data() + row * packedRowBytes,
-                source + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch, packedRowBytes);
+                source + _readback.footprint.Offset + static_cast<std::size_t>(row) * _readback.footprint.Footprint.RowPitch,
+                packedRowBytes);
   }
   const D3D12_RANGE nothingWritten{0, 0};
-  readback->Unmap(0, &nothingWritten);
+  _readback.buffer->Unmap(0, &nothingWritten);
   return pixels;
 }
 

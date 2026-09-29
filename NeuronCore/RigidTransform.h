@@ -37,6 +37,13 @@ struct RigidTransform
   return _transform.translation + RotateVector(_transform.rotation, _point);
 }
 
+// The rotation that turns a vector by _inner and then by _outer: its columns are _inner's, turned by _outer. When _inner
+// is one of the cube's symmetries, every column is one of _outer's or its negation, exactly.
+[[nodiscard]] constexpr Rotation ComposeRotations(const Rotation& _outer, const Rotation& _inner) noexcept
+{
+  return {RotateVector(_outer, _inner.axisX), RotateVector(_outer, _inner.axisY), RotateVector(_outer, _inner.axisZ)};
+}
+
 // _vector in the rotation's own axes: turned back, by the transpose.
 [[nodiscard]] constexpr Float3 UnrotateVector(const Rotation& _rotation, Float3 _vector) noexcept
 {

@@ -5,11 +5,13 @@
     <ClInclude Include="Route.h" />
     <ClInclude Include="ShipMotion.h" />
     <ClInclude Include="Sector.h" />
+    <ClInclude Include="Skirmish.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Route.cpp" />
     <ClCompile Include="ShipMotion.cpp" />
     <ClCompile Include="Sector.cpp" />
+    <ClCompile Include="Skirmish.cpp" />
   </ItemGroup>
 </Project>

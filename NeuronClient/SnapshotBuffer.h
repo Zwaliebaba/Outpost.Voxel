@@ -32,8 +32,9 @@ struct SampledDetonation
 struct SampledEntity
 {
   std::uint32_t id;
-  std::uint16_t modelIndex;
-  NeuronCore::Float3 position;     // where the middle of its model's box is (§5.1)
+  std::uint16_t composite;         // what it is drawn as, by its index in the welcome (Design/ADR/ADR-029)
+  std::uint8_t side;               // 0 for none
+  NeuronCore::Float3 position;     // where the middle of its composite's box is (§5.1)
   NeuronCore::Quaternion rotation; // of unit length, but not always with w >= 0
   NeuronCore::Float3 velocity;
   std::optional<SampledDetonation> detonation; // empty while it is whole

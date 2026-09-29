@@ -596,6 +596,60 @@ hardpoints: 4
       Assert::AreEqual(vox->records.size(), imported->records.size(), what.c_str());
     }
   }
+
+  // Design/ADR/ADR-028: the game draws and measures each asset from its .nvf, flattened, and gets the model the .vox
+  // reader gives it, voxel for voxel. A tree of parts flattens with each part at the sum of its translations.
+  TEST_METHOD(FlattensAsTheVoxReaderReads)
+  {
+    const auto sameCell = [](Int3 _a, Int3 _b) { return _a.x == _b.x && _a.y == _b.y && _a.z == _b.z; };
+    for (const char* asset : {"MilitaryStation", "CapitalShip", "Frigate"})
+    {
+      const std::wstring what = Widen(asset);
+      const auto vox = NeuronCore::LoadVoxModel(FindRepositoryFile(std::filesystem::path("GameData") / (std::string(asset) + ".vox")));
+      const auto nvf = NeuronCore::LoadNvfModel(FindRepositoryFile(std::filesystem::path("GameData") / (std::string(asset) + ".nvf")));
+      Assert::IsTrue(vox.has_value() && nvf.has_value(), what.c_str());
+      const NeuronCore::VoxModel flat = NeuronCore::FlattenNvfModel(*nvf);
+      Assert::IsTrue(flat.records == vox->records, (what + L"'s records, in order").c_str());
+      Assert::AreEqual(vox->instances.size(), flat.instances.size(), what.c_str());
+      for (std::size_t i = 0; i < flat.instances.size(); ++i)
+      {
+        const NeuronCore::ModelInstance& expected = vox->instances[i];
+        const NeuronCore::ModelInstance& actual = flat.instances[i];
+        Assert::IsTrue(sameCell(expected.origin, actual.origin) && sameCell(expected.size, actual.size), (what + L"'s placement").c_str());
+        Assert::AreEqual(expected.firstRecord, actual.firstRecord, what.c_str());
+        Assert::AreEqual(expected.recordCount, actual.recordCount, what.c_str());
+        Assert::IsTrue(NeuronCore::IsIdentityRotation(actual.rotation), what.c_str());
+      }
+      for (std::size_t entry = 0; entry < flat.palette.size(); ++entry)
+      {
+        const NeuronCore::PaletteEntry& expected = vox->palette[entry];
+        const NeuronCore::PaletteEntry& actual = flat.palette[entry];
+        Assert::IsTrue(expected.red == actual.red && expected.green == actual.green && expected.blue == actual.blue &&
+                         expected.alpha == actual.alpha && expected.emissive == actual.emissive && expected.emit == actual.emit &&
+                         expected.flux == actual.flux,
+                       std::format(L"{}'s palette entry {}", what, entry + 1).c_str());
+      }
+      const auto voxBounds = NeuronCore::OccupiedBounds(*vox);
+      const auto flatBounds = NeuronCore::OccupiedBounds(flat);
+      Assert::IsTrue(voxBounds.has_value() && flatBounds.has_value() && sameCell(voxBounds->lower, flatBounds->lower) &&
+                       sameCell(voxBounds->upper, flatBounds->upper),
+                     (what + L"'s bounds, which place its entities").c_str());
+    }
+
+    const NvfModel golden = GoldenNvfModel();
+    const NeuronCore::VoxModel flat = NeuronCore::FlattenNvfModel(golden);
+    constexpr std::array<Int3, 3> ORIGINS{{{-2, 0, -3}, {-1, 3, -1}, {0, 4, 2}}};
+    Assert::AreEqual(ORIGINS.size(), flat.instances.size());
+    for (std::size_t part = 0; part < ORIGINS.size(); ++part)
+    {
+      const NeuronCore::ModelInstance& instance = flat.instances[part];
+      Assert::IsTrue(sameCell(ORIGINS[part], instance.origin), Widen(golden.parts[part].path).c_str());
+      Assert::AreEqual(golden.parts[part].path, instance.name);
+      Assert::AreEqual(golden.parts[part].firstVoxel, instance.firstRecord);
+      Assert::AreEqual(golden.parts[part].voxelCount, instance.recordCount);
+    }
+    Assert::IsTrue(flat.records == golden.records);
+  }
 };
 
 } // namespace NeuronCoreTests

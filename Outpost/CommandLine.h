@@ -3,6 +3,7 @@
 #include "Game.h"
 
 #include "Sector.h"
+#include "Skirmish.h"
 
 #include <cstdint>
 #include <expected>
@@ -18,8 +19,9 @@ namespace Outpost
 struct Options
 {
   GameLib::GameOptions game;
-  GameLogic::SectorParameters world;
-  std::optional<std::uint32_t> benchSeconds; // the timeline's length in seconds, rather than the interactive client
+  GameLogic::SectorParameters world;                     // the space scene's sector, which the server simulates by default
+  std::optional<GameLogic::SkirmishParameters> skirmish; // --skirmish: the MVP's skirmish in its place (Design/ADR/ADR-030)
+  std::optional<std::uint32_t> benchSeconds;             // the timeline's length in seconds, rather than the interactive client
 };
 
 // Parses the arguments after the program's name. On a mistake, the message says what was wrong and how the line is used.

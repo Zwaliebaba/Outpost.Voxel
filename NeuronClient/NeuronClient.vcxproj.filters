@@ -48,6 +48,8 @@
     <ClInclude Include="PlacementConstants.h" />
     <ClInclude Include="SceneModels.h" />
     <ClInclude Include="SnapshotBuffer.h" />
+    <ClInclude Include="CapturedFrame.h" />
+    <ClInclude Include="ComApartment.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BloomChain.cpp" />
@@ -87,6 +89,7 @@
     <ClCompile Include="SceneModels.cpp" />
     <ClCompile Include="SnapshotBuffer.cpp" />
     <ClCompile Include="ToneMapPass.cpp" />
+    <ClCompile Include="CapturedFrame.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

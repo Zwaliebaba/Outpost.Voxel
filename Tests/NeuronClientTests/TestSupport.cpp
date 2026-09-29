@@ -81,7 +81,7 @@ NeuronCore::VoxModel LoadGameData(const wchar_t* _fileName)
 
 std::filesystem::path GameDataDirectory()
 {
-  return FindGameData(L"MilitaryStation.vox").parent_path();
+  return FindGameData(L"MilitaryStation.nvf").parent_path();
 }
 
 NeuronCore::VoxModel LoadMilitaryStation()

@@ -26,8 +26,24 @@ public:
 
   [[nodiscard]] virtual const NeuronCore::WorldSettings& Settings() const noexcept = 0;
 
-  // The models the world places, which an entity names by its index here.
+  // The models the world places, which its composites name by their index here.
   [[nodiscard]] virtual std::span<const NeuronCore::ManifestEntry> Manifest() const noexcept = 0;
+
+  // What an entity may be drawn as, which it names by its index here (Design/ADR/ADR-029).
+  [[nodiscard]] virtual std::span<const NeuronCore::CompositeModel> Composites() const noexcept = 0;
+
+  // The sides' colors: an entity of side n is of Sides()[n - 1], and one of side 0 of none. A world of no sides has none.
+  [[nodiscard]] virtual std::span<const NeuronCore::SideColor> Sides() const noexcept
+  {
+    return {};
+  }
+
+  // The game's own payload for the welcome, which the host sends without reading (ADR-029). A world with nothing to say
+  // sends none.
+  [[nodiscard]] virtual std::span<const std::uint8_t> WelcomePayload() const noexcept
+  {
+    return {};
+  }
 
   // Advances the world by one tick, to world tick _worldTick. The host does not call it while the world is paused.
   virtual void Advance(std::uint64_t _worldTick) = 0;

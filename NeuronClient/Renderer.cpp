@@ -14,7 +14,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <format>
+#include <optional>
 #include <stdexcept>
+#include <utility>
 
 namespace NeuronClient
 {
@@ -38,12 +40,15 @@ constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
 // The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, and the detonations' light,
 // three pieces, and gas shells, two, besides the placements (Design/ADR/ADR-025).
 constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{9} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-static_assert(sizeof(NeuronCore::BlastLighting) <= 3 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-static_assert(sizeof(NeuronCore::GasShells) <= 2 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(NeuronCore::BlastLighting) <= std::size_t{3} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(NeuronCore::GasShells) <= std::size_t{2} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
+// A captured frame's pixels are the swap chain's as they are (Design/ADR/ADR-031).
+static_assert(SwapChain::BUFFER_FORMAT == DXGI_FORMAT_R8G8B8A8_UNORM && CAPTURED_BYTES_PER_PIXEL == 4);
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
 // no bound: records beyond the scene's, a palette it lacks, a detonation's fragments beyond the scene's, and ids that
@@ -59,10 +64,10 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
     {
       throw std::invalid_argument(std::format("Placement {} draws records beyond the scene's {}.", i, _scene.RecordCount()));
     }
-    if (placement.paletteIndex >= _scene.ModelCount())
+    if (placement.paletteIndex >= _scene.PaletteCount())
     {
       throw std::invalid_argument(
-        std::format("Placement {} takes palette {}, of the scene's {}.", i, placement.paletteIndex, _scene.ModelCount()));
+        std::format("Placement {} takes palette {}, of the scene's {}.", i, placement.paletteIndex, _scene.PaletteCount()));
     }
     if (placement.detonation.has_value())
     {
@@ -111,7 +116,8 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
 
 } // namespace
 
-Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments)
+Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxModel> _models, const NeuronCore::SceneFragments& _fragments,
+                   std::span<const NeuronCore::SideColor> _sides)
   : m_device(_desc.device),
     m_rtvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, RTV_CAPACITY, false, L"Render target views"),
     m_dsvHeap(m_device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DSV_CAPACITY, false, L"Depth stencil views"),
@@ -121,7 +127,7 @@ Renderer::Renderer(const RendererDesc& _desc, std::span<const NeuronCore::VoxMod
     m_targets(m_rtvHeap, m_dsvHeap, m_shaderHeap, m_cpuHeap),
     m_shadowView(_desc.shadowView),
     m_shadowMap(m_device, m_dsvHeap, m_shaderHeap, _desc.shadowView.widthPixels),
-    m_scene(m_device, _models, _fragments),
+    m_scene(m_device, _models, _fragments, _sides),
     m_shadowSplat(m_device, SplatPass::Kind::Shadow),
     m_viewSplat(m_device, SplatPass::Kind::View),
     m_viewSplatPlainDepth(m_device, SplatPass::Kind::View, SplatPass::Variant::PlainDepth),
@@ -317,7 +323,18 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   }
   m_canvas.Record(list, m_frameIndex, WidthPixels(), HeightPixels());
   m_queries.EndPass(list, m_frameIndex, GpuPass::Canvas);
-  const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+  // A capture copies the frame as it will be presented, since the flip model discards the buffer's contents when it
+  // presents it (Design/ADR/ADR-031).
+  std::optional<TextureReadback> captured;
+  D3D12_RESOURCE_STATES finished = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  if (_settings.capture)
+  {
+    const D3D12_RESOURCE_BARRIER toCopy = Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    list->ResourceBarrier(1, &toCopy);
+    captured = RecordTextureReadback(m_device, list, backBuffer);
+    finished = D3D12_RESOURCE_STATE_COPY_SOURCE;
+  }
+  const D3D12_RESOURCE_BARRIER toPresent = Transition(backBuffer, finished, D3D12_RESOURCE_STATE_PRESENT);
   list->ResourceBarrier(1, &toPresent);
   m_queries.Resolve(list, m_frameIndex);
   winrt::check_hresult(list->Close());
@@ -326,6 +343,10 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   m_device.Queue()->ExecuteCommandLists(static_cast<UINT>(lists.size()), lists.data());
   m_swapChain.Present(_settings.vsync);
   frame.fenceValue = m_device.Signal();
+  if (captured.has_value())
+  {
+    m_capture = PendingCapture{std::move(*captured), frame.fenceValue};
+  }
   ++m_frameNumber;
   m_frameIndex = (m_frameIndex + 1) % FRAMES_IN_FLIGHT;
 }
@@ -350,6 +371,19 @@ void Renderer::FinishFrames()
       m_statistics.push_back(*statistics);
     }
   }
+}
+
+std::optional<CapturedFrame> Renderer::TakeCapture()
+{
+  if (!m_capture.has_value())
+  {
+    return std::nullopt;
+  }
+  const PendingCapture capture = std::move(*m_capture);
+  m_capture.reset();
+  m_device.WaitFor(capture.fenceValue);
+  const D3D12_SUBRESOURCE_FOOTPRINT& footprint = capture.readback.footprint.Footprint;
+  return CapturedFrame{footprint.Width, footprint.Height, ReadTextureReadback(capture.readback, CAPTURED_BYTES_PER_PIXEL)};
 }
 
 const SplatPass& Renderer::ViewSplat(SplatPass::Variant _variant) const noexcept
