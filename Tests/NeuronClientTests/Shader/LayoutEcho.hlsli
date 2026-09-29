@@ -180,7 +180,7 @@ void Echo3(inout uint _word, uint3 _value)
   Echo(word, asuint(g_blastLighting.padding0));
   Echo(word, asuint(g_blastLighting.padding1));
 
-  [unroll] for (uint shell = 0u; shell < MAX_LIT_BLASTS; ++shell)
+  [unroll] for (uint shell = 0u; shell < MAX_GAS_SHELLS; ++shell)
   {
     Echo3(word, asuint(g_gasShells.shells[shell].center));
     Echo(word, asuint(g_gasShells.shells[shell].radius));
