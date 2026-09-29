@@ -390,7 +390,7 @@ What it takes from the look is some softness where history is rejected or clampe
 
 **Keys.** E detonates the camera's target and R restores it, commands to the server for testing (§5.5); Space pauses the server. 1 shows the lit image, 2–6 the debug views as today, and 7 the cascade view; T toggles temporal anti-aliasing. [ and ] set the emissive gain, V vsync, F1 the key map and F2 the figures; Alt+F4 quits.
 
-**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is.
+**Figures,** in the title and on the panel: as today, plus the server's tick and the client's delay behind it; the entities and the detonations in progress; the placements drawn and culled and the voxels drawn, per view and per cascade; the GPU time of the sky, of bloom, of the resolve and of each cascade; and "paused" when the server is. On 2026-09-29 the owner asked for the frame rate, in frames a second, in place of the frame time; the GPU's times stay in milliseconds.
 
 ## 14. `--bench`
 

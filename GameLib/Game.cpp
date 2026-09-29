@@ -367,17 +367,17 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   return brightest;
 }
 
-// What the title and the panel on screen carry (§13): the adapter, the view, the mean frame time and the GPU's figures
+// What the title and the panel on screen carry (§13): the adapter, the view, the mean frame rate and the GPU's figures
 // once there are some, the world's, and whatever else is not at its default.
 [[nodiscard]] std::vector<std::wstring> Figures(const NeuronClient::GraphicsDevice& _device, const Controls& _controls,
-                                                const WorldFigures& _world, std::optional<double> _frameSeconds, const GpuFigures& _gpu,
+                                                const WorldFigures& _world, std::optional<double> _framesPerSecond, const GpuFigures& _gpu,
                                                 float _brightestEmissive)
 {
   std::vector<std::wstring> figures{_device.AdapterName(),
                                     _controls.debugView ? DEBUG_VIEW_NAMES[static_cast<std::size_t>(*_controls.debugView)] : L"lit"};
-  if (_frameSeconds)
+  if (_framesPerSecond)
   {
-    figures.push_back(std::format(L"frame {:.2f} ms", *_frameSeconds * 1000.0));
+    figures.push_back(std::format(L"{:.0f} fps", *_framesPerSecond));
   }
   if (_gpu.frames > 0)
   {
@@ -490,7 +490,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
     NeuronClient::Clock clock;
     double sinceTitleSeconds = 0.0;
     std::uint32_t framesSinceTitle = 0;
-    std::optional<double> frameSeconds;
+    std::optional<double> framesPerSecond;
     GpuFigures gpu;      // shown
     GpuFigures gpuSince; // collected since the title was last brought up to date
     while (window.PumpMessages())
@@ -521,7 +521,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       }
       if (titleDue)
       {
-        frameSeconds = sinceTitleSeconds / framesSinceTitle;
+        framesPerSecond = framesSinceTitle / sinceTitleSeconds;
         sinceTitleSeconds = 0.0;
         framesSinceTitle = 0;
         gpu = gpuSince;
@@ -537,7 +537,7 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
                                buffer.Newest().paused,
                                camera.target,
                                camera.chasing};
-      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, world, frameSeconds, gpu, brightestEmissive);
+      const std::vector<std::wstring> figures = Figures(renderer.Device(), controls, world, framesPerSecond, gpu, brightestEmissive);
       if (titleDue)
       {
         window.SetTitle(L"Outpost - " + Joined(figures, L" - "));
