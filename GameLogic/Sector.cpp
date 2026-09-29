@@ -421,13 +421,7 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
     sector->m_flights.push_back({members, std::move(route), members.front()});
   }
 
-  sector->m_settings = {NeuronCore::SunDirection(SUN_DEGREES * RADIANS_PER_DEGREE, SUN_DEGREES * RADIANS_PER_DEGREE),
-                        {SUN_RADIANCE, SUN_RADIANCE, SUN_RADIANCE},
-                        SUN_ANGULAR_RADIUS,
-                        {AMBIENT_UPPER, AMBIENT_UPPER, AMBIENT_UPPER},
-                        {AMBIENT_LOWER, AMBIENT_LOWER, AMBIENT_LOWER},
-                        _parameters.seed,
-                        GALACTIC_PLANE};
+  sector->m_settings = SpaceSettings(_parameters.seed);
   if (lifetime > 0.0f)
   {
     sector->m_lifetimeTicks =
@@ -439,6 +433,17 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
 std::uint32_t Sector::TickRate() const noexcept
 {
   return m_parameters.tickRate;
+}
+
+NeuronCore::WorldSettings SpaceSettings(std::uint32_t _skySeed) noexcept
+{
+  return {NeuronCore::SunDirection(SUN_DEGREES * RADIANS_PER_DEGREE, SUN_DEGREES * RADIANS_PER_DEGREE),
+          {SUN_RADIANCE, SUN_RADIANCE, SUN_RADIANCE},
+          SUN_ANGULAR_RADIUS,
+          {AMBIENT_UPPER, AMBIENT_UPPER, AMBIENT_UPPER},
+          {AMBIENT_LOWER, AMBIENT_LOWER, AMBIENT_LOWER},
+          _skySeed,
+          GALACTIC_PLANE};
 }
 
 const NeuronCore::WorldSettings& Sector::Settings() const noexcept

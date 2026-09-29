@@ -1,6 +1,6 @@
 # ADR-030 — The skirmish: its layout, its designs as composites, and its names
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4, in `GameCore` first; `GameLogic::Skirmish` and the command line follow in the same phase, and add to this ADR · **Amends:** [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4: `GameCore`'s layout, composites and names, then `GameLogic::Skirmish`; the command line follows in the same phase · **Amends:** [`AGENTS.md`](../../AGENTS.md) §2, where `GameLogic` and its suite now reference `GameCore`; and [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes
 
 ## Context
 
@@ -59,6 +59,22 @@ By arithmetic from the centers and radii, every asteroid of a middle field is an
 - **Refusals:** `Truncated`, `UnsupportedVersion`, `BadName` and `TrailingBytes`. A count beyond the bytes is refused before anything is reserved for it.
 - **An empty payload,** such as the sector's, names nothing, and is not refused.
 
+**The world** is `GameLogic::Skirmish`, a `World` beside the sector, which `GameLogic` builds on `GameCore` to serve. It references `GameCore`, as ADR-026 foresaw for the change that first links it.
+- **What it validates.** `Create` validates every design of the catalogue, as the server validates any design that enters a match. A hull it cannot read is `ModelNotLoaded`, and any other refusal `DesignRefused`, with the design's name and ValidateDesign's reason.
+- **Its models.** It reads each model the composites name from `<name>.nvf`, and hashes and flattens it as the sector does ([ADR-028](ADR-028-game-reads-nvf.md)). The order is each design's hull and modules, then the asteroids.
+- **Its welcome** names:
+  - the composites: the catalogue's five designs, then the three asteroids;
+  - the two sides' colors;
+  - in its payload, their names.
+
+  The space scene's lighting and sky are shared through `SpaceSettings`, the sector's tuned constants, so the two worlds look alike.
+- **Its entities,** by id:
+  - side 1's core and ships, then side 2's;
+  - then the asteroids, of no side.
+
+  Each stands at its anchor's `AnchoredPosition`, about the middle of its composite's `CompositeBounds`. Its rotation is the NVF importer's quaternion of its turn, so every voxel is exact and every entity draws aligned.
+- **Nothing moves** until phase 4 gives ships orders. An entity detonates on command, once, with a seed from `PcgHash` of the skirmish's count of detonations offset by its seed (R21), and is restored whole.
+
 **Tests.** `GameCoreTests` gains 10:
 - `SkirmishLayoutTests`, 5:
   - the layout is its own half turn, with the sides exchanged, on 20 seeds, each image found among the whole layout;
@@ -69,7 +85,17 @@ By arithmetic from the centers and radii, every asteroid of a middle field is an
 - `DesignCompositeTests`, 2: every module of every MVP design fills its mount's box, with its center on the mount's and facing the way the mount faces; and a missing model is refused by name.
 - `WelcomeNamesTests`, 3: the round trip, each refusal by name, and a name too long to encode.
 
-All 50 pass natively, built by GCC 13.3 against the stand-in for the test framework: at `-O1`, again under `-O2 -mfma -ffp-contract=fast`, and with `<windows.h>`'s plain-word macros defined, as MSVC's builds see them.
+`GameLogicTests` gains `SkirmishTests`, 6:
+- the world is its own half turn on 20 seeds, each entity's image found among all of them, with the side exchanged, standing exactly at the half turn and turned by it;
+- it serves the layout and its names;
+- everything stands aligned;
+- two hosts of one seed send the same bytes over a detonation and a restore, and another seed differs;
+- detonations come on command;
+- refusals come by name.
+
+GameCore's 50 pass natively, built by GCC 13.3 against the stand-in for the test framework: at `-O1`, again under `-O2 -mfma -ffp-contract=fast`, and with `<windows.h>`'s plain-word macros defined, as MSVC's builds see them.
+
+The logic suite's 22 pass natively the same way.
 
 ## What this forecloses
 

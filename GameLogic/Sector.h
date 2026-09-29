@@ -65,6 +65,10 @@ inline constexpr float WORLD_BOUND = 16384.0f;
 // How far a ship keeps from a station's sphere, beyond its own (§5.2).
 inline constexpr float KEEP_OUT_MARGIN = 50.0f;
 
+// The lighting and the sky every world of space shares, the sector's and the skirmish's (§11, §12.1): the sun and the
+// ambient as the owner tuned them, and a sky drawn from _skySeed.
+[[nodiscard]] NeuronCore::WorldSettings SpaceSettings(std::uint32_t _skySeed) noexcept;
+
 // A sector of space, the space scene's world (§5): stations laid out from a seed, flights of ships on routes around and
 // between them, and the detonations of either. It loads its models itself, to measure them and to hash their files for
 // the welcome.
