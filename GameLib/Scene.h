@@ -19,9 +19,9 @@ namespace GameLib
 // How much the sun's view grows beyond what it must hold, when something reaches past it.
 inline constexpr float SHADOW_VIEW_GROWTH = 1.25f;
 
-// The tone map's exposure, a multiplier: the station file's _film _expo of 1, which the client keeps now that the rest
-// of the lighting comes from the world (Design/SpaceScene.md §12.1).
-inline constexpr float EXPOSURE = 1.0f;
+// The tone map's exposure, a multiplier, which the client keeps now that the rest of the lighting comes from the world:
+// 1.772, as the owner tuned it by eye on 2026-09-29 (Design/SpaceScene.md §12.1).
+inline constexpr float EXPOSURE = 1.772f;
 
 // What the client shows of the world (Design/SpaceScene.md §6.1, §7): the placements its entities draw at a render time,
 // and the sun's view they are lit in. Until S-M7's cascades the sun's view is one square fitted to the whole layout

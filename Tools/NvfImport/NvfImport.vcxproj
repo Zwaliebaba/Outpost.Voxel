@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{D4BE4895-F1D3-48A9-B9DE-452E75937EC5}</ProjectGuid>
+    <ProjectGuid>{F31EBE4C-558F-58F7-34D1-25C16717A148}</ProjectGuid>
     <RootNamespace>NvfImport</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>

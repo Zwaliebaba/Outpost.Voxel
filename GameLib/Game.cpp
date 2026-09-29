@@ -75,6 +75,20 @@ constexpr float EMISSIVE_STEP = 1.1f;
 constexpr float EMISSIVE_GAIN_MINIMUM = 0.01f;
 constexpr float EMISSIVE_GAIN_MAXIMUM = 100.0f;
 
+// F3's tuning of the look, which the owner judges by eye (Design/SpaceScene.md §12.1): Up and Down choose a value, Left
+// and Right scale it by TUNING_STEP within the emissive gain's bounds, or move the balance by BALANCE_STEP.
+enum class Tuned : std::uint8_t
+{
+  Ambient,
+  Balance,
+  Sun,
+  Exposure
+};
+constexpr std::uint32_t TUNED_COUNT = 4;
+constexpr float TUNING_STEP = 1.1f;
+constexpr float BALANCE_STEP = 0.1f;
+constexpr float BALANCE_LIMIT = 0.9f;
+
 // Keys 2 to 6 choose these debug views; key 1 returns to the lit image.
 constexpr std::array<const wchar_t*, NeuronCore::DEBUG_VIEW_COUNT> DEBUG_VIEW_NAMES{L"albedo", L"normal", L"voxel index", L"shadow map",
                                                                                     L"overdraw"};
@@ -99,7 +113,20 @@ constexpr const wchar_t* KEY_MAP = L"Left drag\torbit (fly mode: look)\n"
                                    L"V\tvsync\n"
                                    L"F1\tthis key map\n"
                                    L"F2\tthe figures on screen\n"
+                                   L"F3\ttune the lighting: Up Down choose, Left Right change, Home reset, P print to the debugger\n"
                                    L"Alt+F4\tquit";
+
+// What F3 tunes: multipliers on the welcome's world settings, which stay as the server sent them, and the exposure, which
+// only the client has. Nothing of it reaches the server (AGENTS.md R18).
+struct Tuning
+{
+  bool shown = false;
+  Tuned chosen = Tuned::Ambient;
+  float ambientScale = 1.0f;
+  float balance = 0.0f; // from the ground's color, -1, to the sky's, +1; their mean, what a side face sees, stays
+  float sunScale = 1.0f;
+  float exposure = EXPOSURE;
+};
 
 struct Controls
 {
@@ -107,6 +134,7 @@ struct Controls
   bool vsync = false;
   bool figures = true; // on screen; the title always carries them
   float emissiveGain = 1.0f;
+  Tuning tuning;
 };
 
 // The camera of §13: an orbit about the target entity, which follows it as it moves; a chase camera behind it; or free
@@ -351,6 +379,84 @@ void Choose(Controls& _controls, const InputState& _input, HWND _window)
   {
     _controls.figures = !_controls.figures;
   }
+  if (_input.WasKeyPressed(VK_F3))
+  {
+    _controls.tuning.shown = !_controls.tuning.shown;
+  }
+}
+
+// F3's keys, while the tuning is shown.
+void Tune(Tuning& _tuning, const InputState& _input) noexcept
+{
+  if (!_tuning.shown)
+  {
+    return;
+  }
+  auto chosen = static_cast<std::uint32_t>(_tuning.chosen);
+  if (_input.WasKeyPressed(VK_DOWN))
+  {
+    chosen = (chosen + 1) % TUNED_COUNT;
+  }
+  if (_input.WasKeyPressed(VK_UP))
+  {
+    chosen = (chosen + TUNED_COUNT - 1) % TUNED_COUNT;
+  }
+  _tuning.chosen = static_cast<Tuned>(chosen);
+  const float steps = (_input.WasKeyPressed(VK_RIGHT) ? 1.0f : 0.0f) - (_input.WasKeyPressed(VK_LEFT) ? 1.0f : 0.0f);
+  const float scale = std::pow(TUNING_STEP, steps);
+  const auto scaled = [scale](float _value) { return std::clamp(_value * scale, EMISSIVE_GAIN_MINIMUM, EMISSIVE_GAIN_MAXIMUM); };
+  switch (_tuning.chosen)
+  {
+  case Tuned::Ambient:
+    _tuning.ambientScale = scaled(_tuning.ambientScale);
+    break;
+  case Tuned::Balance:
+    _tuning.balance = std::clamp(_tuning.balance + steps * BALANCE_STEP, -BALANCE_LIMIT, BALANCE_LIMIT);
+    break;
+  case Tuned::Sun:
+    _tuning.sunScale = scaled(_tuning.sunScale);
+    break;
+  case Tuned::Exposure:
+    _tuning.exposure = scaled(_tuning.exposure);
+    break;
+  }
+  if (_input.WasKeyPressed(VK_HOME))
+  {
+    _tuning = Tuning{.shown = true, .chosen = _tuning.chosen};
+  }
+}
+
+// The world's settings as the tuning has them: what the lighting and the sky draw, and what P prints for the owner to make
+// the defaults in GameLogic's Sector.cpp.
+[[nodiscard]] NeuronCore::WorldSettings TunedSettings(const NeuronCore::WorldSettings& _settings, const Tuning& _tuning) noexcept
+{
+  NeuronCore::WorldSettings tuned = _settings;
+  tuned.ambientUpper = _settings.ambientUpper * (_tuning.ambientScale * (1.0f + _tuning.balance));
+  tuned.ambientLower = _settings.ambientLower * (_tuning.ambientScale * (1.0f - _tuning.balance));
+  tuned.sunRadiance = _settings.sunRadiance * _tuning.sunScale;
+  return tuned;
+}
+
+// The tuning's lines on the panel, the chosen one marked. The colors are shown by their red, as the defaults are white.
+[[nodiscard]] std::vector<std::wstring> TuningFigures(const NeuronCore::WorldSettings& _tuned, const Tuning& _tuning)
+{
+  const auto line = [&_tuning](Tuned _value, const std::wstring& _text)
+  { return std::wstring(_tuning.chosen == _value ? L"> " : L"  ") + _text; };
+  return {L"tuning: Up Down choose, Left Right change, Home reset, P print",
+          line(Tuned::Ambient, std::format(L"ambient x{:.2f}: sky {:.3f}, ground {:.3f}", _tuning.ambientScale, _tuned.ambientUpper.x,
+                                           _tuned.ambientLower.x)),
+          line(Tuned::Balance, std::format(L"ambient balance {:+.1f}", _tuning.balance)),
+          line(Tuned::Sun, std::format(L"sun x{:.2f}: {:.3f}", _tuning.sunScale, _tuned.sunRadiance.x)),
+          line(Tuned::Exposure, std::format(L"exposure {:.3f}", _tuning.exposure))};
+}
+
+// What P prints to the debugger: the tuned values, as Sector.cpp and Scene.h spell them.
+void PrintTuning(const NeuronCore::WorldSettings& _tuned, const Tuning& _tuning, float _emissiveGain)
+{
+  const std::wstring text =
+    std::format(L"Tuned lighting: sun radiance {:.4f}, ambient upper {:.4f}, ambient lower {:.4f}, exposure {:.4f}, emissive gain {:.4f}\n",
+                _tuned.sunRadiance.x, _tuned.ambientUpper.x, _tuned.ambientLower.x, _tuning.exposure, _emissiveGain);
+  OutputDebugStringW(text.c_str());
 }
 
 // The largest emissive scale in any model's palette: what the title reports, times the gain, as the glow the viewer tunes.
@@ -464,7 +570,6 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
   const NeuronCore::WorldSettings settings = session.Settings();
   const std::vector<NeuronCore::StarRecord> stars =
     NeuronCore::MakeStarCatalog(settings.skySeed, settings.galacticPlane, NeuronCore::STAR_COUNT);
-  const NeuronCore::SkyParameters sky = NeuronCore::MakeSkyParameters(settings);
   Scene scene(session.Models(), settings.toSun);
   const float brightestEmissive = BrightestEmissiveScale(session.Models());
   WorldSample sample = session.Buffer().Sample(session.Buffer().RenderTick(now()));
@@ -505,6 +610,12 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       Steer(camera, scene, sample, input, current.heightPixels, static_cast<float>(seconds));
       Command(session, camera.target, buffer.Newest().paused, input);
       Choose(controls, input, window.Handle());
+      Tune(controls.tuning, input);
+      const NeuronCore::WorldSettings tuned = TunedSettings(settings, controls.tuning);
+      if (controls.tuning.shown && input.WasKeyPressed('P'))
+      {
+        PrintTuning(tuned, controls.tuning, controls.emissiveGain);
+      }
       input.EndFrame();
       if (current.widthPixels == 0 || current.heightPixels == 0)
       {
@@ -542,17 +653,23 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       {
         window.SetTitle(L"Outpost - " + Joined(figures, L" - "));
       }
-      if (controls.figures)
+      std::vector<std::wstring> panel = controls.figures ? figures : std::vector<std::wstring>{};
+      if (controls.tuning.shown)
       {
-        DrawFigures(renderer.Overlay(), figures, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
+        std::ranges::move(TuningFigures(tuned, controls.tuning), std::back_inserter(panel));
+      }
+      if (!panel.empty())
+      {
+        DrawFigures(renderer.Overlay(), panel, static_cast<float>(GetDpiForWindow(window.Handle())) / USER_DEFAULT_SCREEN_DPI);
       }
       if (scene.FitShadowView(sample))
       {
         renderer.SetShadowView(scene.ShadowView());
       }
-      const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(settings, controls.emissiveGain);
-      renderer.Render(camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
-                      {controls.debugView, lighting, sky, EXPOSURE, controls.vsync, false, false});
+      const NeuronCore::LightingParameters lighting = NeuronCore::MakeLightingParameters(tuned, controls.emissiveGain);
+      renderer.Render(
+        camera.View(current.widthPixels, current.heightPixels), scene.Place(sample),
+        {controls.debugView, lighting, NeuronCore::MakeSkyParameters(tuned), controls.tuning.exposure, controls.vsync, false, false});
     }
   }
   catch (...)

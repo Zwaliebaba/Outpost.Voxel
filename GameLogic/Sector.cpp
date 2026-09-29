@@ -67,13 +67,14 @@ constexpr float FRIGATE_BANK_RATE = 60.0f * RADIANS_PER_DEGREE;
 constexpr float WINGMAN_LOW_SPEED = 0.5f;
 constexpr float WINGMAN_TOP_SPEED = 1.25f;
 
-// §12.1 and §11.4: the lighting's defaults, and a placeholder for the sky's until S-M5 tunes it: a sun from the
-// station's _angle of 50 and 50 degrees at 0.7, a dim hemisphere, a sun 0.27 degrees across, and the galaxy's plane
-// turned 60 degrees about x.
+// §12.1 and §11.4: the lighting's defaults, as the owner tuned them by eye on 2026-09-29, and a placeholder for the sky's
+// until S-M5 tunes it: a sun from the station's _angle of 50 and 50 degrees at 0.932, a dim hemisphere brighter above than
+// below, a sun 0.27 degrees across, and the galaxy's plane turned 60 degrees about x.
 constexpr float SUN_DEGREES = 50.0f;
-constexpr float SUN_RADIANCE = 0.7f;
+constexpr float SUN_RADIANCE = 0.932f;
 constexpr float SUN_ANGULAR_RADIUS = 0.27f * RADIANS_PER_DEGREE;
-constexpr float AMBIENT = 0.05f;
+constexpr float AMBIENT_UPPER = 0.167f;
+constexpr float AMBIENT_LOWER = 0.090f;
 constexpr NeuronCore::Quaternion GALACTIC_PLANE{0.5f, 0.0f, 0.0f, 0.8660254f};
 
 // The world's randomness (§5.2): PcgHash of an index and a stream, offset by the seed as a detonation offsets its
@@ -419,8 +420,8 @@ std::expected<std::unique_ptr<Sector>, SectorError> Sector::Create(const SectorP
   sector->m_settings = {NeuronCore::SunDirection(SUN_DEGREES * RADIANS_PER_DEGREE, SUN_DEGREES * RADIANS_PER_DEGREE),
                         {SUN_RADIANCE, SUN_RADIANCE, SUN_RADIANCE},
                         SUN_ANGULAR_RADIUS,
-                        {AMBIENT, AMBIENT, AMBIENT},
-                        {AMBIENT, AMBIENT, AMBIENT},
+                        {AMBIENT_UPPER, AMBIENT_UPPER, AMBIENT_UPPER},
+                        {AMBIENT_LOWER, AMBIENT_LOWER, AMBIENT_LOWER},
                         _parameters.seed,
                         GALACTIC_PLANE};
   if (lifetime > 0.0f)

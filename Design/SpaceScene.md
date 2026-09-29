@@ -345,8 +345,11 @@ SampleRenderer §11's formula stays. What changes is where its values come from:
 
 The defaults:
 
-- **The sun** from the station's `_angle` of 50°, 50° as ADR-008 reads it after N-M0's conversion, at `_i` 0.7, white.
-- **The hemisphere's two colors** equal and dim (0.05, white), so that a face turned away from the sun is dark but not black.
+- **The sun** from the station's `_angle` of 50°, 50° as ADR-008 reads it after N-M0's conversion, at 0.932, white.
+- **The hemisphere's two colors** dim and white, 0.167 above and 0.090 below, so that a face turned away from the sun is dark but not black and the hull's shape still reads in it.
+- **The exposure** 1.772, which the client holds.
+
+The owner tuned the sun, the hemisphere and the exposure by eye on 2026-09-29, with the client's F3 panel; they had been the station file's `_i` 0.7, an equal 0.05 and its `_expo` of 1.
 - **The background** black, under the sky.
 - **The emissive mapping** of ADR-008 (`_emit` × 2^`_flux` × the gain) unchanged, read from each model's own palette.
 
