@@ -9,8 +9,10 @@
 #include "Game.h"
 
 #include "Sector.h"
+#include "Skirmish.h"
 
 #include "ServerHost.h"
+#include "World.h"
 
 #include "LoopbackTransport.h"
 
@@ -26,19 +28,39 @@
 namespace
 {
 
-// The server and the client in one process (Design/ADR/ADR-003, AGENTS.md R18): the sector on a server host, a loopback
-// between the two, and each side given its own end of it and nothing else. Returns the process's exit code.
-[[nodiscard]] int Run(const Outpost::Options& _options)
+// The world the command line asks for: the MVP's skirmish with --skirmish (Design/ADR/ADR-030), and otherwise the space
+// scene's sector. Refused, the message says why.
+[[nodiscard]] std::expected<std::unique_ptr<NeuronServer::World>, std::string> CreateWorld(const Outpost::Options& _options)
 {
+  if (_options.skirmish)
+  {
+    auto skirmish = GameLogic::Skirmish::Create(*_options.skirmish, _options.game.modelDirectory);
+    if (!skirmish)
+    {
+      return std::unexpected(std::format("{}: {}", GameLogic::SkirmishRefusalName(skirmish.error().refusal), skirmish.error().detail));
+    }
+    return std::move(*skirmish);
+  }
   auto sector = GameLogic::Sector::Create(_options.world, _options.game.modelDirectory);
   if (!sector)
   {
-    const std::string refusal = std::format("{}: {}", GameLogic::SectorRefusalName(sector.error().refusal), sector.error().detail);
-    const std::wstring message = L"The world was refused. " + std::wstring(winrt::to_hstring(refusal));
+    return std::unexpected(std::format("{}: {}", GameLogic::SectorRefusalName(sector.error().refusal), sector.error().detail));
+  }
+  return std::move(*sector);
+}
+
+// The server and the client in one process (Design/ADR/ADR-003, AGENTS.md R18): the world on a server host, a loopback
+// between the two, and each side given its own end of it and nothing else. Returns the process's exit code.
+[[nodiscard]] int Run(const Outpost::Options& _options)
+{
+  auto world = CreateWorld(_options);
+  if (!world)
+  {
+    const std::wstring message = L"The world was refused. " + std::wstring(winrt::to_hstring(world.error()));
     MessageBoxW(nullptr, message.c_str(), L"Outpost", MB_OK | MB_ICONWARNING);
     return 2;
   }
-  NeuronServer::ServerHost host(**sector);
+  NeuronServer::ServerHost host(**world);
   NeuronCore::LoopbackPair link = NeuronCore::MakeLoopbackPair();
   host.AddSession(std::move(link.server));
 

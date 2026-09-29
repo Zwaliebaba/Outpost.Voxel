@@ -1,6 +1,6 @@
 # ADR-030 — The skirmish: its layout, its designs as composites, and its names
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 4: `GameCore`'s layout, composites and names, then `GameLogic::Skirmish`; the command line follows in the same phase · **Amends:** [`AGENTS.md`](../../AGENTS.md) §2, where `GameLogic` and its suite now reference `GameCore`; and [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 5: `GameCore`'s layout, composites and names, then `GameLogic::Skirmish`, then the command line and the client · **Amends:** [`AGENTS.md`](../../AGENTS.md) §2, where `GameLogic` and its suite, `GameLib` and `Outpost` now reference `GameCore`; and [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes
 
 ## Context
 
@@ -74,6 +74,14 @@ By arithmetic from the centers and radii, every asteroid of a middle field is an
 
   Each stands at its anchor's `AnchoredPosition`, about the middle of its composite's `CompositeBounds`. Its rotation is the NVF importer's quaternion of its turn, so every voxel is exact and every entity draws aligned.
 - **Nothing moves** until phase 4 gives ships orders. An entity detonates on command, once, with a seed from `PcgHash` of the skirmish's count of detonations offset by its seed (R21), and is restored whole.
+
+**The command line and the client.**
+- **`Outpost.exe --skirmish`** has the server simulate the skirmish in the sector's place, from `--seed`, at 30 ticks a second. The options that shape the sector, `--stations`, `--frigates`, `--capitals` and `--debris-lifetime`, do not go with it, and neither does `--bench`; each is refused by name. The space scene stays the default until the MVP gate (the plan's §5).
+- **The first view** under `--skirmish` frames every entity from the camera's three-quarter view, and targets none. So the layout shows whole, as the checkpoint and a capture at the start need, and N and B then choose each entity in turn. The sector keeps its first view, its first station framed and targeted.
+- **The figures name the target** from the welcome's names: its composite's name, then its side's, such as `target 2: Miner, Blue`.
+  - The client refuses a payload it cannot decode, and one that names other counts of composites or sides than the welcome holds.
+  - An empty payload, such as the sector's, names nothing.
+- **References.** `GameLib` references `GameCore`, to decode the names. `Outpost` references it as well, because it links `GameLogic`, which links it.
 
 **Tests.** `GameCoreTests` gains 10:
 - `SkirmishLayoutTests`, 5:

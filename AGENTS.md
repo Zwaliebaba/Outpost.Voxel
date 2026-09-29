@@ -144,8 +144,8 @@ The first layout was settled when the first project landed ([ADR-001](Design/ADR
 | `NeuronServer` | static library | `NeuronCore` | The server engine: `ServerHost`, which runs the tick and the sessions, and the `World` it simulates through ([ADR-015](Design/ADR/ADR-015-client-server-boundary.md)). No Windows header. |
 | `GameCore` | static library | `NeuronCore` | The game that client and server share: the catalogue, the designs and their validation, and their profiles ([ADR-026](Design/ADR/ADR-026-game-core.md)). No Windows header. |
 | `GameLogic` | static library | `GameCore`, `NeuronServer`, `NeuronCore` | The game's rules, on the server side: the sector, its layout, routes, flight and detonations ([ADR-017](Design/ADR/ADR-017-sector.md)), and the skirmish ([ADR-030](Design/ADR/ADR-030-skirmish.md)). |
-| `GameLib` | static library | `NeuronClient`, `NeuronCore` | The game on the client side: the space scene, its camera and keys, and the bench. |
-| `Outpost` | Win32 application | `GameLib`, `GameLogic`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
+| `GameLib` | static library | `GameCore`, `NeuronClient`, `NeuronCore` | The game on the client side: the space scene, its camera and keys, the figures and the names they show ([ADR-030](Design/ADR/ADR-030-skirmish.md)), and the bench. |
+| `Outpost` | Win32 application | `GameLib`, `GameLogic`, `GameCore`, `NeuronClient`, `NeuronServer`, `NeuronCore` | `Outpost.exe`: `wWinMain` and the command line. The client, and for now the server process as well. |
 | `NvfImport` | console application | `NeuronCore` | `NvfImport.exe`: a `.vox` into an `.nvf`, merged with the hardpoints Blender authored, `--check` and `--dump` ([ADR-020](Design/ADR/ADR-020-nvf-import.md)). A tool of the asset pipeline, not of the game. |
 | `NeuronCoreTests` | test DLL | `NeuronCore` | CPU tests. |
 | `NeuronClientTests` | test DLL | `NeuronClient`, `NeuronCore` | GPU tests on WARP, and on the CPU the client's session, its snapshots and a capture's PNG file. |
