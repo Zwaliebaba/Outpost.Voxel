@@ -126,6 +126,7 @@ public:
     Assert::AreEqual(0u, NeuronCore::MakeBlastLighting(std::vector{BlastAt({}, 50.0f, 0.0f)}, {}).flashCount, L"not yet at time 0");
 
     std::vector<NeuronCore::Blast> many;
+    many.reserve(NeuronCore::MAX_LIT_BLASTS + 4u);
     for (std::uint32_t i = 0; i < NeuronCore::MAX_LIT_BLASTS + 4u; ++i)
     {
       many.push_back(BlastAt({static_cast<float>(i) * 100.0f, 0.0f, 0.0f}, 10.0f, 0.1f));

@@ -38,8 +38,8 @@ constexpr std::uint64_t CONSTANTS_PER_FRAME_BYTES = std::uint64_t{64} * 1024;
 // The view's, the sun's, the lighting's and the sky's constants, one aligned piece each, and the detonations' light,
 // three pieces, and gas shells, two, besides the placements (Design/ADR/ADR-025).
 constexpr std::uint64_t FIXED_CONSTANTS_BYTES = std::uint64_t{9} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-static_assert(sizeof(NeuronCore::BlastLighting) <= 3 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-static_assert(sizeof(NeuronCore::GasShells) <= 2 * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(NeuronCore::BlastLighting) <= std::size_t{3} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+static_assert(sizeof(NeuronCore::GasShells) <= std::size_t{2} * D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(ShadowViewConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 static_assert(sizeof(LightingConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
