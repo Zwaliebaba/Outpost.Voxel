@@ -325,6 +325,8 @@ public:
     Assert::AreEqual(RUN_TICKS, outcome.ticks, L"every tick replayed");
     Assert::AreEqual(std::size_t{5}, outcome.commands, L"every logged command sent again");
     Assert::IsFalse(outcome.firstDifference.has_value(), L"and every tick matched");
+    Assert::IsTrue(outcome.meanStepMilliseconds >= 0.0 && outcome.worstStepMilliseconds >= outcome.meanStepMilliseconds,
+                   L"and each step was timed");
 
     // A command the log holds after its last tick, of a step it did not finish, is neither sent nor compared.
     Bytes unfinished = run.log;

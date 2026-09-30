@@ -125,10 +125,13 @@ void Report(const std::string& _message, const wchar_t* _title, UINT _icon)
     Report(std::format("{} cannot be replayed here: {}", name, error.what()), L"Outpost --replay", MB_ICONWARNING);
     return 1;
   }
-  const std::string summary = outcome.firstDifference ? std::format("The replay of {} parted from its log at tick {} of {}.", name,
-                                                                    *outcome.firstDifference, outcome.ticks)
-                                                      : std::format("The replay of {} matched its log: {} ticks and {} commands, seed {}.",
-                                                                    name, outcome.ticks, outcome.commands, parameters->seed);
+  // With the host's steps' time, which is what a tick costs the server in this build (Design/ADR/ADR-035).
+  const std::string summary = (outcome.firstDifference ? std::format("The replay of {} parted from its log at tick {} of {}.", name,
+                                                                     *outcome.firstDifference, outcome.ticks)
+                                                       : std::format("The replay of {} matched its log: {} ticks and {} commands, seed {}.",
+                                                                     name, outcome.ticks, outcome.commands, parameters->seed)) +
+                              std::format(" The server's step took {:.2f} ms on average and {:.2f} ms at worst.",
+                                          outcome.meanStepMilliseconds, outcome.worstStepMilliseconds);
   Report(summary, L"Outpost --replay", outcome.firstDifference ? MB_ICONWARNING : MB_ICONINFORMATION);
   return outcome.firstDifference ? 1 : 0;
 }
