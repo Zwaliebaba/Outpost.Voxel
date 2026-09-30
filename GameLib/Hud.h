@@ -40,10 +40,10 @@ struct HudRequest
 // _heightPixels:
 // - a top bar across the top, with _figures;
 // - a selection panel in the bottom-left corner, which lists _selection, the first rows of it that fit;
-// - with _ordering, an order bar along the bottom. Its Move, Stop and Hold buttons order the side's selected ships, and
-//   are disabled while _canOrder is false. Its Attack and Mine buttons are disabled, with their reasons, until combat
-//   and mining are built (phases 5 and 6). The Move button says so while _moveArmed.
+// - with _ordering, an order bar along the bottom. Its Move, Stop, Hold and Attack buttons order the side's selected
+//   ships, and are disabled while _canOrder is false; the Move and Attack buttons say so while _armed has them armed
+//   (Design/ADR/ADR-035). Its Mine button is disabled, with its reason, until mining is built (phase 6).
 [[nodiscard]] HudRequest DrawHud(NeuronClient::Interface& _interface, float _widthPixels, float _heightPixels, const HudFigures& _figures,
-                                 std::span<const SelectionRow> _selection, bool _ordering, bool _canOrder, bool _moveArmed);
+                                 std::span<const SelectionRow> _selection, bool _ordering, bool _canOrder, ArmedOrder _armed);
 
 } // namespace GameLib

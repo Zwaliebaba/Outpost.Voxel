@@ -10,6 +10,7 @@
     <ClInclude Include="StrategicCamera.h" />
     <ClInclude Include="Commander.h" />
     <ClInclude Include="Hud.h" />
+    <ClInclude Include="CombatOverlay.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Game.cpp" />
@@ -21,5 +22,6 @@
     <ClCompile Include="StrategicCamera.cpp" />
     <ClCompile Include="Commander.cpp" />
     <ClCompile Include="Hud.cpp" />
+    <ClCompile Include="CombatOverlay.cpp" />
   </ItemGroup>
 </Project>

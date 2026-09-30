@@ -77,6 +77,7 @@ void SnapshotBuffer::Add(NeuronCore::Snapshot _snapshot, double _arrivalSeconds)
   const double tickSeconds = static_cast<double>(_snapshot.tick) / m_tickRate;
   std::ranges::sort(_snapshot.entities, {}, &NeuronCore::EntityState::id);
   std::ranges::sort(_snapshot.detonations, {}, &NeuronCore::DetonationEvent::entity);
+  std::ranges::sort(_snapshot.masks, {}, &NeuronCore::EntityMask::entity);
   m_snapshots.insert(place, std::move(_snapshot));
   while (m_snapshots.size() > MIN_SNAPSHOTS &&
          static_cast<double>(m_snapshots.back().tick - m_snapshots.front().tick) > HISTORY_SECONDS * m_tickRate)
@@ -128,9 +129,12 @@ WorldSample SnapshotBuffer::Sample(double _renderTick) const
     static_cast<double>(before.worldTick) + s * (static_cast<double>(after.worldTick) - static_cast<double>(before.worldTick));
 
   sample.paused = after.paused;
+  sample.payload = after.payload;
+  sample.payloadSeconds = static_cast<float>((worldTick - static_cast<double>(after.worldTick)) / m_tickRate);
   sample.entities.reserve(after.entities.size());
   auto earlier = before.entities.begin();
   auto detonation = after.detonations.begin();
+  auto mask = after.masks.begin();
   for (const NeuronCore::EntityState& entity : after.entities)
   {
     // Each list is in the order of its ids.
@@ -142,7 +146,15 @@ WorldSample SnapshotBuffer::Sample(double _renderTick) const
     {
       ++detonation;
     }
+    while (mask != after.masks.end() && mask->entity < entity.id)
+    {
+      ++mask;
+    }
     SampledEntity sampled{entity.id, entity.composite, entity.side, entity.position, entity.rotation, entity.velocity, std::nullopt};
+    if (mask != after.masks.end() && mask->entity == entity.id)
+    {
+      sampled.gone = mask->gone;
+    }
     if (detonation != after.detonations.end() && detonation->entity == entity.id)
     {
       // Debris stands where its entity froze, posed from the event; before the event it is the whole model at rest.

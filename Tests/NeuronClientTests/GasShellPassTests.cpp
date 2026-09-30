@@ -131,10 +131,10 @@ public:
             std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
             _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
             shadowMap.BeginSplat(_list);
-            shadowSplat.Record(_list, scene, shadowViewConstants, pushed.constants, pushed.draws);
+            shadowSplat.Record(_list, scene, shadowViewConstants, pushed, pushed.draws);
             shadowMap.EndSplat(_list);
             targets.BeginSplat(_list);
-            viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
+            viewSplat.Record(_list, scene, viewConstants, pushed, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginLighting(_list);
             lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants,

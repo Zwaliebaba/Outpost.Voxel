@@ -1,13 +1,16 @@
 #pragma once
 
-// Placements (Design/Archive/SpaceScene.md §7): how the splat takes a part's voxels into the world, and how the lighting pass and
-// the debug views find the record and palette of a pixel's voxel from its id. The C++ twins are in
-// NeuronCore/RigidTransform.h and NeuronCore/Placement.h (R15).
+// Placements (Design/Archive/SpaceScene.md §7): how the splat takes a part's voxels into the world and leaves out the ones its
+// mask removes (Design/ADR/ADR-035), and how the lighting pass and the debug views find the record and palette of a
+// pixel's voxel from its id. The C++ twins are in NeuronCore/RigidTransform.h and NeuronCore/Placement.h (R15).
 
 #include "PlacementConstants.hlsli"
 
 // What FindPlacement gives for an id that no placement holds: NeuronCore's NO_PLACEMENT.
 static const uint NO_PLACEMENT = 0xFFFFFFFFu;
+
+// A placement's firstMaskWord while it draws every voxel: NeuronClient's NO_MASK.
+static const uint NO_MASK = 0xFFFFFFFFu;
 
 // _vector turned by the placement's rotation: axisX x + axisY y + axisZ z, summed in that order.
 float3 RotateVector(PlacementConstants _placement, float3 _vector)
@@ -19,6 +22,17 @@ float3 RotateVector(PlacementConstants _placement, float3 _vector)
 float3 TransformPoint(PlacementConstants _placement, float3 _point)
 {
   return _placement.translation + RotateVector(_placement, _point);
+}
+
+// Whether voxel _voxel of _placement is gone: bit _voxel % 32 of its mask's word _voxel / 32, in _maskWords, the frame's
+// buffer of mask words. The C++ twin is IsVoxelGone in NeuronCore/Placement.h (R15).
+bool IsVoxelGone(StructuredBuffer<uint> _maskWords, PlacementConstants _placement, uint _voxel)
+{
+  if (_placement.firstMaskWord == NO_MASK)
+  {
+    return false;
+  }
+  return ((_maskWords[_placement.firstMaskWord + _voxel / 32u] >> (_voxel % 32u)) & 1u) != 0u;
 }
 
 // The index of the placement that holds voxel id _voxel among the first _count of _placements, or NO_PLACEMENT: a binary

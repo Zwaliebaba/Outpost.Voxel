@@ -139,9 +139,9 @@ struct Figures
 // The order states _snapshot's payload carries.
 [[nodiscard]] std::vector<GameCore::ShipOrderState> StatesOf(const NeuronCore::Snapshot& _snapshot)
 {
-  const auto states = GameCore::DecodeOrderStates(_snapshot.payload);
-  Assert::IsTrue(states.has_value(), L"the payload holds the order states");
-  return states.value_or(std::vector<GameCore::ShipOrderState>{});
+  const auto payload = GameCore::DecodeSnapshotPayload(_snapshot.payload);
+  Assert::IsTrue(payload.has_value(), L"the payload holds the order states");
+  return payload.value_or(GameCore::SnapshotPayload{}).orders;
 }
 
 // Whether a ship moves in the snapshot _snapshot, by its order states.
@@ -307,10 +307,21 @@ TEST_CLASS(SkirmishOrdersTests)
 public:
   // The plan's test (Design/MvpPlan.md, phase 4): over 20 seeds of random orders to both sides' ships, every ship keeps to
   // its profile's limits and out of every core's and asteroid's sphere, every move ends, and every ship comes to rest
-  // at its destination, or beside a ship halted there first.
+  // at its destination, or beside a ship halted there first. Since phase 5 the two sides would fight wherever the orders
+  // brought them together (Design/ADR/ADR-035), so the flight is flown with every entity of one side, which nothing
+  // fights.
   TEST_METHOD(FliesRandomOrdersClearOfEverySphere)
   {
     const Figures figures = FiguresOf(*MakeSkirmish(1));
+    const auto uncontested = [](std::uint32_t _seed)
+    {
+      GameCore::SkirmishLayout layout = GameCore::MakeSkirmishLayout(_seed);
+      for (GameCore::LayoutUnit& unit : layout.units)
+      {
+        unit.side = 1;
+      }
+      return MakeStagedSkirmish({.seed = _seed}, layout);
+    };
     float least = std::numeric_limits<float>::max();
     float worstArrival = 0.0f;
     std::size_t arrivals = 0;
@@ -318,18 +329,18 @@ public:
     std::uint32_t longest = 0;
     for (std::uint32_t seed = 1; seed <= ORDER_SEEDS; ++seed)
     {
-      const auto skirmish = MakeSkirmish(seed);
+      const auto skirmish = uncontested(seed);
       NeuronCore::Snapshot before = DescribeSkirmish(*skirmish);
       const std::vector<std::pair<Float3, float>> obstacles = ObstaclesOf(before, figures);
       std::uint32_t draw = 0;
       for (std::uint32_t round = 0; round < ROUNDS; ++round)
       {
         const std::wstring what = std::format(L"seed {}, round {}", seed, round);
-        for (const std::uint8_t side : {std::uint8_t{1}, std::uint8_t{2}})
+        for (const std::uint8_t start : {std::uint8_t{1}, std::uint8_t{2}})
         {
-          const NeuronCore::Command command = OrderCommand(RandomOrder(seed, draw, side == 1 ? SIDE_1_SHIPS : SIDE_2_SHIPS));
-          Assert::IsFalse(skirmish->Refuses(command, side).has_value(), (what + L": a side orders its own ships").c_str());
-          skirmish->ApplyGameCommand(command.payload, side);
+          const NeuronCore::Command command = OrderCommand(RandomOrder(seed, draw, start == 1 ? SIDE_1_SHIPS : SIDE_2_SHIPS));
+          Assert::IsFalse(skirmish->Refuses(command, 1).has_value(), (what + L": the side orders its own ships").c_str());
+          skirmish->ApplyGameCommand(command.payload, 1);
         }
         before = DescribeSkirmish(*skirmish);
         std::map<std::uint32_t, Float3> destinations;

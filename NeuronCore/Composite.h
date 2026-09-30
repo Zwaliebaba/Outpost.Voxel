@@ -6,6 +6,7 @@
 #include "VoxModel.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <vector>
@@ -36,5 +37,22 @@ namespace NeuronCore
 // A composite of each of _modelCount models alone and left where it is: how a world whose entities are single models, as
 // the space scene's are, names them. Composite i is model i.
 [[nodiscard]] std::vector<CompositeModel> SingleModelComposites(std::size_t _modelCount);
+
+// One voxel of a composite (Design/ADR/ADR-035): the cell it fills in the composite's space, whole since every component
+// turns by one of the cube's rotations and moves by whole voxels; the component it belongs to; and its record's color,
+// its palette entry minus one (R14).
+struct CompositeVoxel
+{
+  Int3 cell;
+  std::uint16_t component;
+  std::uint8_t color;
+};
+
+// Every voxel of _composite, in the order an EntityMask's bits run: component after component, each component's model part
+// after part, and each part's records in their order. _models are the welcome's, which the components name.
+[[nodiscard]] std::vector<CompositeVoxel> CompositeVoxels(std::span<const VoxModel> _models, const CompositeModel& _composite);
+
+// How many voxels _composite holds: the bits of its entities' masks.
+[[nodiscard]] std::uint32_t CompositeVoxelCount(std::span<const VoxModel> _models, const CompositeModel& _composite) noexcept;
 
 } // namespace NeuronCore

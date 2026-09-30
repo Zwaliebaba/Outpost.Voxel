@@ -107,6 +107,13 @@ inline constexpr float BRAKING_SHARE = 0.5f;
 [[nodiscard]] std::size_t FlyPath(ShipMotion& _motion, std::span<const NeuronCore::Float3> _path, std::size_t _next, float _pace,
                                   NeuronCore::Float3 _avoid, const ShipClass& _class, float _seconds) noexcept;
 
+// One tick of a ship on the plane turning toward _heading and changing its speed toward _speed, slowing as its heading
+// turns away from _heading by the square of the cosine, as FlyPath does, and levelling out (ADR-035).
+void Steer(ShipMotion& _motion, NeuronCore::Float3 _heading, float _speed, const ShipClass& _class, float _seconds) noexcept;
+
+// _heading on the plane turned about the vertical by _radians, positive to starboard.
+[[nodiscard]] NeuronCore::Float3 TurnOnPlane(NeuronCore::Float3 _heading, float _radians) noexcept;
+
 // One tick of a ship on the plane slowing to a halt along its heading, and levelling out. Once halted and within a
 // thousandth of a radian of level, its up is the world's exactly.
 void Brake(ShipMotion& _motion, const ShipClass& _class, float _seconds) noexcept;

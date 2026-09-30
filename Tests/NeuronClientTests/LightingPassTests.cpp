@@ -122,10 +122,10 @@ void ExpectLightingAsTheTwin(NeuronClient::GraphicsDevice& _device, const Neuron
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       shadowMap.BeginSplat(_list);
-      shadowSplat.Record(_list, _scene, shadowViewConstants, pushed.constants, pushed.draws);
+      shadowSplat.Record(_list, _scene, shadowViewConstants, pushed, pushed.draws);
       shadowMap.EndSplat(_list);
       targets.BeginSplat(_list);
-      viewSplat.Record(_list, _scene, viewConstants, pushed.constants, pushed.draws);
+      viewSplat.Record(_list, _scene, viewConstants, pushed, pushed.draws);
       targets.EndSplat(_list);
       targets.BeginLighting(_list);
       lighting.Record(_list, targets, shadowMap, _scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants,

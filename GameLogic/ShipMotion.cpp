@@ -268,6 +268,29 @@ std::size_t FlyPath(ShipMotion& _motion, std::span<const Float3> _path, std::siz
   return _next;
 }
 
+void Steer(ShipMotion& _motion, Float3 _heading, float _speed, const ShipClass& _class, float _seconds) noexcept
+{
+  const Float3 aim = PlaneTurn(_motion.forward, PlaneDirection(_heading, _motion.forward));
+  const float facing = std::max(NeuronCore::Dot(_motion.forward, aim), 0.0f);
+  FlyToward(_motion, _motion.position + aim * PLANE_AIM_UNITS, _speed * facing * facing, WORLD_UP, _class, _seconds);
+  if (_motion.speed <= 0.0f && NeuronCore::Dot(_motion.up, WORLD_UP) >= LEVEL_COSINE)
+  {
+    _motion.up = WORLD_UP;
+  }
+}
+
+Float3 TurnOnPlane(Float3 _heading, float _radians) noexcept
+{
+  if (_radians == 0.0f)
+  {
+    return _heading;
+  }
+  // A turn to starboard, from +Z toward +X: the heading's angle from +Z grows.
+  const float cosine = std::cos(_radians);
+  const float sine = std::sin(_radians);
+  return {_heading.x * cosine + _heading.z * sine, _heading.y, _heading.z * cosine - _heading.x * sine};
+}
+
 void Brake(ShipMotion& _motion, const ShipClass& _class, float _seconds) noexcept
 {
   FlyToward(_motion, _motion.position + _motion.forward * PLANE_AIM_UNITS, 0.0f, WORLD_UP, _class, _seconds);

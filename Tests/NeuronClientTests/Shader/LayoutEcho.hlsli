@@ -132,6 +132,7 @@ void Echo3(inout uint _word, uint3 _value)
     Echo(word, placement.firstVoxel);
     Echo3(word, asuint(placement.translation));
     Echo(word, placement.paletteIndex);
+    Echo(word, placement.firstMaskWord);
   }
 
   [unroll] for (uint quad = 0u; quad < 2u; ++quad)

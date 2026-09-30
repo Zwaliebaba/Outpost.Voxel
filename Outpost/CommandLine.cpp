@@ -24,7 +24,7 @@ constexpr bool DEBUG_BUILD = false;
 #endif
 
 constexpr std::wstring_view USAGE =
-  L"Outpost.exe [--skirmish [--observe] [--log <file>]] [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] "
+  L"Outpost.exe [--skirmish [--battle] [--observe] [--log <file>]] [--seed <n>] [--stations <n>] [--frigates <n>] [--capitals <n>] "
   L"[--debris-lifetime <seconds>] [--size <width>x<height>] [--warp | --adapter <n>] [--d3d-debug] [--gbv] [--bench <seconds> | "
   L"--capture <file>.png [--capture-at <seconds>]]\n\nOutpost.exe --replay <file>";
 
@@ -119,6 +119,7 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
                   std::nullopt};
   std::optional<std::wstring_view> worldOption; // the first option that shapes the world beyond its seed
   bool skirmish = false;
+  bool battle = false;
   std::optional<std::filesystem::path> captureFile;
   std::optional<double> captureAtSeconds;
   for (std::size_t i = 0; i < _arguments.size(); ++i)
@@ -128,6 +129,10 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
     if (argument == L"--skirmish")
     {
       skirmish = true;
+    }
+    else if (argument == L"--battle")
+    {
+      battle = true;
     }
     else if (argument == L"--observe")
     {
@@ -286,14 +291,15 @@ std::expected<Options, std::wstring> ParseCommandLine(std::span<const std::wstri
     {
       return std::unexpected(Mistake(L"--bench runs the one-station preset, so --skirmish does not go with it."));
     }
-    options.skirmish = GameLogic::SkirmishParameters{.seed = options.world.seed};
+    options.skirmish = GameLogic::SkirmishParameters{.seed = options.world.seed, .battle = battle};
     options.game.overview = true;
   }
-  // The window plays side 1 of the skirmish unless it observes, and the log is the skirmish's (Design/ADR/ADR-032).
-  if (!skirmish && (options.observe || options.logFile))
+  // The window plays side 1 of the skirmish unless it observes, the log is the skirmish's (Design/ADR/ADR-032), and so is
+  // the battle it can stage in place of its ships (Design/ADR/ADR-035).
+  if (!skirmish && (options.observe || options.logFile || battle))
   {
-    return std::unexpected(
-      Mistake(std::format(L"{} is the skirmish's, so it goes with --skirmish.", options.observe ? L"--observe" : L"--log")));
+    const std::wstring_view option = options.observe ? L"--observe" : (options.logFile ? L"--log" : L"--battle");
+    return std::unexpected(Mistake(std::format(L"{} is the skirmish's, so it goes with --skirmish.", option)));
   }
   // --bench runs the one-station preset until S-M8's space bench (§14): one station and no ships, from the seed.
   if (options.benchSeconds)

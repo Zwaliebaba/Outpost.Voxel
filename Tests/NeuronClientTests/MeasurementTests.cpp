@@ -232,7 +232,7 @@ public:
                 targets.BeginOverdraw(_list);
               }
               queries.BeginStatistics(_list, slot);
-              pass.Record(_list, scene, viewConstants, pushed.constants, pushed.draws, targets.OverdrawWriteTable());
+              pass.Record(_list, scene, viewConstants, pushed, pushed.draws, targets.OverdrawWriteTable());
               queries.EndStatistics(_list, slot);
               queries.EndPass(_list, slot, NeuronClient::GpuPass::ViewSplat);
               if (pass.CountsOverdraw())

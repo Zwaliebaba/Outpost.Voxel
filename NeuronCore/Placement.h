@@ -44,6 +44,9 @@ struct Placement
   std::uint32_t firstVoxel;   // the id of its first voxel (§7.3); AssignVoxelIds gives it
   // Empty while the placement is whole.
   std::optional<PlacementDetonation> detonation;
+  // The voxels it no longer draws, whole or detonated (Design/ADR/ADR-035): bit i % 32 of word i / 32 is set for its voxel
+  // i when that voxel is gone. Empty while it draws every voxel.
+  std::vector<std::uint32_t> mask;
 };
 
 // The scene's record buffer: every model's records, model after model (§7.1). A model's records are stored once, however
@@ -101,5 +104,13 @@ struct PlacedVoxel
 // holds. The lighting pass and the debug views find a pixel's palette entry this way. The twin of FindVoxel in
 // Shader/Placement.hlsli (R15).
 [[nodiscard]] std::optional<PlacedVoxel> FindVoxel(std::span<const Placement> _placements, std::uint32_t _voxel) noexcept;
+
+// Whether voxel _voxel of _placement is gone, which the splat pass does not draw (Design/ADR/ADR-035). The twin of
+// IsVoxelGone in Shader/Placement.hlsli (R15).
+[[nodiscard]] bool IsVoxelGone(const Placement& _placement, std::uint32_t _voxel) noexcept;
+
+// A placement's mask for voxels _first to _first + _count - 1 of an entity whose EntityMask bits are _gone: their bits,
+// from bit 0 of word 0 on, or nothing when none of them is gone.
+[[nodiscard]] std::vector<std::uint32_t> PlacementMask(std::span<const std::uint8_t> _gone, std::uint32_t _first, std::uint32_t _count);
 
 } // namespace NeuronCore

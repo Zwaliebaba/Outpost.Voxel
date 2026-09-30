@@ -51,9 +51,9 @@ static_assert(sizeof(SkyConstants) <= D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGN
 static_assert(SwapChain::BUFFER_FORMAT == DXGI_FORMAT_R8G8B8A8_UNORM && CAPTURED_BYTES_PER_PIXEL == 4);
 
 // Refuses what the shaders could not read safely, since they index the scene's buffers with what a placement names and
-// no bound: records beyond the scene's, a palette it lacks, a detonation's fragments beyond the scene's, and ids that
-// fall back, overlap or reach NO_VOXEL, which the binary search over them and the visibility buffer rely on
-// (Design/Archive/SpaceScene.md §7.3, Design/ADR/ADR-024).
+// no bound: records beyond the scene's, a palette it lacks, a detonation's fragments beyond the scene's, a mask of other
+// than a word for each 32 of its records, and ids that fall back, overlap or reach NO_VOXEL, which the binary search
+// over them and the visibility buffer rely on (Design/Archive/SpaceScene.md §7.3, Design/ADR/ADR-024, Design/ADR/ADR-035).
 void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Placement> _placements)
 {
   std::uint64_t nextVoxel = 0;
@@ -78,6 +78,11 @@ void CheckPlacements(const VoxelScene& _scene, std::span<const NeuronCore::Place
         throw std::invalid_argument(
           std::format("Placement {}'s detonation names fragments beyond the scene's {}.", i, _scene.FragmentCount()));
       }
+    }
+    if (!placement.mask.empty() && placement.mask.size() != (std::size_t{placement.recordCount} + 31u) / 32u)
+    {
+      throw std::invalid_argument(
+        std::format("Placement {}'s mask has {} words for its {} records.", i, placement.mask.size(), placement.recordCount));
     }
     if (placement.firstVoxel < nextVoxel)
     {
@@ -208,8 +213,8 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   winrt::check_hresult(frame.allocator->Reset());
   winrt::check_hresult(m_list->Reset(frame.allocator.get(), nullptr));
 
-  // The frame's constants grow with its placements, at 64 bytes each and an aligned piece for each detonation
-  // (Design/Archive/SpaceScene.md §7.4). The GPU has finished with this slot's ring, so a larger one can take its place.
+  // The frame's constants grow with its placements, at 68 bytes each, their masks' words and an aligned piece for each
+  // detonation (Design/Archive/SpaceScene.md §7.4, Design/ADR/ADR-035). The GPU has finished with this slot's ring, so a larger one can take its place.
   const std::uint64_t neededBytes = FIXED_CONSTANTS_BYTES + SplatPlacementBytes(_placements) + PlacementHeatBytes(_placements.size());
   if (neededBytes > frame.constants->CapacityBytes())
   {
@@ -260,7 +265,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
   list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
   m_queries.Begin(list, m_frameIndex, m_frameNumber);
   m_shadowMap.BeginSplat(list);
-  m_shadowSplat.Record(list, m_scene, shadowViewConstants, placements.constants, shadowDraws);
+  m_shadowSplat.Record(list, m_scene, shadowViewConstants, placements, shadowDraws);
   m_queries.EndPass(list, m_frameIndex, GpuPass::ShadowSplat);
   m_shadowMap.EndSplat(list);
   m_targets.BeginSplat(list);
@@ -269,7 +274,7 @@ void Renderer::Render(const NeuronCore::PerspectiveView& _view, std::span<const 
     m_targets.BeginOverdraw(list);
   }
   m_queries.BeginStatistics(list, m_frameIndex);
-  viewSplat.Record(list, m_scene, viewConstants, placements.constants, viewDraws, m_targets.OverdrawWriteTable());
+  viewSplat.Record(list, m_scene, viewConstants, placements, viewDraws, m_targets.OverdrawWriteTable());
   m_queries.EndStatistics(list, m_frameIndex);
   m_queries.EndPass(list, m_frameIndex, GpuPass::ViewSplat);
   if (viewSplat.CountsOverdraw())

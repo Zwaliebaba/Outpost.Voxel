@@ -3,6 +3,7 @@
 #include "SceneModels.h"
 #include "TestSupport.h"
 
+#include "Blast.h"
 #include "Composite.h"
 #include "Explosion.h"
 #include "Float3.h"
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -401,6 +403,118 @@ public:
                        (what + L", where it is seen").c_str());
       }
     }
+  }
+
+  // Design/ADR/ADR-035: each placement leaves out what its part's share of the entity's mask removes, and a part that has
+  // lost every voxel is not placed.
+  TEST_METHOD(LeavesOutWhatItsEntityHasLost)
+  {
+    const std::vector<NeuronCore::VoxModel> scene{RandomBlock(), TwoPartModel()};
+    const NeuronCore::CompositeModel composite = HullAndModule();
+    const SceneModels models(scene, {&composite, 1}, 1);
+    SampledEntity entity{2, 0, 1, {75.5f, -410.0f, 3.25f}, Tilted(), {0.0f, 0.0f, 0.0f}, std::nullopt};
+    std::vector<NeuronCore::Placement> whole;
+    models.Place(entity, whole);
+    Assert::AreEqual(std::size_t{3}, whole.size(), L"a placement a part");
+    for (const NeuronCore::Placement& placement : whole)
+    {
+      Assert::IsTrue(placement.mask.empty(), L"a whole entity's placements draw every voxel");
+    }
+
+    // Every third voxel gone, in the order of the composite's voxels: each placement's mask holds its part's bits.
+    const std::uint32_t voxels = NeuronCore::CompositeVoxelCount(scene, composite);
+    const auto lose = [&entity, voxels](std::uint32_t _from, std::uint32_t _step)
+    {
+      entity.gone.assign((voxels + 7u) / 8u, 0u);
+      for (std::uint32_t voxel = _from; voxel < voxels; voxel += _step)
+      {
+        entity.gone[voxel / 8u] |= static_cast<std::uint8_t>(1u << (voxel % 8u));
+      }
+    };
+    lose(0, 3);
+    std::vector<NeuronCore::Placement> damaged;
+    models.Place(entity, damaged);
+    Assert::AreEqual(whole.size(), damaged.size(), L"every part keeps a voxel");
+    std::uint32_t first = 0;
+    for (std::size_t index = 0; index < damaged.size(); ++index)
+    {
+      Assert::AreEqual(whole[index].firstRecord, damaged[index].firstRecord, L"the same records");
+      for (std::uint32_t voxel = 0; voxel < damaged[index].recordCount; ++voxel)
+      {
+        Assert::AreEqual((first + voxel) % 3u == 0u, NeuronCore::IsVoxelGone(damaged[index], voxel),
+                         std::format(L"placement {}, voxel {}", index, voxel).c_str());
+      }
+      first += damaged[index].recordCount;
+    }
+
+    // The module's second part gone whole: it is not placed, and the others have lost nothing.
+    lose(whole[0].recordCount + whole[1].recordCount, 1);
+    std::vector<NeuronCore::Placement> cut;
+    models.Place(entity, cut);
+    Assert::AreEqual(std::size_t{2}, cut.size(), L"the part that has lost every voxel is not placed");
+    for (std::size_t index = 0; index < cut.size(); ++index)
+    {
+      Assert::AreEqual(whole[index].firstRecord, cut[index].firstRecord, L"the others are");
+      Assert::IsTrue(cut[index].mask.empty(), L"whole");
+    }
+  }
+
+  // Design/ADR/ADR-035: an entity that detonates having lost voxels blasts from the mean of the ones it has left, and as
+  // large as the box around them.
+  TEST_METHOD(DetonatesFromWhatItHasLeft)
+  {
+    const std::vector<NeuronCore::VoxModel> scene{RandomBlock(), TwoPartModel()};
+    const NeuronCore::CompositeModel composite = HullAndModule();
+    const SceneModels models(scene, {&composite, 1}, 1);
+    const Float3 velocity{-8.0f, 21.0f, 3.5f};
+    SampledEntity entity{2, 0, 1, {75.5f, -410.0f, 3.25f}, Tilted(), velocity, SampledDetonation{{2, 0x5EEDu, 90, velocity}, 2.0f}};
+    // The hull gone: the module's voxels are the ones after the hull's.
+    const std::uint32_t voxels = NeuronCore::CompositeVoxelCount(scene, composite);
+    const auto hull = static_cast<std::uint32_t>(scene[0].records.size());
+    entity.gone.assign((voxels + 7u) / 8u, 0u);
+    for (std::uint32_t voxel = 0; voxel < hull; ++voxel)
+    {
+      entity.gone[voxel / 8u] |= static_cast<std::uint8_t>(1u << (voxel % 8u));
+    }
+
+    // The module's voxels' mean and the box around them, in double.
+    constexpr double LARGEST = std::numeric_limits<double>::max();
+    Double3 sum{0.0, 0.0, 0.0};
+    DoubleBox left{{LARGEST, LARGEST, LARGEST}, {-LARGEST, -LARGEST, -LARGEST}};
+    std::uint32_t index = 0;
+    ForEachCenter(scene, composite,
+                  [&sum, &left, &index, hull](Double3 _center)
+                  {
+                    if (index++ < hull)
+                    {
+                      return;
+                    }
+                    sum = {sum.x + _center.x, sum.y + _center.y, sum.z + _center.z};
+                    left.lower = {std::min(left.lower.x, _center.x - 0.5), std::min(left.lower.y, _center.y - 0.5),
+                                  std::min(left.lower.z, _center.z - 0.5)};
+                    left.upper = {std::max(left.upper.x, _center.x + 0.5), std::max(left.upper.y, _center.y + 0.5),
+                                  std::max(left.upper.z, _center.z + 0.5)};
+                  });
+    const double count = voxels - hull;
+    const Double3 blastOrigin = CompositePoint(CompositeBox(scene, composite), {sum.x / count, sum.y / count, sum.z / count}, entity);
+    const double radius = 0.5 * std::sqrt((left.upper.x - left.lower.x) * (left.upper.x - left.lower.x) +
+                                          (left.upper.y - left.lower.y) * (left.upper.y - left.lower.y) +
+                                          (left.upper.z - left.lower.z) * (left.upper.z - left.lower.z));
+
+    std::vector<NeuronCore::Placement> flying;
+    models.Place(entity, flying);
+    Assert::AreEqual(std::size_t{2}, flying.size(), L"the hull's part is not placed");
+    for (std::size_t placement = 0; placement < flying.size(); ++placement)
+    {
+      const NeuronCore::PlacementDetonation detonation = flying[placement].detonation.value_or(NeuronCore::PlacementDetonation{});
+      AreClose(blastOrigin, NeuronCore::TransformPoint(flying[placement].transform, detonation.parameters.blastOrigin), 1.0e-3,
+               std::format(L"placement {}: the blast origin", placement));
+    }
+    const std::optional<NeuronCore::Blast> blast = models.Blast(entity);
+    Assert::IsTrue(blast.has_value(), L"its light");
+    const NeuronCore::Blast light = blast.value_or(NeuronCore::Blast{});
+    AreClose(blastOrigin, light.origin, 1.0e-3, L"its light's origin");
+    Assert::AreEqual(radius, static_cast<double>(light.extent), 1.0e-4, L"its light's extent");
   }
 
   TEST_METHOD(DetonatesACompositeFromTheMeanOfItsVoxels)

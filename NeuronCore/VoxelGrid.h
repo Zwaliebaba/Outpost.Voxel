@@ -31,6 +31,10 @@ public:
   // its coordinates: a cell holds the record's index in _records (Design/Archive/SpaceScene.md §15).
   explicit VoxelGrid(std::span<const std::uint32_t> _records);
 
+  // A grid over _cells, each a cell's minimum corner: a cell holds the index of its first entry in _cells. The server
+  // walks a composite's voxels so (Design/ADR/ADR-035).
+  explicit VoxelGrid(std::span<const Int3> _cells);
+
   // The position of the grid's minimum corner, and its extent in cells: the tight bounds of its voxels.
   [[nodiscard]] Int3 Origin() const noexcept
   {
@@ -71,6 +75,21 @@ struct GridStep
   std::size_t count;
   double leaveDistance; // the ray parameter at which the ray leaves the cell it crosses
 };
+
+// An occupied cell that a segment passes through: what the grid holds there, and the segment's parameter where it enters.
+struct SegmentCell
+{
+  std::uint32_t value;
+  double entry;
+};
+
+// Every occupied cell of _grid that the segment from _origin to _origin + _direction passes through, between parameters
+// _from and _to of [0, 1], in the order it enters them, a tie going to the lower value (Design/ADR/ADR-035). A cell counts
+// when the segment runs more than a thousandth of a cell inside it, so a segment that only touches a face, an edge or a
+// corner passes it by, and one that starts on a cell's face and leaves it does not enter it, whatever the rounding of a
+// point taken into the grid's space. In double precision, and in the grid's space.
+[[nodiscard]] std::vector<SegmentCell> SegmentCells(const VoxelGrid& _grid, const std::array<double, 3>& _origin,
+                                                    const std::array<double, 3>& _direction, double _from, double _to);
 
 // VoxelGrid's walk along a ray, a cell at a time from the nearest, for a caller that tests the occupied cells its own
 // way. Trace is one; the scene tracer is another, which walks a placement's grid in its part's space and tests each

@@ -21,6 +21,7 @@
 #include "Float3.h"
 #include "Fragmentation.h"
 #include "Half.h"
+#include "Hash.h"
 #include "Lighting.h"
 #include "OctahedralNormal.h"
 #include "OrthographicView.h"
@@ -139,6 +140,29 @@ struct ThreeModels
                                     Place(_three, FRIGATE, TILTED, {9.0f, -9.0f, 12.0f})};
   Assert::IsTrue(NeuronCore::AssignVoxelIds(placements), L"the scene's ids fit");
   return placements;
+}
+
+// _placements with masks, as combat leaves them (Design/ADR/ADR-035): each but the fourth, which stays whole, loses about
+// two voxels in five, each voxel drawn with PcgHash of its placement and its index.
+[[nodiscard]] std::vector<Placement> MaskPlacements(std::vector<Placement> _placements)
+{
+  for (std::uint32_t index = 0; index < _placements.size(); ++index)
+  {
+    if (index == 3)
+    {
+      continue;
+    }
+    Placement& placement = _placements[index];
+    placement.mask.assign((placement.recordCount + 31u) / 32u, 0u);
+    for (std::uint32_t voxel = 0; voxel < placement.recordCount; ++voxel)
+    {
+      if (NeuronCore::PcgHash(NeuronCore::PcgHash(index) + voxel) % 5u < 2u)
+      {
+        placement.mask[voxel / 32u] |= 1u << (voxel % 32u);
+      }
+    }
+  }
+  return _placements;
 }
 
 [[nodiscard]] NeuronCore::PerspectiveView FromTheOrigin() noexcept
@@ -501,6 +525,61 @@ public:
       });
   }
 
+  // Design/ADR/ADR-035: a placement leaves out the voxels its mask removes, in the view and in the sun's map, as the scene
+  // tracer does; the same through either permutation; and the same detonated at time 0 as whole.
+  TEST_METHOD(LeavesOutTheVoxelsItsMaskRemoves)
+  {
+    RunGpuTest(
+      [](NeuronClient::GraphicsDevice& _device)
+      {
+        const ThreeModels three = LoadThreeModels();
+        const NeuronCore::SceneFragments fragments(three.models);
+        const NeuronClient::VoxelScene scene(_device, three.models, fragments);
+        const std::vector<Placement> whole = SeveralPlacements(three);
+        const std::vector<Placement> masked = MaskPlacements(whole);
+        const NeuronCore::SceneTracer tracer(three.models, masked);
+        const IdBoxes boxes = BoxesOf(three, masked);
+        const NeuronClient::SplatPass pass(_device, NeuronClient::SplatPass::Kind::View);
+        const NeuronCore::PerspectiveView view = FromTheOrigin();
+        const SplatImage image = RenderSplat(_device, scene, masked, pass, view);
+        Report(L"masked, the view", CompareWithTracer(view, tracer, boxes, image), EDGE_MISMATCH_LIMIT);
+
+        // The masks remove voxels the whole scene shows, and none of them shows once they are gone.
+        const SplatImage wholeImage = RenderSplat(_device, scene, whole, pass, view);
+        const auto shown = [&masked](const SplatImage& _image)
+        {
+          std::uint32_t gone = 0;
+          for (std::size_t pixel = 0; pixel < _image.depth.size(); ++pixel)
+          {
+            const std::uint32_t voxel = _image.visibility[2 * pixel];
+            const auto placement = std::ranges::find_if(masked, [voxel](const Placement& _placement)
+                                                        { return voxel - _placement.firstVoxel < _placement.recordCount; });
+            gone += voxel != NeuronCore::NO_VOXEL && placement != masked.end() &&
+                        NeuronCore::IsVoxelGone(*placement, voxel - placement->firstVoxel)
+                      ? 1u
+                      : 0u;
+          }
+          return gone;
+        };
+        Assert::IsTrue(shown(wholeImage) > 0, L"the whole scene shows voxels the masks remove");
+        Assert::AreEqual(0u, shown(image), L"the masked scene shows none of them");
+
+        const NeuronClient::SplatPass shadowPass(_device, NeuronClient::SplatPass::Kind::Shadow);
+        const NeuronCore::OrthographicView sun = SunOver(masked, MAP_PIXELS);
+        const std::vector<float> map = RenderShadowSplat(_device, scene, masked, shadowPass, sun);
+        Report(L"masked, the sun's map", CompareShadowWithTracer(sun, tracer, boxes, map), EDGE_MISMATCH_LIMIT);
+        Report(L"masked, drawn oriented",
+               CompareDrawings(image, RenderSplat(_device, scene, masked, pass, view, Permutations::AllOriented)), EDGE_MISMATCH_LIMIT);
+        Report(L"masked, drawn oriented, the sun's map",
+               CompareMaps(map, RenderShadowSplat(_device, scene, masked, shadowPass, sun, Permutations::AllOriented)),
+               EDGE_MISMATCH_LIMIT);
+        const std::vector<Placement> detonated =
+          DetonatePlacements(masked, three.models, fragments, NeuronCore::DefaultExplosionParameters({0.0f, 0.0f, 400.0f}), 0.0f);
+        Report(L"masked, detonated at time 0", CompareDrawings(image, RenderSplat(_device, scene, detonated, pass, view)),
+               EDGE_MISMATCH_LIMIT);
+      });
+  }
+
   // §15: the view splat's measurement variants (§9.3, §11) draw what the standard pass draws, for aligned and turned
   // placements, whole and detonated.
   TEST_METHOD(MeasurementVariantsDrawWhatTheStandardDraws)
@@ -587,10 +666,10 @@ public:
             std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
             _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
             shadowMap.BeginSplat(_list);
-            shadowSplat.Record(_list, scene, shadowViewConstants, pushed.constants, pushed.draws);
+            shadowSplat.Record(_list, scene, shadowViewConstants, pushed, pushed.draws);
             shadowMap.EndSplat(_list);
             targets.BeginSplat(_list);
-            viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
+            viewSplat.Record(_list, scene, viewConstants, pushed, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginLighting(_list);
             lighting.Record(_list, targets, shadowMap, scene, viewConstants, shadowViewConstants, lightingConstants, pushed.constants,

@@ -2,9 +2,11 @@
 
 #include "ClientSession.h"
 
+#include "Composite.h"
 #include "Hash.h"
 #include "NvfModel.h"
 
+#include <algorithm>
 #include <format>
 #include <utility>
 #include <variant>
@@ -59,6 +61,17 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
     }
     if (auto* snapshot = std::get_if<NeuronCore::Snapshot>(&*message); snapshot != nullptr && m_welcomed)
     {
+      // A mask has a bit for each voxel of its entity's composite, as this client's models count them (Design/ADR/ADR-035).
+      for (const NeuronCore::EntityMask& mask : snapshot->masks)
+      {
+        const auto entity = std::ranges::find(snapshot->entities, mask.entity, &NeuronCore::EntityState::id);
+        if (entity != snapshot->entities.end() && mask.voxelCount != m_voxelCounts[entity->composite])
+        {
+          return Refuse(SessionRefusal::BadMessage,
+                        std::format("a mask of {} voxels for entity {}, whose composite {} has {}", mask.voxelCount, mask.entity,
+                                    entity->composite, m_voxelCounts[entity->composite]));
+        }
+      }
       m_buffer.Add(std::move(*snapshot), _arrivalSeconds);
       continue;
     }
@@ -104,6 +117,11 @@ std::expected<void, SessionError> ClientSession::Poll(double _arrivalSeconds)
     m_settings = welcome->settings;
     m_manifest = welcome->manifest;
     m_composites = welcome->composites;
+    m_voxelCounts.clear();
+    for (const NeuronCore::CompositeModel& composite : m_composites)
+    {
+      m_voxelCounts.push_back(NeuronCore::CompositeVoxelCount(m_models, composite));
+    }
     m_sides = welcome->sides;
     m_side = welcome->sessionSide;
     m_welcomePayload = welcome->payload;

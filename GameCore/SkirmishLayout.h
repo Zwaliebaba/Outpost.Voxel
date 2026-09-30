@@ -43,6 +43,27 @@ inline constexpr NeuronCore::Int3 CORE_ANCHOR{-1800, 0, 0};
 inline constexpr std::array<std::string_view, 4> STARTING_SHIPS{"Miner", "Miner", "Gunship", "Gunship"};
 inline constexpr std::array<NeuronCore::Int3, 4> STARTING_SHIP_ANCHORS{{{-1680, 0, -90}, {-1680, 0, 90}, {-1680, 0, -30}, {-1680, 0, 30}}};
 
+// The battle a skirmish stages with --battle (Design/ADR/ADR-035): each side's whole command budget of 20 points in combat
+// ships, two cruisers, six gunships and six lancers, in place of its starting ships, facing the other side in a block
+// about 450 units from the sector's center. The nearest two stand 780 apart, out of each other's sensors, so that the
+// fight starts when an order starts it. It is the heaviest fight phase 5 can stage, which its done-when measures.
+inline constexpr std::array<std::string_view, 14> BATTLE_FLEET{"Cruiser", "Cruiser", "Gunship", "Gunship", "Gunship", "Gunship", "Gunship",
+                                                               "Gunship", "Lancer",  "Lancer",  "Lancer",  "Lancer",  "Lancer",  "Lancer"};
+inline constexpr std::array<NeuronCore::Int3, 14> BATTLE_FLEET_ANCHORS{{{-520, 0, -60},
+                                                                        {-520, 0, 60},
+                                                                        {-440, 0, -150},
+                                                                        {-440, 0, -90},
+                                                                        {-440, 0, -30},
+                                                                        {-440, 0, 30},
+                                                                        {-440, 0, 90},
+                                                                        {-440, 0, 150},
+                                                                        {-390, 0, -150},
+                                                                        {-390, 0, -90},
+                                                                        {-390, 0, -30},
+                                                                        {-390, 0, 30},
+                                                                        {-390, 0, 90},
+                                                                        {-390, 0, 150}}};
+
 // The fields (§8.4): side 1's two near fields and the first middle field, which the half turn maps onto the other three.
 // Each holds the same number of asteroids whatever the seed, within its radius of its center.
 struct FieldSpec
@@ -107,6 +128,9 @@ inline constexpr NeuronCore::Rotation FACING_SIDE_2{{0.0f, 0.0f, -1.0f}, {0.0f, 
 
 // The skirmish that _seed lays out. The same seed gives the same layout on every build.
 [[nodiscard]] SkirmishLayout MakeSkirmishLayout(std::uint32_t _seed);
+
+// The skirmish that _seed lays out with each side's starting ships replaced by BATTLE_FLEET.
+[[nodiscard]] SkirmishLayout MakeBattleLayout(std::uint32_t _seed);
 
 // Where a thing whose box has its middle at _middle, in its own space, stands when anchored at _anchor: the anchor, plus
 // the turned offset of the middle from the lower corner of its cell. Every term is a whole or a half voxel, and exact.

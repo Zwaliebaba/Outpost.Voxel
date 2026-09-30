@@ -7,6 +7,7 @@
     <ClInclude Include="Sector.h" />
     <ClInclude Include="Skirmish.h" />
     <ClInclude Include="Clearances.h" />
+    <ClInclude Include="Combat.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -15,5 +16,6 @@
     <ClCompile Include="Sector.cpp" />
     <ClCompile Include="Skirmish.cpp" />
     <ClCompile Include="Clearances.cpp" />
+    <ClCompile Include="Combat.cpp" />
   </ItemGroup>
 </Project>

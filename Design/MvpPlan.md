@@ -564,6 +564,8 @@ Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate,
 
 **Time to kill** (G59). A duel at equal cost lasts at least three times the loser's half turn: 12 s between frigates, 67.5 s against a capital ship. The target is about 20 to 40 s between frigates.
 
+**Phase 5's values** ([ADR-035](ADR/ADR-035-combat.md)). A mass driver's shell does 200 damage and reaches 1.5 voxels, one shell a second; the laser does 400 a second and reaches 1 voxel. A light voxel takes 10 and a heavy one 30, and a module's voxels are light. A module fails below half its voxels. The smoke check's duels between a gunship and a lancer last 37 to 45 s on average. A cruiser against eight frigates at equal cost loses every duel, in 20 to 63 s on average, short of G59's 67.5 s: no damage, reach or toughness tried changed that, which is phase 5's decision point.
+
 **Economy.**
 - An ore voxel buys about five light hull voxels (G42, the first review's model).
 - A miner fills its hold in about 40 s at a near field.

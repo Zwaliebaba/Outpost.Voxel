@@ -23,7 +23,7 @@ using NeuronCore::Float3;
 // A press that moves less than this far before its release is a click, and one that moves further a drag.
 constexpr float CLICK_PIXELS = 4.0f;
 
-// A move's mark fades over this long.
+// An order's mark fades over this long.
 constexpr double MARK_SECONDS = 1.0;
 
 // The Windows SDK's VK_ESCAPE; the digits' keys are their characters.
@@ -91,7 +91,8 @@ Commander::Commander(std::uint8_t _side) noexcept
 
 std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _input, bool _pointerIsWorlds,
                                                const NeuronCore::PerspectiveView& _view, std::span<const NeuronClient::PickBox> _boxes,
-                                               std::span<const std::uint32_t> _orderable, OrderAction _action, double _nowSeconds)
+                                               std::span<const std::uint32_t> _orderable, std::span<const std::uint32_t> _enemies,
+                                               OrderAction _action, double _nowSeconds)
 {
   std::vector<GameCore::Order> orders;
   std::erase_if(m_marks, [_nowSeconds](const Mark& _mark) { return _nowSeconds - _mark.givenSeconds >= MARK_SECONDS; });
@@ -101,14 +102,28 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
   {
     ordered.resize(GameCore::MAX_ORDER_SHIPS);
   }
-  const auto moveTo = [this, &orders, &ordered, &_view, _nowSeconds](Float2 _pixel)
+  // The order a click at _pixel gives, _armed as it was: an attack on the enemy under it, unless a move is armed, and
+  // otherwise a move to the point of the plane under it, or an attack-move while an attack is armed.
+  const auto orderAt = [this, &orders, &ordered, &_view, _boxes, _enemies, _nowSeconds](Float2 _pixel, ArmedOrder _armed)
   {
-    m_moveArmed = false;
-    const std::optional<Float3> point = PlanePoint(_view, _pixel);
-    if (!ordered.empty() && point.has_value())
+    m_armed = ArmedOrder::None;
+    if (ordered.empty())
     {
-      orders.push_back({GameCore::OrderKind::Move, ordered, point->x, point->z});
-      m_marks.push_back({point->x, point->z, _nowSeconds});
+      return;
+    }
+    const std::optional<std::uint32_t> picked = _armed == ArmedOrder::Move ? std::nullopt : NeuronClient::Pick(_view, _boxes, _pixel);
+    if (picked.has_value() && Holds(_enemies, *picked))
+    {
+      const auto box = std::ranges::find(_boxes, *picked, &NeuronClient::PickBox::id);
+      orders.push_back({GameCore::OrderKind::Attack, ordered, 0.0f, 0.0f, *picked});
+      m_marks.push_back({box->middle.x, box->middle.z, _nowSeconds, true});
+      return;
+    }
+    if (const std::optional<Float3> point = PlanePoint(_view, _pixel); point.has_value())
+    {
+      const bool attack = _armed == ArmedOrder::Attack;
+      orders.push_back({attack ? GameCore::OrderKind::AttackMove : GameCore::OrderKind::Move, ordered, point->x, point->z});
+      m_marks.push_back({point->x, point->z, _nowSeconds, attack});
     }
   };
 
@@ -118,15 +133,18 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
     switch (_action)
     {
     case OrderAction::Move:
-      m_moveArmed = true;
+      m_armed = ArmedOrder::Move;
+      break;
+    case OrderAction::Attack:
+      m_armed = ArmedOrder::Attack;
       break;
     case OrderAction::Stop:
       orders.push_back({GameCore::OrderKind::Stop, ordered, 0.0f, 0.0f});
-      m_moveArmed = false;
+      m_armed = ArmedOrder::None;
       break;
     case OrderAction::Hold:
       orders.push_back({GameCore::OrderKind::Hold, ordered, 0.0f, 0.0f});
-      m_moveArmed = false;
+      m_armed = ArmedOrder::None;
       break;
     case OrderAction::None:
       break;
@@ -136,9 +154,9 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
   // Esc, and the control groups. Alt with a digit is a debug key's.
   if (_input.WasKeyPressed(ESCAPE_KEY))
   {
-    if (m_moveArmed)
+    if (m_armed != ArmedOrder::None)
     {
-      m_moveArmed = false;
+      m_armed = ArmedOrder::None;
     }
     else
     {
@@ -180,9 +198,9 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
       const bool shift = _input.IsKeyDown(NeuronClient::SHIFT_KEY);
       if (Apart(start, m_pointer) < CLICK_PIXELS)
       {
-        if (m_moveArmed)
+        if (m_armed != ArmedOrder::None)
         {
-          moveTo(m_pointer);
+          orderAt(m_pointer, m_armed);
         }
         else if (const std::optional<std::uint32_t> picked = NeuronClient::Pick(_view, _boxes, m_pointer); shift && picked.has_value())
         {
@@ -206,7 +224,12 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
       }
       else
       {
-        const std::vector<std::uint32_t> boxed = NeuronClient::PickWithin(_view, _boxes, start, m_pointer);
+        std::vector<std::uint32_t> boxed = NeuronClient::PickWithin(_view, _boxes, start, m_pointer);
+        // A box that holds any of the side's ships selects only those (the concept's §9).
+        if (std::ranges::any_of(boxed, [_orderable](std::uint32_t _id) { return Holds(_orderable, _id); }))
+        {
+          std::erase_if(boxed, [_orderable](std::uint32_t _id) { return !Holds(_orderable, _id); });
+        }
         if (!shift)
         {
           m_selection.clear();
@@ -216,13 +239,13 @@ std::vector<GameCore::Order> Commander::Update(const NeuronClient::InputState& _
     }
     if (_input.WasButtonReleased(MouseButton::Right))
     {
-      if (m_moveArmed)
+      if (m_armed != ArmedOrder::None)
       {
-        m_moveArmed = false;
+        m_armed = ArmedOrder::None;
       }
       else
       {
-        moveTo(m_pointer);
+        orderAt(m_pointer, ArmedOrder::None);
       }
     }
   }
@@ -252,24 +275,35 @@ void Commander::Draw(NeuronClient::Surface& _surface, const NeuronCore::Perspect
   for (const GameCore::ShipOrderState& state : _states)
   {
     const NeuronClient::SampledEntity* ship = Find(_sample, state.ship);
-    if (ship == nullptr || state.state != GameCore::ShipState::Moving)
+    if (ship == nullptr)
     {
       continue;
     }
-    const Float3 destination{state.destinationX, ship->position.y, state.destinationZ};
     const bool selected = Holds(m_selection, state.ship);
-    if (selected)
+    if (state.state == GameCore::ShipState::Moving || state.state == GameCore::ShipState::AttackMoving)
     {
-      NeuronClient::DrawLine(_surface, _view, ship->position, destination, _look.lineWidthPixels, _look.orderColor, LINE_ALPHA);
+      const Float3 color = state.state == GameCore::ShipState::Moving ? _look.orderColor : _look.attackColor;
+      const Float3 destination{state.destinationX, ship->position.y, state.destinationZ};
+      if (selected)
+      {
+        NeuronClient::DrawLine(_surface, _view, ship->position, destination, _look.lineWidthPixels, color, LINE_ALPHA);
+      }
+      NeuronClient::DrawMarker(_surface, _view, destination, _look.markerPixels, _look.lineWidthPixels, color,
+                               selected ? SELECTED_MARKER_ALPHA : MARKER_ALPHA);
     }
-    NeuronClient::DrawMarker(_surface, _view, destination, _look.markerPixels, _look.lineWidthPixels, _look.orderColor,
-                             selected ? SELECTED_MARKER_ALPHA : MARKER_ALPHA);
+    else if (state.state == GameCore::ShipState::Attacking && selected)
+    {
+      if (const NeuronClient::SampledEntity* target = Find(_sample, state.target); target != nullptr)
+      {
+        NeuronClient::DrawLine(_surface, _view, ship->position, target->position, _look.lineWidthPixels, _look.attackColor, LINE_ALPHA);
+      }
+    }
   }
   for (const Mark& mark : m_marks)
   {
     const auto fade = static_cast<float>(std::clamp((_nowSeconds - mark.givenSeconds) / MARK_SECONDS, 0.0, 1.0));
     NeuronClient::DrawMarker(_surface, _view, {mark.x, 0.0f, mark.z}, _look.markerPixels * (1.0f + fade), _look.lineWidthPixels,
-                             _look.orderColor, 1.0f - fade);
+                             mark.attack ? _look.attackColor : _look.orderColor, 1.0f - fade);
   }
   if (m_dragStart.has_value() && Apart(*m_dragStart, m_pointer) >= CLICK_PIXELS)
   {

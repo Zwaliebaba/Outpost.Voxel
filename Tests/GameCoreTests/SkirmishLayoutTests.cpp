@@ -10,7 +10,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <limits>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -131,6 +134,46 @@ public:
       Assert::AreEqual(std::size_t{2}, miners);
       Assert::AreEqual(std::size_t{2}, gunships);
     }
+  }
+
+  // Design/ADR/ADR-035: the battle a skirmish stages keeps the cores and the fields, and gives each side its whole
+  // command budget of 20 points in combat ships in place of its own, facing the other side, out of each other's sensors.
+  TEST_METHOD(StagesABattleOfTheWholeBudget)
+  {
+    const std::map<std::string_view, std::uint32_t> commandPoints{{"Gunship", 1}, {"Lancer", 1}, {"Cruiser", 4}};
+    const GameCore::SkirmishLayout skirmish = GameCore::MakeSkirmishLayout(7);
+    const GameCore::SkirmishLayout battle = GameCore::MakeBattleLayout(7);
+    Assert::AreEqual(skirmish.asteroids.size(), battle.asteroids.size(), L"the same fields");
+    for (std::size_t asteroid = 0; asteroid < battle.asteroids.size(); ++asteroid)
+    {
+      Assert::IsTrue(SameAnchor(skirmish.asteroids[asteroid].anchor, battle.asteroids[asteroid].anchor), L"and asteroids");
+    }
+    const std::size_t sideUnits = battle.units.size() / 2;
+    for (std::size_t unit = 0; unit < sideUnits; ++unit)
+    {
+      Assert::IsTrue(battle.units[unit + sideUnits].design == battle.units[unit].design &&
+                       SameAnchor(battle.units[unit + sideUnits].anchor, GameCore::HalfTurn(battle.units[unit].anchor)),
+                     L"side 2's the half turn of side 1's");
+    }
+    std::uint32_t points = 0;
+    std::int32_t nearest = std::numeric_limits<std::int32_t>::max();
+    for (const GameCore::LayoutUnit& unit : battle.units)
+    {
+      if (unit.side != 1)
+      {
+        continue;
+      }
+      if (unit.design == GameCore::CORE_DESIGN)
+      {
+        Assert::IsTrue(unit.anchor.position.x == GameCore::CORE_ANCHOR.x, L"the core where it was");
+        continue;
+      }
+      points += commandPoints.at(unit.design);
+      nearest = std::min(nearest, -2 * unit.anchor.position.x);
+      Assert::IsTrue(unit.anchor.turn.axisZ.x == 1.0f, L"facing side 2");
+    }
+    Assert::AreEqual(std::uint32_t{20}, points, L"the whole budget");
+    Assert::IsTrue(nearest > 700, L"out of the other side's frigates' sensors");
   }
 
   // Six fields: two near each core and two in the middle, each asteroid within its field's radius on the plane and a

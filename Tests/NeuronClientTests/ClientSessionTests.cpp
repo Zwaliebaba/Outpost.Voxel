@@ -250,6 +250,32 @@ public:
     }
   }
 
+  // Design/ADR/ADR-035: a snapshot's masks reach the buffer as they came, and a mask of other than its entity's
+  // composite's voxels, as this client's models count them, is refused.
+  TEST_METHOD(RefusesAMaskOfAnotherCount)
+  {
+    Link link = Connect(GameDataDirectory());
+    Send(*link.server, WelcomeOf(GameDataManifest()));
+    Assert::IsTrue(link.session->Poll(0.0).has_value(), L"welcomed");
+    const std::uint32_t voxels = NeuronCore::CompositeVoxelCount(link.session->Models(), link.session->Composites()[2]);
+    const NeuronCore::EntityState frigate{9, 2, 1, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 60.0f}};
+    NeuronCore::Snapshot snapshot{1, 1, false, {frigate}, {}, {}};
+    std::vector<std::uint8_t> gone((voxels + 7u) / 8u, 0u);
+    gone.front() = 0x05;
+    snapshot.masks = {{9, voxels, gone}};
+    Send(*link.server, snapshot);
+    Assert::IsTrue(link.session->Poll(0.5).has_value(), L"a mask of the frigate's voxels");
+    Assert::IsTrue(link.session->Buffer().Newest().masks.front().gone == gone, L"reaches the buffer as it came");
+
+    snapshot.tick = 2;
+    snapshot.worldTick = 2;
+    gone.push_back(0u);
+    snapshot.masks = {{9, voxels + 8u, gone}};
+    Send(*link.server, snapshot);
+    const std::string detail = std::format("a mask of {} voxels for entity 9, whose composite 2 has {}", voxels + 8u, voxels);
+    ExpectRefusal(link, NeuronClient::SessionRefusal::BadMessage, detail.c_str());
+  }
+
   TEST_METHOD(LearnsThatTheServerClosedIt)
   {
     // What the server sent before it closed the link is taken first.

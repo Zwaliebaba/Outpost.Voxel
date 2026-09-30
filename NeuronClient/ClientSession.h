@@ -22,7 +22,7 @@ namespace NeuronClient
 enum class SessionRefusal : std::uint8_t
 {
   Closed,         // the server closed the session: it refused the client, or it stopped
-  BadMessage,     // bytes that do not decode, or a message a client never receives; the detail says which
+  BadMessage,     // bytes that do not decode, a message a client never receives, or a mask of another count; the detail says which
   WrongProtocol,  // a welcome of another protocol
   ModelNotLoaded, // a model the welcome names whose file the client cannot read, or whose reader refused it
   ModelMismatch   // a model whose file's hash is not the one the welcome gives
@@ -40,8 +40,9 @@ struct SessionError
 [[nodiscard]] std::string DescribeSessionError(const SessionError& _error);
 
 // The client's end of a session with a server (§6.1, §6.2). It says Hello, loads every model the welcome names from its
-// own copy of the model's file, refusing one whose hash differs, and then feeds each snapshot into its buffer. What the
-// server knows reaches it only as these messages, through its transport (AGENTS.md R18).
+// own copy of the model's file, refusing one whose hash differs, and then feeds each snapshot into its buffer, refusing a
+// mask whose bits are not its entity's voxels (Design/ADR/ADR-035). What the server knows reaches it only as these
+// messages, through its transport (AGENTS.md R18).
 class ClientSession
 {
 public:
@@ -122,6 +123,7 @@ private:
   std::vector<NeuronCore::ManifestEntry> m_manifest;
   std::vector<NeuronCore::VoxModel> m_models;
   std::vector<NeuronCore::CompositeModel> m_composites;
+  std::vector<std::uint32_t> m_voxelCounts; // by composite, the bits of its entities' masks
   std::vector<NeuronCore::SideColor> m_sides;
   std::uint8_t m_side = NeuronCore::OBSERVER_SIDE;
   std::vector<std::uint8_t> m_welcomePayload;

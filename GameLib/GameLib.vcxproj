@@ -163,6 +163,7 @@
   <ItemGroup>
     <ClInclude Include="Bench.h" />
     <ClInclude Include="ChaseCamera.h" />
+    <ClInclude Include="CombatOverlay.h" />
     <ClInclude Include="Commander.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="Hud.h" />
@@ -174,6 +175,7 @@
   <ItemGroup>
     <ClCompile Include="Bench.cpp" />
     <ClCompile Include="ChaseCamera.cpp" />
+    <ClCompile Include="CombatOverlay.cpp" />
     <ClCompile Include="Commander.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="Hud.cpp" />

@@ -52,8 +52,10 @@ constexpr std::size_t WELCOME_FIRST_NAME = 101;
 constexpr std::size_t SNAPSHOT_WORLD_TICK = 16;
 constexpr std::size_t SNAPSHOT_FLAGS = 24;
 constexpr std::size_t SNAPSHOT_ENTITY_COUNT = 28;
-constexpr std::size_t SNAPSHOT_PAYLOAD_BYTES = 36;
-constexpr std::size_t SNAPSHOT_FIRST_ENTITY = 40;
+constexpr std::size_t SNAPSHOT_MASK_COUNT = 36;
+constexpr std::size_t SNAPSHOT_MASK_BYTES = 40;
+constexpr std::size_t SNAPSHOT_PAYLOAD_BYTES = 44;
+constexpr std::size_t SNAPSHOT_FIRST_ENTITY = 48;
 constexpr std::size_t ENTITY_COMPOSITE = 4;
 constexpr std::size_t ENTITY_SIDE = 6;
 constexpr std::size_t ENTITY_FLAGS = 7;
@@ -62,6 +64,8 @@ constexpr std::size_t ENTITY_ROTATION = 20;
 constexpr std::size_t ENTITY_VELOCITY = 36;
 constexpr std::size_t DETONATION_WORLD_TICK = 8;
 constexpr std::size_t DETONATION_VELOCITY = 16;
+constexpr std::size_t MASK_VOXEL_COUNT = 4;
+constexpr std::size_t MASK_HEADER_BYTES = 8;
 constexpr std::size_t COMMAND_KIND = 8;
 constexpr std::size_t COMMAND_ENTITY = 12;
 constexpr std::size_t COMMAND_PAYLOAD_BYTES = 16;
@@ -76,10 +80,10 @@ constexpr NeuronCore::WelcomeCounts COUNTS{4, 2};
 // One message of each type, encoded by hand from the layout with Python's struct module rather than by the encoder
 // under test, so that a change of encoding shows here as a diff.
 constexpr std::array<std::uint8_t, 12> GOLDEN_HELLO{
-  0x01, 0x00, 0x04, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+  0x01, 0x00, 0x05, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 };
 constexpr std::array<std::uint8_t, 211> GOLDEN_WELCOME{
-  0x02, 0x00, 0x04, 0x00, 0xD3, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x02, 0x00, 0x05, 0x00, 0xD3, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x33, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x33, 0x3F,
   0x33, 0x33, 0x33, 0x3F, 0x00, 0x00, 0x80, 0x3E, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC,
   0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -90,19 +94,19 @@ constexpr std::array<std::uint8_t, 211> GOLDEN_WELCOME{
   0xF3, 0x04, 0x35, 0x3F, 0x00, 0x00, 0x00, 0x00, 0xF3, 0x04, 0x35, 0x3F, 0x02, 0x00, 0x00, 0x00, 0x28, 0x78, 0xDC, 0x00, 0xDC, 0x50,
   0x3C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0xCA, 0xFE, 0x01,
 };
-constexpr std::array<std::uint8_t, 118> GOLDEN_SNAPSHOT{
-  0x03, 0x00, 0x04, 0x00, 0x76, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
-  0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x40,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x3F,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBF, 0x03, 0x00, 0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE, 0x08, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x5A, 0xA5,
+constexpr std::array<std::uint8_t, 136> GOLDEN_SNAPSHOT{
+  0x03, 0x00, 0x05, 0x00, 0x88, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x02, 0x00,
+  0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x40, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0xBF, 0x03, 0x00, 0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x03, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x21, 0x02, 0x5A, 0xA5,
 };
 constexpr std::array<std::uint8_t, 20> GOLDEN_COMMAND{
-  0x04, 0x00, 0x04, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x04, 0x00, 0x05, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 constexpr std::array<std::uint8_t, 23> GOLDEN_GAME_COMMAND{
-  0x04, 0x00, 0x04, 0x00, 0x17, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03,
+  0x04, 0x00, 0x05, 0x00, 0x17, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03,
 };
 
 // A quarter turn about y, as the cube's rotations are stored: sin 45° and cos 45°, rounded to float.
@@ -134,11 +138,13 @@ constexpr NeuronCore::Quaternion QUARTER_TURN_ABOUT_Y{0.0f, 0.70710677f, 0.0f, 0
           .paused = false,
           .entities = {{3, 1, 2, {1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {0.5f, 0.0f, -0.5f}}},
           .detonations = {{3, 0xDEADBEEFu, 8, {0.0f, 0.0f, 2.0f}}},
+          .masks = {{3, 10, {0x21, 0x02}}}, // voxels 0, 5 and 9 of 10 gone
           .payload = {0x5A, 0xA5}};
 }
 
 // A welcome of three models, each a composite alone, and a fourth composite of all three turned and moved; and a
-// snapshot of three entities, one detonated, with rotations off the axes, of both sides and of none.
+// snapshot of three entities, one detonated and two with voxels gone, with rotations off the axes, of both sides and of
+// none.
 [[nodiscard]] NeuronCore::Welcome SampleWelcome()
 {
   NeuronCore::Welcome welcome = GoldenWelcome();
@@ -205,6 +211,7 @@ constexpr NeuronCore::Quaternion QUARTER_TURN_ABOUT_Y{0.0f, 0.70710677f, 0.0f, 0
                        {2, 3, 2, {100.25f, -4.0f, 7.0f}, turned, {60.0f, -1.5f, 0.0f}},
                        {0xFFFFFFFFu, 1, 1, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -20.0f}}},
           .detonations = {{2, 7, 999, {60.0f, -1.5f, 0.0f}}},
+          .masks = {{0xFFFFFFFFu, 8, {0x80}}, {2, 17, {0xFF, 0x00, 0x01}}},
           .payload = {1, 2, 3, 4, 5, 6, 7}};
 }
 
@@ -299,6 +306,12 @@ void ExpectRefusal(ProtocolError _expected, const Bytes& _bytes, const std::wstr
   return SNAPSHOT_FIRST_ENTITY + SampleSnapshot().entities.size() * NeuronCore::ENTITY_RECORD_BYTES;
 }
 
+// Where the sample snapshot's first mask starts, after its detonations.
+[[nodiscard]] std::size_t FirstMask()
+{
+  return FirstDetonation() + SampleSnapshot().detonations.size() * NeuronCore::DETONATION_RECORD_BYTES;
+}
+
 } // namespace
 
 // Design/Archive/SpaceScene.md §6.2 and §15: the messages round-trip, every truncation and every refusal is refused by name,
@@ -343,6 +356,13 @@ public:
     Assert::AreEqual(expected.entities[1].composite, decoded.entities[1].composite);
     Assert::IsTrue(expected.entities[1].side == decoded.entities[1].side, L"the side");
     Assert::IsTrue(expected.payload == decoded.payload, L"the snapshot's payload");
+    Assert::AreEqual(expected.masks.size(), decoded.masks.size());
+    for (std::size_t i = 0; i < expected.masks.size(); ++i)
+    {
+      Assert::AreEqual(expected.masks[i].entity, decoded.masks[i].entity, L"a mask's entity");
+      Assert::AreEqual(expected.masks[i].voxelCount, decoded.masks[i].voxelCount, L"a mask's voxel count");
+      Assert::IsTrue(expected.masks[i].gone == decoded.masks[i].gone, L"a mask's bits");
+    }
 
     const auto welcome = NeuronCore::DecodeMessage(Encoded(SampleWelcome()), COUNTS);
     Assert::IsTrue(welcome.has_value() && std::holds_alternative<NeuronCore::Welcome>(*welcome));
@@ -405,7 +425,8 @@ public:
       PutU16(bytes, TYPE_OFFSET, type);
       ExpectRefusal(ProtocolError::UnknownMessage, bytes, std::format(L"type {}", type));
     }
-    for (const std::uint16_t version : {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}, std::uint16_t{3}, std::uint16_t{0xFFFF}})
+    for (const std::uint16_t version :
+         {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}, std::uint16_t{3}, std::uint16_t{4}, std::uint16_t{0xFFFF}})
     {
       Bytes bytes(GOLDEN_COMMAND.begin(), GOLDEN_COMMAND.end());
       PutU16(bytes, VERSION_OFFSET, version);
@@ -814,6 +835,65 @@ public:
       Bytes bytes = SnapshotBytes();
       PutU64(bytes, SNAPSHOT_WORLD_TICK, 0);
       ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a world tick before its detonation");
+    }
+  }
+
+  // Design/ADR/ADR-035: an entity has at most one mask, of its whole composite's voxels, with a voxel gone and the last
+  // byte's spare bits clear, so that each state has one encoding; and the masks fill the bytes the snapshot gives them.
+  TEST_METHOD(RefusesMasksThatDoNotAddUp)
+  {
+    {
+      NeuronCore::Snapshot snapshot = SampleSnapshot();
+      snapshot.masks[1].entity = 4;
+      ExpectRefusal(ProtocolError::UnknownEntity, Encoded(snapshot), L"a mask of an entity not in the snapshot");
+    }
+    {
+      NeuronCore::Snapshot snapshot = SampleSnapshot();
+      snapshot.masks.push_back(snapshot.masks.front());
+      ExpectRefusal(ProtocolError::MalformedMessage, Encoded(snapshot), L"two masks of one entity");
+    }
+    {
+      NeuronCore::Snapshot snapshot = SampleSnapshot();
+      snapshot.masks[0] = {0xFFFFFFFFu, 0, {}};
+      ExpectRefusal(ProtocolError::MalformedMessage, Encoded(snapshot), L"a mask of no voxel");
+    }
+    {
+      NeuronCore::Snapshot snapshot = SampleSnapshot();
+      snapshot.masks[1].gone = {0x00, 0x00, 0x00};
+      ExpectRefusal(ProtocolError::MalformedMessage, Encoded(snapshot), L"a mask with no voxel gone");
+    }
+    {
+      NeuronCore::Snapshot snapshot = SampleSnapshot();
+      snapshot.masks[1].gone.back() = 0x02;
+      ExpectRefusal(ProtocolError::MalformedMessage, Encoded(snapshot), L"a bit past the voxel count");
+      snapshot.masks[1].voxelCount = 18;
+      Assert::IsTrue(NeuronCore::DecodeMessage(Encoded(snapshot), COUNTS).has_value(), L"which is a voxel of a longer mask");
+    }
+    {
+      Bytes bytes = SnapshotBytes();
+      PutU32(bytes, SNAPSHOT_MASK_COUNT, static_cast<std::uint32_t>(SampleSnapshot().masks.size() + 1));
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a mask count beyond the masks");
+      PutU32(bytes, SNAPSHOT_MASK_COUNT, 0xFFFFFFFFu);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a mask count no message could hold");
+      PutU32(bytes, SNAPSHOT_MASK_COUNT, static_cast<std::uint32_t>(SampleSnapshot().masks.size() - 1));
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a mask count short of the masks");
+    }
+    {
+      Bytes bytes = SnapshotBytes();
+      PutU32(bytes, SNAPSHOT_MASK_BYTES, GetU32(bytes, SNAPSHOT_MASK_BYTES) + 1);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"mask bytes beyond the message");
+    }
+    {
+      // The first mask's count moved by a byte's worth of voxels: its bits run into the next mask, or fall short of it.
+      Bytes bytes = SnapshotBytes();
+      PutU32(bytes, FirstMask() + MASK_VOXEL_COUNT, 9);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a voxel count that takes the next mask's bytes");
+      Bytes golden(GOLDEN_SNAPSHOT.begin(), GOLDEN_SNAPSHOT.end());
+      const std::size_t goldenMask = GOLDEN_SNAPSHOT.size() - GoldenSnapshot().payload.size() - MASK_HEADER_BYTES - 2;
+      PutU32(golden, goldenMask + MASK_VOXEL_COUNT, 17);
+      ExpectRefusal(ProtocolError::MalformedMessage, golden, L"a voxel count beyond the mask bytes");
+      PutU32(golden, goldenMask + MASK_VOXEL_COUNT, 8);
+      ExpectRefusal(ProtocolError::MalformedMessage, golden, L"a voxel count short of the mask bytes");
     }
   }
 
