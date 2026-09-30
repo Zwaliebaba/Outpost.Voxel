@@ -169,6 +169,24 @@ SkirmishLayout MakeSkirmishLayout(std::uint32_t _seed)
   return layout;
 }
 
+SkirmishLayout MakeBattleLayout(std::uint32_t _seed)
+{
+  SkirmishLayout layout = MakeSkirmishLayout(_seed);
+  layout.units.clear();
+  layout.units.push_back({CORE_DESIGN, 1, {CORE_ANCHOR, FACING_SIDE_2}});
+  for (std::size_t ship = 0; ship < BATTLE_FLEET.size(); ++ship)
+  {
+    layout.units.push_back({BATTLE_FLEET[ship], 1, {BATTLE_FLEET_ANCHORS[ship], FACING_SIDE_2}});
+  }
+  const std::size_t sideUnits = layout.units.size();
+  for (std::size_t unit = 0; unit < sideUnits; ++unit)
+  {
+    const LayoutUnit& first = layout.units[unit];
+    layout.units.push_back({first.design, 2, HalfTurn(first.anchor)});
+  }
+  return layout;
+}
+
 NeuronCore::Float3 AnchoredPosition(const Anchor& _anchor, NeuronCore::Float3 _middle) noexcept
 {
   const NeuronCore::Float3 cell{std::floor(_middle.x), std::floor(_middle.y), std::floor(_middle.z)};

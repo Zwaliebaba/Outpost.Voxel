@@ -69,6 +69,29 @@ struct ModuleSpec
   float priceCredits;
 };
 
+// How a weapon's shot travels (Design/GameConcept.md §8.1): a shell flies straight at a finite speed, and a beam reaches
+// its end at once, every tick it fires.
+enum class ShotKind : std::uint8_t
+{
+  Shell,
+  Beam
+};
+
+// What a weapon module does (Design/ADR/ADR-035), by its model's name. Its range is from its muzzle to the target's
+// nearest voxel (G47). A hit lands on the first voxel its line meets and spends its damage on the voxels within its reach
+// of that one, nearest first, each up to what the voxel has left; whatever is left after all of them go carries on along
+// the line (G39).
+struct WeaponSpec
+{
+  std::string_view module;
+  ShotKind shot;
+  float rangeUnits;
+  float damage;          // a shell's; a beam's in a second
+  float reachUnits;      // about the voxel a hit lands on, from center to center
+  float intervalSeconds; // between shells; 0 for a beam, which fires every tick
+  float shellSpeedUnitsPerSecond;
+};
+
 // Whether a design flies or stands. Each has size classes of its own (G40).
 enum class DesignKind : std::uint8_t
 {
@@ -130,6 +153,10 @@ inline constexpr float BUILD_CREDITS_PER_SECOND = 150.0f;
 
 [[nodiscard]] std::span<const ModuleSpec> Modules() noexcept;
 [[nodiscard]] const ModuleSpec* FindModule(std::string_view _name) noexcept;
+
+// The weapon a module of the catalogue is, if it is one: the mass driver's shells and the laser's beam.
+[[nodiscard]] std::span<const WeaponSpec> Weapons() noexcept;
+[[nodiscard]] const WeaponSpec* FindWeapon(std::string_view _module) noexcept;
 
 // The MVP's library: the miner, the gunship, the lancer, the cruiser, and the skirmish's station core (G48).
 [[nodiscard]] std::span<const DesignSpec> Designs() noexcept;

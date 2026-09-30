@@ -551,15 +551,24 @@ public:
   TEST_METHOD(SpellsItsParametersForItsLog)
   {
     const Bytes bytes = GameLogic::EncodeSkirmishParameters({.seed = 0x01020304u, .tickRate = 30});
-    Assert::IsTrue(bytes == Bytes{1, 4, 3, 2, 1, 30, 0, 0, 0}, L"a version, then the seed and the tick rate");
+    Assert::IsTrue(bytes == Bytes{2, 4, 3, 2, 1, 30, 0, 0, 0, 0}, L"a version, then the seed, the tick rate and the flags");
     const auto parameters = GameLogic::DecodeSkirmishParameters(bytes);
-    Assert::IsTrue(parameters.has_value() && parameters->seed == 0x01020304u && parameters->tickRate == 30, L"and back");
+    Assert::IsTrue(parameters.has_value() && parameters->seed == 0x01020304u && parameters->tickRate == 30 && !parameters->battle &&
+                     parameters->jinking,
+                   L"and back");
+    const Bytes flagged = GameLogic::EncodeSkirmishParameters({.seed = 1, .tickRate = 30, .battle = true, .jinking = false});
+    Assert::IsTrue(flagged.back() == 3, L"a battle, without jinking");
+    const auto battle = GameLogic::DecodeSkirmishParameters(flagged);
+    Assert::IsTrue(battle.has_value() && battle->battle && !battle->jinking, L"and back");
     Bytes otherVersion = bytes;
-    otherVersion[0] = 2;
+    otherVersion[0] = 1;
+    Bytes unknownFlag = bytes;
+    unknownFlag.back() = 4;
     Bytes longer = bytes;
     longer.push_back(0);
     Assert::IsFalse(GameLogic::DecodeSkirmishParameters(otherVersion).has_value(), L"another version");
-    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(std::span(bytes).first(8)).has_value(), L"bytes cut short");
+    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(unknownFlag).has_value(), L"a flag the skirmish does not have");
+    Assert::IsFalse(GameLogic::DecodeSkirmishParameters(std::span(bytes).first(9)).has_value(), L"bytes cut short");
     Assert::IsFalse(GameLogic::DecodeSkirmishParameters(longer).has_value(), L"and too many");
   }
 

@@ -21,6 +21,10 @@ constexpr double NEAR_CELLS = 1.0 / 64.0;
 // How far past the best hit so far, in cells, the walk goes on before it trusts that hit.
 constexpr double SETTLE_CELLS = 2.0;
 
+// How far a segment must run inside a cell, in cells, for SegmentCells to count it: more than the rounding of a point
+// taken into a model's space and back, so that a segment that starts on a cell's face and leaves it does not enter it.
+constexpr double SEGMENT_INSIDE_CELLS = 1.0e-3;
+
 // The neighbors along one axis that the ray passes near while it crosses a cell: 0, and -1 or 1 or both.
 struct AxisNeighbors
 {
@@ -56,6 +60,36 @@ VoxelGrid::VoxelGrid(std::span<const std::uint32_t> _records)
   // One instance at the origin, so that a cell is a record's coordinates and holds its index.
   const ModelInstance part{{0, 0, 0}, {256, 256, 256}, 0, static_cast<std::uint32_t>(_records.size())};
   Fill(_records, {&part, 1});
+}
+
+VoxelGrid::VoxelGrid(std::span<const Int3> _cells)
+{
+  if (_cells.empty())
+  {
+    return;
+  }
+  Int3 lower = _cells.front();
+  Int3 upper = _cells.front() + Int3{1, 1, 1};
+  for (const Int3 cell : _cells)
+  {
+    lower = {std::min(lower.x, cell.x), std::min(lower.y, cell.y), std::min(lower.z, cell.z)};
+    upper = {std::max(upper.x, cell.x + 1), std::max(upper.y, cell.y + 1), std::max(upper.z, cell.z + 1)};
+  }
+  m_origin = lower;
+  m_size = upper - lower;
+  const auto sizeX = static_cast<std::size_t>(m_size.x);
+  const auto sizeY = static_cast<std::size_t>(m_size.y);
+  m_cells.assign(sizeX * sizeY * static_cast<std::size_t>(m_size.z), NO_VOXEL);
+  for (std::size_t index = 0; index < _cells.size(); ++index)
+  {
+    const Int3 cell = _cells[index] - m_origin;
+    std::uint32_t& occupant =
+      m_cells[static_cast<std::size_t>(cell.x) + sizeX * (static_cast<std::size_t>(cell.y) + sizeY * static_cast<std::size_t>(cell.z))];
+    if (occupant == NO_VOXEL)
+    {
+      occupant = static_cast<std::uint32_t>(index);
+    }
+  }
 }
 
 void VoxelGrid::Fill(std::span<const std::uint32_t> _records, std::span<const ModelInstance> _instances)
@@ -147,6 +181,59 @@ TraceHit VoxelGrid::Trace(const Ray& _ray, float _minDistance) const noexcept
     }
   }
   return best;
+}
+
+std::vector<SegmentCell> SegmentCells(const VoxelGrid& _grid, const std::array<double, 3>& _origin, const std::array<double, 3>& _direction,
+                                      double _from, double _to)
+{
+  std::vector<SegmentCell> cells;
+  const double length = std::hypot(_direction[0], _direction[1], _direction[2]);
+  GridWalk walk(_grid, _origin, _direction, _from);
+  GridStep step{};
+  while (walk.Next(step))
+  {
+    for (std::size_t i = 0; i < step.count; ++i)
+    {
+      // The stretch of the segment inside the cell, by slabs: an axis the segment does not move along holds it when its
+      // coordinate lies in the cell's half-open span, so that a segment along a face belongs to one cell of the two.
+      const std::array<std::int32_t, 3> corner{step.cells[i].x, step.cells[i].y, step.cells[i].z};
+      double entry = _from;
+      double exit = _to;
+      for (std::size_t axis = 0; axis < 3 && entry < exit; ++axis)
+      {
+        const auto lower = static_cast<double>(corner[axis]);
+        const double upper = lower + 1.0;
+        if (_direction[axis] == 0.0)
+        {
+          if (_origin[axis] < lower || _origin[axis] >= upper)
+          {
+            exit = entry;
+          }
+          continue;
+        }
+        const double first = (lower - _origin[axis]) / _direction[axis];
+        const double second = (upper - _origin[axis]) / _direction[axis];
+        entry = std::max(entry, std::min(first, second));
+        exit = std::min(exit, std::max(first, second));
+      }
+      if ((exit - entry) * length > SEGMENT_INSIDE_CELLS)
+      {
+        cells.push_back({step.values[i], entry});
+      }
+    }
+    if (step.leaveDistance >= _to)
+    {
+      break;
+    }
+  }
+  // A cell the walk met twice, as the neighbor of two cells it crossed, counts once.
+  std::ranges::sort(cells, [](const SegmentCell& _a, const SegmentCell& _b)
+                    { return _a.value < _b.value || (_a.value == _b.value && _a.entry < _b.entry); });
+  const auto repeated = std::ranges::unique(cells, [](const SegmentCell& _a, const SegmentCell& _b) { return _a.value == _b.value; });
+  cells.erase(repeated.begin(), repeated.end());
+  std::ranges::sort(cells, [](const SegmentCell& _a, const SegmentCell& _b)
+                    { return _a.entry < _b.entry || (_a.entry == _b.entry && _a.value < _b.value); });
+  return cells;
 }
 
 GridWalk::GridWalk(const VoxelGrid& _grid, const std::array<double, 3>& _origin, const std::array<double, 3>& _direction,

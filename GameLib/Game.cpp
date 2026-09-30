@@ -17,6 +17,7 @@
 #include "SnapshotBuffer.h"
 
 #include "ChaseCamera.h"
+#include "CombatOverlay.h"
 #include "Commander.h"
 #include "Hud.h"
 #include "OrbitCamera.h"
@@ -24,6 +25,7 @@
 #include "StrategicCamera.h"
 
 #include "Catalogue.h"
+#include "CombatProfile.h"
 #include "Orders.h"
 #include "WelcomeNames.h"
 
@@ -182,7 +184,20 @@ constexpr NeuronClient::InterfaceStyle INTERFACE_STYLE{{L"Segoe UI", 15.0f, Neur
 
 // How the commander marks the world, at 96 DPI.
 constexpr CommanderLook COMMANDER_LOOK{
-  {0.35f, 0.85f, 1.0f}, {1.0f, 0.35f, 0.3f}, {0.9f, 0.85f, 0.5f}, {0.4f, 1.0f, 0.5f}, 1.5f, 1.5f, 12.0f};
+  {0.35f, 0.85f, 1.0f}, {1.0f, 0.35f, 0.3f}, {0.9f, 0.85f, 0.5f}, {0.4f, 1.0f, 0.5f}, {1.0f, 0.55f, 0.2f}, 1.5f, 1.5f, 12.0f};
+
+// How the fight's marks look, at 96 DPI (Design/ADR/ADR-035).
+constexpr CombatLook COMBAT_LOOK{6.0f,
+                                 2.0f,
+                                 28.0f,
+                                 3.0f,
+                                 2.5f,
+                                 2.0f,
+                                 {0.75f, 0.8f, 0.9f},
+                                 {0.06f, 0.06f, 0.06f},
+                                 {0.3f, 0.9f, 0.4f},
+                                 {1.0f, 0.75f, 0.2f},
+                                 {1.0f, 0.25f, 0.2f}};
 
 // What F3 tunes: multipliers on the welcome's world settings, which stay as the server sent them, and the exposure, which
 // only the client has. Nothing of it reaches the server (AGENTS.md R18).
@@ -761,19 +776,22 @@ void WriteCapture(NeuronClient::Renderer& _renderer, const std::filesystem::path
   }
 }
 
-// What the client keeps to command a skirmish (Design/ADR/ADR-034).
+// What the client keeps to command a skirmish (Design/ADR/ADR-034) and show its fight (Design/ADR/ADR-035).
 struct Commanding
 {
   StrategicCamera strategic;
   Commander commander;
   NeuronClient::Interface widgets;
   CommanderLook look;
+  CombatLook combatLook;
   std::vector<NeuronCore::Float3> halfSizes; // by composite: half its box, which the pointer picks
   std::vector<float> radii;                  // by composite: its sphere, from which a selected entity's ring stands out
   std::vector<bool> ships;                   // by composite: whether it is a ship's design
-  NeuronCore::Float3 home;                   // where Home looks
-  float homeDistance;                        // and from how far
-  bool inspecting;                           // the orbit or the chase camera, from Alt+O or Alt+C until Home
+  std::vector<std::vector<GameCore::CombatComponent>> components; // by composite: its voxels by component, for its condition
+  std::vector<NeuronCore::Float3> sideColors;                     // linear, side n at n - 1
+  NeuronCore::Float3 home;                                        // where Home looks
+  float homeDistance;                                             // and from how far
+  bool inspecting;                                                // the orbit or the chase camera, from Alt+O or Alt+C until Home
 };
 
 // The skirmish's commanding, as it starts: the strategic camera looks at the side's core from HOME_DISTANCE, toward the
@@ -782,12 +800,19 @@ struct Commanding
                                         const Scene& _scene, const WorldSample& _sample, float _scale)
 {
   const std::span<const NeuronCore::CompositeModel> composites = _session.Composites();
+  std::vector<std::string> modelNames;
+  for (const NeuronCore::ManifestEntry& entry : _session.Manifest())
+  {
+    modelNames.push_back(entry.name);
+  }
   std::vector<NeuronCore::Float3> halfSizes;
   std::vector<float> radii;
   std::vector<bool> ships;
+  std::vector<std::vector<GameCore::CombatComponent>> components;
   halfSizes.reserve(composites.size());
   radii.reserve(composites.size());
   ships.reserve(composites.size());
+  components.reserve(composites.size());
   for (std::size_t index = 0; index < composites.size(); ++index)
   {
     const NeuronCore::VoxelBounds bounds =
@@ -797,6 +822,7 @@ struct Commanding
     radii.push_back(_scene.Models().Radius(static_cast<std::uint16_t>(index)));
     const GameCore::DesignSpec* design = index < _names.composites.size() ? GameCore::FindDesign(_names.composites[index]) : nullptr;
     ships.push_back(design != nullptr && design->kind == GameCore::DesignKind::Ship);
+    components.push_back(GameCore::ComponentsOf(modelNames, _session.Models(), composites[index]));
   }
 
   const std::vector<bool> structures = StructureComposites(_names);
@@ -834,13 +860,23 @@ struct Commanding
   look.ringWidthPixels *= _scale;
   look.lineWidthPixels *= _scale;
   look.markerPixels *= _scale;
+  CombatLook combatLook = COMBAT_LOOK;
+  combatLook.markPixels *= _scale;
+  combatLook.gapPixels = std::round(combatLook.gapPixels * _scale);
+  combatLook.barWidthPixels = std::round(combatLook.barWidthPixels * _scale);
+  combatLook.barHeightPixels = std::round(combatLook.barHeightPixels * _scale);
+  combatLook.shellPixels *= _scale;
+  combatLook.beamPixels *= _scale;
   return {StrategicCamera(home, homeDistance, heading),
           Commander(_session.Side()),
           NeuronClient::Interface(style),
           look,
+          combatLook,
           std::move(halfSizes),
           std::move(radii),
           std::move(ships),
+          std::move(components),
+          LinearSideColors(_session.Sides()),
           home,
           homeDistance,
           false};
@@ -878,14 +914,37 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
   }
 }
 
-// The order states the newest snapshot's payload carries (Design/ADR/ADR-033): none in a world that sends none.
-[[nodiscard]] std::vector<GameCore::ShipOrderState> OrderStatesOf(const NeuronCore::Snapshot& _snapshot)
+// What the payload of the snapshot _sample was taken from says (Design/ADR/ADR-033, Design/ADR/ADR-035): the side's
+// ships' orders and the shots it sees, and nothing in a world that sends none.
+[[nodiscard]] GameCore::SnapshotPayload PayloadOf(const WorldSample& _sample)
 {
-  if (_snapshot.payload.empty())
+  if (_sample.payload.empty())
   {
     return {};
   }
-  return GameCore::DecodeOrderStates(_snapshot.payload).value_or(std::vector<GameCore::ShipOrderState>{});
+  return GameCore::DecodeSnapshotPayload(_sample.payload).value_or(GameCore::SnapshotPayload{});
+}
+
+// What the selection panel says a ship of the side's does.
+[[nodiscard]] std::wstring_view Doing(std::span<const GameCore::ShipOrderState> _states, std::uint32_t _id) noexcept
+{
+  const auto state = std::ranges::find(_states, _id, &GameCore::ShipOrderState::ship);
+  if (state == _states.end())
+  {
+    return L"idle";
+  }
+  switch (state->state)
+  {
+  case GameCore::ShipState::Moving:
+    return L"moving";
+  case GameCore::ShipState::Holding:
+    return L"holding";
+  case GameCore::ShipState::Attacking:
+    return L"attacking";
+  case GameCore::ShipState::AttackMoving:
+    return L"attack-moving";
+  }
+  return L"idle";
 }
 
 // The selection panel's rows: each selected entity's composite's name and its id, and what it does, for a ship of the
@@ -913,8 +972,7 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
     }
     else if (entity->side == _side && entity->composite < _ships.size() && _ships[entity->composite])
     {
-      const auto state = std::ranges::find(_states, id, &GameCore::ShipOrderState::ship);
-      text += state == _states.end() ? L"   idle" : (state->state == GameCore::ShipState::Moving ? L"   moving" : L"   holding");
+      text += std::format(L"   {}", Doing(_states, id));
     }
     rows.push_back({id, std::move(text)});
   }
@@ -936,9 +994,10 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
   const bool observing = side == NeuronCore::OBSERVER_SIDE;
   const NeuronCore::Snapshot& newest = _session.Buffer().Newest();
 
-  // What the pointer can pick, the whole entities, for it never picks debris (the concept's §9); and of them the side's
-  // ships, which it may order.
+  // What the pointer can pick, the whole entities, for it never picks debris (the concept's §9); of them the side's
+  // ships, which it may order, and the other sides' entities, which they may attack (Design/ADR/ADR-035).
   std::vector<std::uint32_t> orderable;
+  std::vector<std::uint32_t> enemies;
   std::vector<NeuronClient::PickBox> boxes;
   boxes.reserve(_sample.entities.size());
   for (const SampledEntity& entity : _sample.entities)
@@ -952,6 +1011,10 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
     {
       orderable.push_back(entity.id);
     }
+    if (!observing && entity.side != 0 && entity.side != side)
+    {
+      enemies.push_back(entity.id);
+    }
   }
   _command.commander.Keep(_sample);
   const std::span<const std::uint32_t> selection = _command.commander.Selection();
@@ -964,7 +1027,7 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
   const HudRequest request = DrawHud(
     _command.widgets, static_cast<float>(_size.widthPixels), static_cast<float>(_size.heightPixels),
     {_sideName, orderable.size(), static_cast<double>(newest.worldTick) / static_cast<double>(_session.Buffer().TickRate()), newest.paused},
-    rows, !observing && !_command.inspecting, canOrder, _command.commander.IsMoveArmed());
+    rows, !observing && !_command.inspecting, canOrder, _command.commander.Armed());
   _command.widgets.End();
   const bool pointerIsWorlds = !_command.widgets.OwnsPointer();
   if (request.chosen.has_value())
@@ -1023,8 +1086,8 @@ void SteerStrategic(StrategicCamera& _camera, const InputState& _input, bool _po
   }
   const NeuronCore::PerspectiveView view = _command.inspecting ? _camera.View(_size.widthPixels, _size.heightPixels)
                                                                : _command.strategic.View(_size.widthPixels, _size.heightPixels);
-  const std::vector<GameCore::Order> orders =
-    _command.commander.Update(_input, pointerIsWorlds && !_command.inspecting, view, boxes, orderable, request.action, _nowSeconds);
+  const std::vector<GameCore::Order> orders = _command.commander.Update(_input, pointerIsWorlds && !_command.inspecting, view, boxes,
+                                                                        orderable, enemies, request.action, _nowSeconds);
   for (const GameCore::Order& order : orders)
   {
     _session.Send({NeuronCore::CommandKind::Game, 0, GameCore::EncodeOrder(order)});
@@ -1103,12 +1166,12 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       NeuronClient::InputState& input = window.Input();
       std::optional<NeuronClient::DeferredSurface> hud;
       std::optional<NeuronCore::PerspectiveView> commandView;
-      std::vector<GameCore::ShipOrderState> states;
+      GameCore::SnapshotPayload payload;
       if (command.has_value())
       {
-        states = OrderStatesOf(buffer.Newest());
+        payload = PayloadOf(sample);
         hud.emplace(renderer.Overlay());
-        commandView = CommandSkirmish(*command, camera, session, names, scene, sample, states, input, *hud, current,
+        commandView = CommandSkirmish(*command, camera, session, names, scene, sample, payload.orders, input, *hud, current,
                                       static_cast<float>(seconds), now(), controls.tuning.shown, side);
       }
       else
@@ -1170,10 +1233,16 @@ void RunGame(const GameOptions& _options, std::unique_ptr<NeuronCore::Transport>
       {
         std::ranges::move(TuningFigures(tuned, controls.tuning), std::back_inserter(panel));
       }
-      // The world's overlay, the HUD over it, and the figures over both.
+      // The world's overlay, the fight's marks first and the commander's over them, the HUD over it, and the figures over
+      // all of it.
       if (command.has_value() && commandView.has_value() && hud.has_value())
       {
-        command->commander.Draw(renderer.Overlay(), *commandView, sample, states, command->radii, command->look, now());
+        NeuronClient::Surface& overlay = renderer.Overlay();
+        DrawShots(overlay, *commandView, payload, sample.payloadSeconds, command->sideColors, command->combatLook);
+        DrawOwnership(overlay, *commandView, sample, remembered, command->radii, command->sideColors, command->combatLook);
+        DrawConditions(overlay, *commandView, sample, command->commander.Selection(), command->components, command->radii,
+                       command->combatLook);
+        command->commander.Draw(overlay, *commandView, sample, payload.orders, command->radii, command->look, now());
         hud->Replay();
       }
       if (!panel.empty())

@@ -230,7 +230,7 @@ SplatImage RenderSplat(NeuronClient::GraphicsDevice& _device, const NeuronClient
       {
         targets.BeginOverdraw(_list);
       }
-      _pass.Record(_list, _scene, viewConstants, placements.constants, placements.draws, targets.OverdrawWriteTable());
+      _pass.Record(_list, _scene, viewConstants, placements, placements.draws, targets.OverdrawWriteTable());
       if (_pass.CountsOverdraw())
       {
         targets.EndOverdraw(_list);
@@ -276,7 +276,7 @@ std::vector<float> RenderShadowSplat(NeuronClient::GraphicsDevice& _device, cons
       std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
       _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
       map.BeginSplat(_list);
-      _pass.Record(_list, _scene, viewConstants, placements.constants, placements.draws);
+      _pass.Record(_list, _scene, viewConstants, placements, placements.draws);
       map.EndSplat(_list);
     });
 

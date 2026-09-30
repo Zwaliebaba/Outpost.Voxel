@@ -1,6 +1,6 @@
 # ADR-029 — Protocol version 2: composites, sides and the game's payload
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 1, 3 and 4 · **Amends:** [ADR-015](ADR-015-client-server-boundary.md)'s messages and `World`; [ADR-018](ADR-018-client.md)'s placements from entities; [ADR-014](ADR-014-placements.md)'s palettes, one per model; and [`SpaceScene.md`](../Archive/SpaceScene.md) §6.2's layout · **Amended by:** [ADR-032](ADR-032-sides-sessions-and-fog.md), whose welcome tells the session its side, at layout version 3, and whose scene adds a remembered variant of every palette
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 1, 3 and 4 · **Amends:** [ADR-015](ADR-015-client-server-boundary.md)'s messages and `World`; [ADR-018](ADR-018-client.md)'s placements from entities; [ADR-014](ADR-014-placements.md)'s palettes, one per model; and [`SpaceScene.md`](../Archive/SpaceScene.md) §6.2's layout · **Amended by:** [ADR-032](ADR-032-sides-sessions-and-fog.md), whose welcome tells the session its side, at layout version 3, and whose scene adds a remembered variant of every palette; and [ADR-035](ADR-035-combat.md), whose snapshot carries each entity's mask, at layout version 5
 
 ## Context
 

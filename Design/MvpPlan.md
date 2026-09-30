@@ -324,6 +324,8 @@ The agent stops, reports and waits when:
    - Shells and beams drawn in the overlay.
    - The attack order on a right-click at an enemy, and attack-move on A with a click.
    - Bars for the weakest vital module and the hull over the selected and the damaged (G59).
+   - Ownership at a distance: a mark in its side's color under every entity, at every zoom, with the bars (the owner, at phase 4's checkpoint, settling phase 2's note).
+   - A box that holds any of the side's ships selects only those, and otherwise every entity whose center it holds (the owner, at phase 4's checkpoint; the concept's §9).
 4. **Tests.**
    - A seeded duel runs the same twice.
    - A mirrored duel with its sides exchanged gives the mirrored result (G72).
@@ -336,7 +338,7 @@ The agent stops, reports and waits when:
 
 **Done when.** CI is green; the smoke table and captures of a fight stand in the pull request; the heaviest fight the phase can stage, both sides at 20 command points, holds 16.7 ms a frame and 8 ms a tick in Release on the reference machine.
 
-**Checkpoint.** Stage fights with the existing orders. Can you see voxels go and read which ship is winning? Do both kinds of loss show? Do the bars help?
+**Checkpoint.** Stage fights with the existing orders. Can you see voxels go and read which ship is winning? Do both kinds of loss show? Do the bars help, and does ownership read at a distance?
 
 **Decision point.** Is per-voxel combat readable and fun at this scale? If not, the owner chooses before more is built on it among:
 - retuning aim, reach and toughness;
@@ -562,6 +564,8 @@ Phase 1 planned about 1,000 voxels for the miner, 1,500 for each combat frigate,
 
 **Time to kill** (G59). A duel at equal cost lasts at least three times the loser's half turn: 12 s between frigates, 67.5 s against a capital ship. The target is about 20 to 40 s between frigates.
 
+**Phase 5's values** ([ADR-035](ADR/ADR-035-combat.md)). A mass driver's shell does 200 damage and reaches 1.5 voxels, one shell a second; the laser does 400 a second and reaches 1 voxel. A light voxel takes 10 and a heavy one 30, and a module's voxels are light. A module fails below half its voxels. The smoke check's duels between a gunship and a lancer last 37 to 45 s on average. A cruiser against eight frigates at equal cost loses every duel, in 20 to 63 s on average, short of G59's 67.5 s: no damage, reach or toughness tried changed that, which is phase 5's decision point.
+
 **Economy.**
 - An ore voxel buys about five light hull voxels (G42, the first review's model).
 - A miner fills its hold in about 40 s at a near field.
@@ -614,3 +618,4 @@ The opponent decides every 15 ticks. Its steps are counted as work, never timed 
 | Phase 1 | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Approved | Vectored thrust stands (ADR-026), and the cruiser keeps its 63 % heavy armor. The build rate, the working names and `GameCore` drew no comment and stand. No run of `Outpost.exe` was reported. Phase 2 may start. |
 | Phase 2 | [Zwaliebaba/Outpost.Voxel#20](https://github.com/Zwaliebaba/Outpost.Voxel/pull/20) | 2026-09-29 | Approved | Captures of two seeds at 2 s show the whole layout, each drawn at exactly tick 60 (ADR-031), and a close-up shows the core and the four ships fitted, their modules at their mounts. The owner measured 145 frames a second, against the 60 the phase asked for. The side's color reads only up close: it covers 0.6 % of the core's visible voxels and 0.7 % to 5.1 % of the ships', as measured over the models. The owner closed the phase without the repaint the agent proposed, so ownership at a distance waits for phase 4's overlay (the concept's §9). The build rate shows nowhere until production, so phase 6's decision point judges it. The first view and the sides' colors drew no comment and stand. Phase 3 may start. |
 | Phase 3 | [Zwaliebaba/Outpost.Voxel#22](https://github.com/Zwaliebaba/Outpost.Voxel/pull/22) | 2026-09-29 | Approved | The owner's captures of one seed at tick 60 show the checkpoint: without `--observe` side 1 draws 17 entities, its core, its four ships and its near fields, and nothing of side 2 or the middle; with it, all 54. No frame time was reported. The fogged first view, pause from any session, and a refusal counted without a message back drew no comment and stand; phase 4's strategic camera, which Home frames on the core, takes over the first view. The owner settled a clash in phase 4's keys: the arrows and the screen's edges pan, S stops and H holds, and WASD does not pan. Phase 4 may start. |
+| Phase 4 | [Zwaliebaba/Outpost.Voxel#23](https://github.com/Zwaliebaba/Outpost.Voxel/pull/23) | 2026-09-30 | Approved | The owner merged the phase and reported that the camera and selection held 60 frames a second in Release, as the done-when asks. No captures reached the agent. The owner answered the pull request's three questions. A box that holds any of the side's ships selects only those, and otherwise every entity whose center it holds; the concept's §9 says so now, and phase 5's client builds it. Ownership at a distance, a mark in its side's color under every entity at every zoom, lands in phase 5 with the bars, which settles phase 2's note. M arms a move, A attacks, G mines, and Alt is the debug keys' modifier, as built. The first view on the side's core, the order bar hidden while inspecting, and flight's choices in ADR-033 drew no comment and stand. Phase 5 may start. |

@@ -50,6 +50,15 @@ constexpr std::array<ModuleSpec, 13> MODULES{{
   {"Refinery", ModuleKind::Refinery, MountSize::Large, 300.0f, 0.0f, 15.0f, 0.0f, 0.0f, 0.0f, 0.0f},
 }};
 
+// The weapons (Design/MvpPlan.md §8.3, Design/ADR/ADR-035): the mass driver's 300 units/s shells out to 600 units, and the
+// laser's beam out to 250. Their damage and reach are the smoke check's (ADR-035): a gunship and a lancer win about as
+// often as each other, and their duels last 37 to 45 s on average at every range.
+constexpr std::array<WeaponSpec, 2> WEAPONS{{
+  // module, shot, range, damage, reach, interval, shell speed
+  {"MassDriver", ShotKind::Shell, 600.0f, 200.0f, 1.5f, 1.0f, 300.0f},
+  {"Laser", ShotKind::Beam, 250.0f, 400.0f, 1.0f, 0.0f, 0.0f},
+}};
+
 // The generator's palette convention (Design/ADR/ADR-027): entries 3 and 4 are heavy armor, and every other is light.
 constexpr MaterialClass L = MaterialClass::Light;
 constexpr MaterialClass H = MaterialClass::Heavy;
@@ -145,6 +154,17 @@ const ModuleSpec* FindModule(std::string_view _name) noexcept
 {
   const auto found = std::ranges::find(MODULES, _name, &ModuleSpec::name);
   return found == MODULES.end() ? nullptr : &*found;
+}
+
+std::span<const WeaponSpec> Weapons() noexcept
+{
+  return WEAPONS;
+}
+
+const WeaponSpec* FindWeapon(std::string_view _module) noexcept
+{
+  const auto found = std::ranges::find(WEAPONS, _module, &WeaponSpec::module);
+  return found == WEAPONS.end() ? nullptr : &*found;
 }
 
 std::span<const DesignSpec> Designs() noexcept

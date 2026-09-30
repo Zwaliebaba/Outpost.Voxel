@@ -379,6 +379,37 @@ public:
     }
   }
 
+  // Design/ADR/ADR-035: a placement's mask is its voxels' bits of its entity's mask, from bit 0 of word 0, or nothing while
+  // none of them is gone; IsVoxelGone reads it, and reads a voxel past it as there.
+  TEST_METHOD(SlicesAnEntitysMaskForEachPlacement)
+  {
+    SeededRandom random(20260930u);
+    for (std::uint32_t sample = 0; sample < 64u; ++sample)
+    {
+      const std::uint32_t voxels = 1u + random.Below(300u);
+      std::vector<std::uint8_t> gone((voxels + 7u) / 8u, 0u);
+      for (std::uint32_t voxel = 0; voxel < voxels; ++voxel)
+      {
+        gone[voxel / 8u] = static_cast<std::uint8_t>(gone[voxel / 8u] | (random.Below(3u) == 0u ? 1u << (voxel % 8u) : 0u));
+      }
+      const std::uint32_t first = random.Below(voxels);
+      const std::uint32_t count = random.Below(voxels - first + 1u);
+      Placement placement{};
+      placement.recordCount = count;
+      placement.mask = NeuronCore::PlacementMask(gone, first, count);
+      bool any = false;
+      for (std::uint32_t voxel = 0; voxel < count; ++voxel)
+      {
+        const bool expected = ((gone[(first + voxel) / 8u] >> ((first + voxel) % 8u)) & 1u) != 0u;
+        any = any || expected;
+        Assert::AreEqual(expected, NeuronCore::IsVoxelGone(placement, voxel), std::format(L"sample {}, voxel {}", sample, voxel).c_str());
+      }
+      Assert::AreEqual(any, !placement.mask.empty(), L"a mask only while a voxel is gone");
+      Assert::IsTrue(placement.mask.empty() || placement.mask.size() == (count + 31u) / 32u, L"a word for every 32 voxels");
+      Assert::IsFalse(NeuronCore::IsVoxelGone(placement, count + 64u), L"past the mask, a voxel is there");
+    }
+  }
+
   // §7.4: a placement's sphere holds every corner of every box it draws, whole or detonated, at any time.
   TEST_METHOD(SpheresHoldEverythingTheyPlace)
   {

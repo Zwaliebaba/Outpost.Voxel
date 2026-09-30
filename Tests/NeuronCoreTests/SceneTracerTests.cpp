@@ -114,7 +114,8 @@ constexpr float PLACEMENT_SPACING = 80.0f;
 }
 
 // Brute force over every box every placement draws, through the permutation the GPU draws it with: the nearest hit at or
-// beyond _minDistance, and the lower id where two are as near.
+// beyond _minDistance, and the lower id where two are as near. A voxel a placement's mask holds gone is not drawn
+// (Design/ADR/ADR-035).
 [[nodiscard]] NeuronCore::TraceHit BruteForce(const std::vector<std::uint32_t>& _records, const std::vector<Placement>& _placements,
                                               const NeuronCore::Ray& _ray, float _minDistance) noexcept
 {
@@ -125,6 +126,10 @@ constexpr float PLACEMENT_SPACING = 80.0f;
     const bool aligned = NeuronCore::IsAlignedPlacement(placement);
     for (std::uint32_t i = 0; i < placement.recordCount; ++i)
     {
+      if (NeuronCore::IsVoxelGone(placement, i))
+      {
+        continue;
+      }
       const NeuronCore::Box box = NeuronCore::PlacedVoxelBox(placement, i, _records[placement.firstRecord + i]);
       float distance = 0.0f;
       Float3 normal{};
@@ -152,58 +157,81 @@ void ExpectSameHit(const NeuronCore::TraceHit& _expected, const NeuronCore::Trac
   }
 }
 
+// Seeded random scenes of aligned, rigid and detonated placements, traced from random eyes: at random points of the
+// scene, and at the corners of random voxels, where a ray grazes edges and the walk's margin decides what it tests. With
+// _masked, half the placements lose about two voxels of every five to their masks.
+void TraceRandomScenes(std::uint32_t _seed, bool _masked)
+{
+  SeededRandom random(_seed);
+  std::uint32_t rays = 0;
+  std::uint32_t hits = 0;
+  for (std::uint32_t scene = 0; scene < 12u; ++scene)
+  {
+    const std::vector<NeuronCore::VoxModel> models{RandomModel(random), RandomModel(random), RandomModel(random)};
+    const NeuronCore::SceneFragments fragments(models);
+    std::vector<Placement> placements = RandomPlacements(random, models, fragments);
+    Assert::IsTrue(NeuronCore::AssignVoxelIds(placements));
+    for (Placement& placement : placements)
+    {
+      if (_masked && random.Below(2u) == 0u)
+      {
+        placement.mask.assign((placement.recordCount + 31u) / 32u, 0u);
+        for (std::uint32_t voxel = 0; voxel < placement.recordCount; ++voxel)
+        {
+          placement.mask[voxel / 32u] |= random.Below(5u) < 2u ? 1u << (voxel % 32u) : 0u;
+        }
+      }
+    }
+    const std::vector<std::uint32_t> records = NeuronCore::SceneRecords(models);
+    const NeuronCore::SceneTracer tracer(models, placements);
+    for (std::uint32_t sample = 0; sample < 500u; ++sample)
+    {
+      const Placement& placement = placements[random.Below(static_cast<std::uint32_t>(placements.size()))];
+      Float3 target{};
+      if (sample % 2u == 0u && placement.recordCount > 0u)
+      {
+        const std::uint32_t voxel = random.Below(placement.recordCount);
+        const NeuronCore::Box box = NeuronCore::PlacedVoxelBox(placement, voxel, records[placement.firstRecord + voxel]);
+        const std::uint32_t corner = random.Below(8u);
+        const float x = (corner & 1u) != 0u ? 0.5f : -0.5f;
+        const float y = (corner & 2u) != 0u ? 0.5f : -0.5f;
+        const float z = (corner & 4u) != 0u ? 0.5f : -0.5f;
+        target = box.center + box.axisX * x + box.axisY * y + box.axisZ * z;
+      }
+      else
+      {
+        const Float3 offset = random.Direction();
+        target = NeuronCore::PlacementSphere(placement).center + offset * random.Uniform(0.0f, 20.0f);
+      }
+      const Float3 away = random.Direction();
+      const Float3 eye = target + away * random.Uniform(30.0f, 400.0f);
+      const NeuronCore::Ray ray{eye, target - eye};
+      const float minDistance = sample % 5u == 0u ? random.Uniform(0.0f, 0.5f) : 0.0f;
+      const NeuronCore::TraceHit expected = BruteForce(records, placements, ray, minDistance);
+      ExpectSameHit(expected, tracer.Trace(ray, minDistance), std::format(L"scene {}, ray {}", scene, sample));
+      hits += expected.voxel != NeuronCore::NO_VOXEL ? 1u : 0u;
+      ++rays;
+    }
+  }
+  Logger::WriteMessage(std::format(L"{} of {} rays hit a placement\n", hits, rays).c_str());
+  Assert::IsTrue((_masked ? 3u : 2u) * hits > rays, L"most rays hit, or a third through the masks, or the comparison says little");
+}
+
 } // namespace
 
 // Design/Archive/SpaceScene.md §15: the scene tracer against brute force over every placed box.
 TEST_CLASS(SceneTracerTests)
 {
 public:
-  // Seeded random scenes of aligned, rigid and detonated placements, traced from random eyes: at random points of the
-  // scene, and at the corners of random voxels, where a ray grazes edges and the walk's margin decides what it tests.
   TEST_METHOD(MatchesBruteForceOnRandomScenes)
   {
-    SeededRandom random(20261014u);
-    std::uint32_t rays = 0;
-    std::uint32_t hits = 0;
-    for (std::uint32_t scene = 0; scene < 12u; ++scene)
-    {
-      const std::vector<NeuronCore::VoxModel> models{RandomModel(random), RandomModel(random), RandomModel(random)};
-      const NeuronCore::SceneFragments fragments(models);
-      std::vector<Placement> placements = RandomPlacements(random, models, fragments);
-      Assert::IsTrue(NeuronCore::AssignVoxelIds(placements));
-      const std::vector<std::uint32_t> records = NeuronCore::SceneRecords(models);
-      const NeuronCore::SceneTracer tracer(models, placements);
-      for (std::uint32_t sample = 0; sample < 500u; ++sample)
-      {
-        const Placement& placement = placements[random.Below(static_cast<std::uint32_t>(placements.size()))];
-        Float3 target{};
-        if (sample % 2u == 0u && placement.recordCount > 0u)
-        {
-          const std::uint32_t voxel = random.Below(placement.recordCount);
-          const NeuronCore::Box box = NeuronCore::PlacedVoxelBox(placement, voxel, records[placement.firstRecord + voxel]);
-          const std::uint32_t corner = random.Below(8u);
-          const float x = (corner & 1u) != 0u ? 0.5f : -0.5f;
-          const float y = (corner & 2u) != 0u ? 0.5f : -0.5f;
-          const float z = (corner & 4u) != 0u ? 0.5f : -0.5f;
-          target = box.center + box.axisX * x + box.axisY * y + box.axisZ * z;
-        }
-        else
-        {
-          const Float3 offset = random.Direction();
-          target = NeuronCore::PlacementSphere(placement).center + offset * random.Uniform(0.0f, 20.0f);
-        }
-        const Float3 away = random.Direction();
-        const Float3 eye = target + away * random.Uniform(30.0f, 400.0f);
-        const NeuronCore::Ray ray{eye, target - eye};
-        const float minDistance = sample % 5u == 0u ? random.Uniform(0.0f, 0.5f) : 0.0f;
-        const NeuronCore::TraceHit expected = BruteForce(records, placements, ray, minDistance);
-        ExpectSameHit(expected, tracer.Trace(ray, minDistance), std::format(L"scene {}, ray {}", scene, sample));
-        hits += expected.voxel != NeuronCore::NO_VOXEL ? 1u : 0u;
-        ++rays;
-      }
-    }
-    Logger::WriteMessage(std::format(L"{} of {} rays hit a placement\n", hits, rays).c_str());
-    Assert::IsTrue(2u * hits > rays, L"most rays hit, or the comparison says little");
+    TraceRandomScenes(20261014u, false);
+  }
+
+  // Design/ADR/ADR-035: what a placement's mask holds gone, the tracer passes, as the splat pass does.
+  TEST_METHOD(PassesTheVoxelsAMaskRemoves)
+  {
+    TraceRandomScenes(20260930u, true);
   }
 };
 

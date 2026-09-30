@@ -1,6 +1,6 @@
 # ADR-025 — The light of a detonation: hot debris, a flash and a shell of gas
 
-**Status:** proposed, 2026-09-29: built and tested on the CPU, awaiting CI's WARP run and the owner's eye on hardware · **Lands with:** a follow-up to [ADR-024](ADR-024-fragmented-detonation.md) · **Amends:** [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md)'s exclusion of transparency, for emission alone; the lighting pass's inputs; and the frame's passes
+**Status:** proposed, 2026-09-29: built and tested on the CPU, awaiting CI's WARP run and the owner's eye on hardware · **Lands with:** a follow-up to [ADR-024](ADR-024-fragmented-detonation.md) · **Amends:** [`Design/Archive/SampleRenderer.md`](../Archive/SampleRenderer.md)'s exclusion of transparency, for emission alone; the lighting pass's inputs; and the frame's passes · **Amended by:** [ADR-035](ADR-035-combat.md), whose detonation that has lost voxels blasts from what it has left, sized by it
 
 ## Context
 

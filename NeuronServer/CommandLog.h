@@ -79,6 +79,10 @@ struct ReplayOutcome
   std::size_t commands; // the log's, sent again
   std::optional<std::uint64_t>
     firstDifference; // the first tick whose commands or snapshots differ from the log's; none when every one matched
+  // How long the host's steps took on the steady clock, on average and at worst: what a tick costs the server in the build
+  // that replays, the world's tick and every session's snapshot among it (Design/ADR/ADR-035). 0 with no tick.
+  double meanStepMilliseconds = 0.0;
+  double worstStepMilliseconds = 0.0;
 };
 
 // Replays _log on _world, which must be made afresh from what _log's header describes. A host with one loopback client

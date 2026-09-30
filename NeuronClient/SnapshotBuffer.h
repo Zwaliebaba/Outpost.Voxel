@@ -38,14 +38,22 @@ struct SampledEntity
   NeuronCore::Quaternion rotation; // of unit length, but not always with w >= 0
   NeuronCore::Float3 velocity;
   std::optional<SampledDetonation> detonation; // empty while it is whole
+  // The voxels it has lost, as the later snapshot's mask has them (Design/ADR/ADR-035): bit i % 8 of byte i / 8 is set for
+  // its composite's voxel i when that voxel is gone. Empty while it has every voxel.
+  std::vector<std::uint8_t> gone{};
 };
 
-// The world at one render time: every entity present then, in the order of their ids.
+// The world at one render time: every entity present then, in the order of their ids; and the game's payload in the later
+// of the two snapshots, with how far the render time lies after that snapshot on the world's clock, which is never more
+// than 0 and stands still while the world is paused, so that the game can move what its payload describes to the render
+// time (Design/ADR/ADR-035).
 struct WorldSample
 {
   double renderTick;
   bool paused; // as the later of the two snapshots says
   std::vector<SampledEntity> entities;
+  std::vector<std::uint8_t> payload{};
+  float payloadSeconds = 0.0f;
 };
 
 // The client's recent snapshots, and where every entity is between them (§6.4). Times are ticks of the server's clock,
@@ -56,8 +64,9 @@ struct WorldSample
 // positions and velocities and turns by normalized linear interpolation along the shorter arc; one that holds still
 // between them holds exactly still, so that a station stays a symmetry of the cube and draws aligned (§7.2). The later
 // snapshot says what is present and what has detonated: an entity only in it has appeared, one only in the earlier has
-// gone, and debris stands where its entity froze, posed from its event at the render time's world tick. Before the
-// oldest snapshot and past the newest, the buffer holds the nearest.
+// gone, and debris stands where its entity froze, posed from its event at the render time's world tick. It says too what
+// each entity has lost, so that a voxel goes at the tick the server removed it. Before the oldest snapshot and past the
+// newest, the buffer holds the nearest.
 class SnapshotBuffer
 {
 public:
@@ -98,7 +107,7 @@ private:
   };
 
   std::uint32_t m_tickRate;
-  std::deque<NeuronCore::Snapshot> m_snapshots; // by tick, and each one's entities and detonations by id
+  std::deque<NeuronCore::Snapshot> m_snapshots; // by tick, and each one's entities, detonations and masks by id
   std::deque<Arrival> m_arrivals;               // in the order they came
   std::optional<double> m_lastRenderTick;
 };

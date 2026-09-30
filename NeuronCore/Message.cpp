@@ -31,6 +31,9 @@ enum class MessageType : std::uint16_t
 // A snapshot's flags: bit 0 says the world is paused, and the others are reserved and zero.
 constexpr std::uint32_t PAUSED_FLAG = 1u;
 
+// A mask's entity and voxel count, before its bits (Design/ADR/ADR-035).
+constexpr std::size_t MASK_HEADER_BYTES = 8;
+
 // The least a manifest entry can take: a name's length byte, one letter and the hash.
 constexpr std::size_t MIN_MANIFEST_ENTRY_BYTES = 1 + 1 + 8;
 
@@ -326,6 +329,13 @@ void Write(ByteWriter& _writer, const Snapshot& _snapshot)
   _writer.U32(_snapshot.paused ? PAUSED_FLAG : 0u);
   _writer.U32(static_cast<std::uint32_t>(_snapshot.entities.size()));
   _writer.U32(static_cast<std::uint32_t>(_snapshot.detonations.size()));
+  _writer.U32(static_cast<std::uint32_t>(_snapshot.masks.size()));
+  std::size_t maskBytes = 0;
+  for (const EntityMask& mask : _snapshot.masks)
+  {
+    maskBytes += MASK_HEADER_BYTES + mask.gone.size();
+  }
+  _writer.U32(static_cast<std::uint32_t>(maskBytes));
   _writer.U32(static_cast<std::uint32_t>(_snapshot.payload.size()));
   for (const EntityState& entity : _snapshot.entities)
   {
@@ -343,6 +353,12 @@ void Write(ByteWriter& _writer, const Snapshot& _snapshot)
     _writer.U32(detonation.seed);
     _writer.U64(detonation.worldTick);
     _writer.Vector(detonation.velocity);
+  }
+  for (const EntityMask& mask : _snapshot.masks)
+  {
+    _writer.U32(mask.entity);
+    _writer.U32(mask.voxelCount);
+    _writer.Raw(mask.gone);
   }
   _writer.Raw(_snapshot.payload);
 }
@@ -506,10 +522,14 @@ void Write(ByteWriter& _writer, const Command& _command)
   const std::uint32_t flags = _reader.U32();
   const std::uint32_t entityCount = _reader.U32();
   const std::uint32_t detonationCount = _reader.U32();
+  const std::uint32_t maskCount = _reader.U32();
+  const std::uint32_t maskBytes = _reader.U32();
   const std::uint32_t payloadBytes = _reader.U32();
   if (_reader.Failed() || (flags & ~PAUSED_FLAG) != 0 ||
-      std::uint64_t{entityCount} * ENTITY_RECORD_BYTES + std::uint64_t{detonationCount} * DETONATION_RECORD_BYTES + payloadBytes !=
-        _reader.Remaining())
+      std::uint64_t{entityCount} * ENTITY_RECORD_BYTES + std::uint64_t{detonationCount} * DETONATION_RECORD_BYTES + maskBytes +
+          payloadBytes !=
+        _reader.Remaining() ||
+      std::uint64_t{maskCount} * MASK_HEADER_BYTES > maskBytes)
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }
@@ -539,6 +559,36 @@ void Write(ByteWriter& _writer, const Command& _command)
     detonation.worldTick = _reader.U64();
     detonation.velocity = _reader.Vector();
     snapshot.detonations.push_back(detonation);
+  }
+  // Each mask is its entity, its voxel count and as many bytes as that count needs; together they fill maskBytes.
+  std::size_t maskRead = 0;
+  bool masksFit = true;
+  snapshot.masks.reserve(maskCount);
+  for (std::uint32_t i = 0; i < maskCount; ++i)
+  {
+    if (maskBytes - maskRead < MASK_HEADER_BYTES)
+    {
+      masksFit = false;
+      break;
+    }
+    EntityMask mask{};
+    mask.entity = _reader.U32();
+    mask.voxelCount = _reader.U32();
+    maskRead += MASK_HEADER_BYTES;
+    const std::uint64_t bytes = (std::uint64_t{mask.voxelCount} + 7u) / 8u;
+    if (bytes > maskBytes - maskRead)
+    {
+      masksFit = false;
+      break;
+    }
+    const std::span<const std::uint8_t> gone = _reader.Bytes(static_cast<std::size_t>(bytes));
+    mask.gone.assign(gone.begin(), gone.end());
+    maskRead += static_cast<std::size_t>(bytes);
+    snapshot.masks.push_back(std::move(mask));
+  }
+  if (!masksFit || maskRead != maskBytes)
+  {
+    return std::unexpected(ProtocolError::MalformedMessage);
   }
   const std::span<const std::uint8_t> payload = _reader.Bytes(payloadBytes);
   snapshot.payload.assign(payload.begin(), payload.end());
@@ -606,6 +656,29 @@ void Write(ByteWriter& _writer, const Command& _command)
   // An entity has at most one detonation whose debris lasts.
   std::ranges::sort(detonated);
   if (std::ranges::adjacent_find(detonated) != detonated.end())
+  {
+    return std::unexpected(ProtocolError::MalformedMessage);
+  }
+
+  // An entity has at most one mask, of at least one voxel, with a voxel gone and its spare bits clear (ADR-035).
+  std::vector<std::uint32_t> masked;
+  masked.reserve(snapshot.masks.size());
+  for (const EntityMask& mask : snapshot.masks)
+  {
+    if (!std::ranges::binary_search(ids, mask.entity))
+    {
+      return std::unexpected(ProtocolError::UnknownEntity);
+    }
+    const std::uint32_t spare = mask.voxelCount % 8u;
+    if (mask.voxelCount == 0 || (spare != 0 && (mask.gone.back() >> spare) != 0) ||
+        std::ranges::all_of(mask.gone, [](std::uint8_t _byte) { return _byte == 0; }))
+    {
+      return std::unexpected(ProtocolError::MalformedMessage);
+    }
+    masked.push_back(mask.entity);
+  }
+  std::ranges::sort(masked);
+  if (std::ranges::adjacent_find(masked) != masked.end())
   {
     return std::unexpected(ProtocolError::MalformedMessage);
   }

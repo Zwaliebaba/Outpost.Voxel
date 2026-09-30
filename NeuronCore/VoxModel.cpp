@@ -295,18 +295,6 @@ struct SceneParts
   return Rotation{column(0), column(1), column(2)};
 }
 
-// The cell that _voxel of _instance lies in: turned about the instance's centre voxel, floor(size / 2) (ModelInstance).
-// Every product is of a small integer and 0 or ±1, so the float arithmetic is exact.
-[[nodiscard]] Int3 InstanceCell(const ModelInstance& _instance, VoxelRecord _voxel) noexcept
-{
-  const Int3 center{_instance.size.x / 2, _instance.size.y / 2, _instance.size.z / 2};
-  const Int3 offset = Int3{_voxel.x, _voxel.y, _voxel.z} - center;
-  const Float3 turned =
-    RotateVector(_instance.rotation, {static_cast<float>(offset.x), static_cast<float>(offset.y), static_cast<float>(offset.z)});
-  return _instance.origin + center +
-         Int3{static_cast<std::int32_t>(turned.x), static_cast<std::int32_t>(turned.y), static_cast<std::int32_t>(turned.z)};
-}
-
 // _a + _b, when every component stays within MAX_TRANSLATION. Both are within int32, so the sum cannot overflow int64.
 [[nodiscard]] std::optional<Int3> AddTranslation(Int3 _a, Int3 _b) noexcept
 {
@@ -695,6 +683,17 @@ struct Placing
 }
 
 } // namespace
+
+Int3 InstanceCell(const ModelInstance& _instance, VoxelRecord _voxel) noexcept
+{
+  // Every product is of a small integer and 0 or ±1, so the float arithmetic is exact.
+  const Int3 center{_instance.size.x / 2, _instance.size.y / 2, _instance.size.z / 2};
+  const Int3 offset = Int3{_voxel.x, _voxel.y, _voxel.z} - center;
+  const Float3 turned =
+    RotateVector(_instance.rotation, {static_cast<float>(offset.x), static_cast<float>(offset.y), static_cast<float>(offset.z)});
+  return _instance.origin + center +
+         Int3{static_cast<std::int32_t>(turned.x), static_cast<std::int32_t>(turned.y), static_cast<std::int32_t>(turned.z)};
+}
 
 const char* VoxErrorName(VoxError _error) noexcept
 {

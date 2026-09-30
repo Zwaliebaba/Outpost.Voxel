@@ -187,4 +187,30 @@ std::optional<PlacedVoxel> FindVoxel(std::span<const Placement> _placements, std
   return PlacedVoxel{placement.firstRecord + (_voxel - placement.firstVoxel), placement.paletteIndex};
 }
 
+bool IsVoxelGone(const Placement& _placement, std::uint32_t _voxel) noexcept
+{
+  const std::size_t word = _voxel / 32u;
+  return word < _placement.mask.size() && ((_placement.mask[word] >> (_voxel % 32u)) & 1u) != 0u;
+}
+
+std::vector<std::uint32_t> PlacementMask(std::span<const std::uint8_t> _gone, std::uint32_t _first, std::uint32_t _count)
+{
+  std::vector<std::uint32_t> mask((static_cast<std::size_t>(_count) + 31u) / 32u, 0u);
+  bool anyGone = false;
+  for (std::uint32_t voxel = 0; voxel < _count; ++voxel)
+  {
+    const std::size_t bit = static_cast<std::size_t>(_first) + voxel;
+    if (bit / 8u < _gone.size() && ((_gone[bit / 8u] >> (bit % 8u)) & 1u) != 0u)
+    {
+      mask[voxel / 32u] |= 1u << (voxel % 32u);
+      anyGone = true;
+    }
+  }
+  if (!anyGone)
+  {
+    mask.clear();
+  }
+  return mask;
+}
+
 } // namespace NeuronCore

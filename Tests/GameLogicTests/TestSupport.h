@@ -3,6 +3,8 @@
 #include "Sector.h"
 #include "Skirmish.h"
 
+#include "SkirmishLayout.h"
+
 #include "Message.h"
 
 #include <cstdint>
@@ -32,6 +34,10 @@ namespace GameLogicTests
 
 // The skirmish of _seed, from the repository's models. A refusal fails the test.
 [[nodiscard]] std::unique_ptr<GameLogic::Skirmish> MakeSkirmish(std::uint32_t _seed);
+
+// The skirmish _parameters describe, staged as _layout has it (Design/ADR/ADR-035). A refusal fails the test.
+[[nodiscard]] std::unique_ptr<GameLogic::Skirmish> MakeStagedSkirmish(const GameLogic::SkirmishParameters& _parameters,
+                                                                      const GameCore::SkirmishLayout& _layout);
 
 // The skirmish as side _side sees it, or all of it.
 [[nodiscard]] NeuronCore::Snapshot DescribeSkirmish(const GameLogic::Skirmish& _skirmish, std::uint8_t _side = NeuronCore::OBSERVER_SIDE);

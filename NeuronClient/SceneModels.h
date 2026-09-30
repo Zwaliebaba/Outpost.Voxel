@@ -27,7 +27,10 @@ namespace NeuronClient
 // entity's side draws it (NeuronCore::SidePaletteIndex). A detonated entity draws its parts' debris, blasted from the mean
 // of its composite's voxels with the entity's velocity at the event and the event's seed, at the time since the event,
 // each part broken into the fragments its model breaks into (§5.5, §7.7, Design/ADR/ADR-024): so every client poses the
-// same debris from the same event.
+// same debris from the same event. A placement leaves out the voxels its entity has lost, whole or detonated, and a part
+// that has lost every voxel draws nothing (Design/ADR/ADR-035). An entity that detonates after losing voxels, as a ship
+// shot to pieces or a piece cut off from it does, blasts from what it has left: from its remaining voxels' mean, and sized
+// by their box, as a composite of those voxels alone would.
 class SceneModels
 {
 public:
@@ -48,15 +51,16 @@ public:
     return m_fragments;
   }
 
-  // Appends the placements that draw _entity, one per part of each of its composite's components, component after
-  // component and in the order of their parts, with its side's palettes, or their remembered variants for an entity
-  // _remembered out of sight (NeuronCore::RememberedPaletteIndex, Design/ADR/ADR-032). Their ids are
-  // NeuronCore::AssignVoxelIds's to give. Throws std::out_of_range for a composite the welcome did not name.
+  // Appends the placements that draw _entity, one per part of each of its composite's components that has a voxel left,
+  // component after component and in the order of their parts, with its side's palettes, or their remembered variants
+  // for an entity _remembered out of sight (NeuronCore::RememberedPaletteIndex, Design/ADR/ADR-032), and each with the
+  // part's share of the entity's mask. Their ids are NeuronCore::AssignVoxelIds's to give. Throws std::out_of_range for
+  // a composite the welcome did not name.
   void Place(const SampledEntity& _entity, std::vector<NeuronCore::Placement>& _placements, bool _remembered = false) const;
 
-  // The light of _entity's detonation, in the world (Design/ADR/ADR-025): from the mean of its composite's voxels,
-  // drifting as its debris drifts, scaled by its composite's radius, with the event's seed and the time since; nothing
-  // while it is whole.
+  // The light of _entity's detonation, in the world (Design/ADR/ADR-025): from the mean of the voxels it has left,
+  // drifting as its debris drifts, scaled by their radius, with the event's seed and the time since; nothing while it has
+  // not detonated.
   [[nodiscard]] std::optional<NeuronCore::Blast> Blast(const SampledEntity& _entity) const;
 
   // The sphere around what _entity draws now: its composite's, whole, or its debris's at its time.
@@ -78,7 +82,8 @@ private:
     bool isIdentity;                      // the component leaves its model where it is
     NeuronCore::Float3 origin;            // of the part's space, in its model's
     std::uint32_t model;
-    std::uint32_t part; // within its model
+    std::uint32_t part;       // within its model
+    std::uint32_t firstVoxel; // among its composite's voxels, in the order of an entity's mask (NeuronCore::CompositeVoxels)
   };
 
   struct Measure
@@ -90,11 +95,23 @@ private:
     std::uint32_t partCount;
   };
 
+  // Where a detonation blasts from and how large, in its composite's space.
+  struct Remains
+  {
+    NeuronCore::Float3 centroid; // of the voxels it has left
+    float radius;                // of the sphere about the middle of their box
+  };
+
+  // _entity's remains: its composite's centroid and radius while it has every voxel, or when it has none left, and
+  // otherwise those of the voxels it has left.
+  [[nodiscard]] Remains RemainsOf(const SampledEntity& _entity) const;
+
   std::vector<NeuronCore::VoxModel> m_models;
   NeuronCore::SceneFragments m_fragments; // what a detonated placement's fragments view
   std::size_t m_sideCount;
   std::vector<Measure> m_measures;
-  std::vector<Part> m_parts; // every composite's parts, composite after composite
+  std::vector<Part> m_parts;                          // every composite's parts, composite after composite
+  std::vector<std::vector<NeuronCore::Int3>> m_cells; // by composite, its voxels' cells in the order of a mask
 };
 
 } // namespace NeuronClient

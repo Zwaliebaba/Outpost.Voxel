@@ -23,7 +23,6 @@ constexpr std::uint32_t MINE_KEY = 'G';
 constexpr std::size_t ORDER_BUTTONS = 5;
 
 constexpr std::wstring_view SELECT_FIRST = L"Select ships of yours first";
-constexpr std::wstring_view ATTACK_LATER = L"Attack comes with combat, in phase 5";
 constexpr std::wstring_view MINE_LATER = L"Mining comes with the economy, in phase 6";
 
 // Sizes in ems of the interface's text.
@@ -37,7 +36,7 @@ constexpr std::size_t PANEL_ROWS = 8;
 } // namespace
 
 HudRequest DrawHud(NeuronClient::Interface& _interface, float _widthPixels, float _heightPixels, const HudFigures& _figures,
-                   std::span<const SelectionRow> _selection, bool _ordering, bool _canOrder, bool _moveArmed)
+                   std::span<const SelectionRow> _selection, bool _ordering, bool _canOrder, ArmedOrder _armed)
 {
   HudRequest request{OrderAction::None, std::nullopt};
   const float row = _interface.RowHeightPixels();
@@ -99,7 +98,7 @@ HudRequest DrawHud(NeuronClient::Interface& _interface, float _widthPixels, floa
       x += width + gap;
       return clicked;
     };
-    if (button(_moveArmed ? L"Move: click" : L"Move", MOVE_KEY, L"M", unless))
+    if (button(_armed == ArmedOrder::Move ? L"Move: click" : L"Move", MOVE_KEY, L"M", unless))
     {
       request.action = OrderAction::Move;
     }
@@ -111,7 +110,10 @@ HudRequest DrawHud(NeuronClient::Interface& _interface, float _widthPixels, floa
     {
       request.action = OrderAction::Hold;
     }
-    static_cast<void>(button(L"Attack", ATTACK_KEY, L"A", ATTACK_LATER));
+    if (button(_armed == ArmedOrder::Attack ? L"Attack: click" : L"Attack", ATTACK_KEY, L"A", unless))
+    {
+      request.action = OrderAction::Attack;
+    }
     static_cast<void>(button(L"Mine", MINE_KEY, L"G", MINE_LATER));
   }
   return request;

@@ -234,6 +234,44 @@ public:
     AreIdentical(ShipAt(3, COURSE, 11).position, sample.entities[1].position, L"entity 3");
   }
 
+  // Design/ADR/ADR-035: an entity has lost what the later snapshot's mask says, as it is present when the later snapshot
+  // says, and nothing without one.
+  TEST_METHOD(LosesVoxelsWithTheLaterSnapshot)
+  {
+    const Float3 somewhere{10.0f, 20.0f, 30.0f};
+    NeuronCore::Snapshot first = At(10, {StillAt(1, somewhere, IDENTITY), StillAt(2, somewhere, IDENTITY)});
+    first.masks = {{2, 12, {0x01, 0x00}}};
+    NeuronCore::Snapshot second = At(11, {StillAt(1, somewhere, IDENTITY), StillAt(2, somewhere, IDENTITY)});
+    // Out of the order of their entities, which the buffer restores.
+    second.masks = {{2, 12, {0x03, 0x08}}, {1, 12, {0x00, 0x04}}};
+    SnapshotBuffer buffer(TICK_RATE);
+    buffer.Add(first, OnTime(10));
+    buffer.Add(second, OnTime(11));
+    const WorldSample sample = buffer.Sample(10.5);
+    Assert::IsTrue(Get(sample, 1).gone == std::vector<std::uint8_t>{0x00, 0x04}, L"entity 1, as of the later snapshot");
+    Assert::IsTrue(Get(sample, 2).gone == std::vector<std::uint8_t>{0x03, 0x08}, L"entity 2, as of the later snapshot");
+    const WorldSample earlier = buffer.Sample(9.0);
+    Assert::IsTrue(Get(earlier, 1).gone.empty(), L"entity 1 whole before it");
+    Assert::IsTrue(Get(earlier, 2).gone == std::vector<std::uint8_t>{0x01, 0x00}, L"entity 2 before it");
+  }
+
+  // Design/ADR/ADR-035: a sample carries the later snapshot's payload, and how far before that snapshot it lies on the
+  // world's clock, which stands still while the world is paused.
+  TEST_METHOD(CarriesTheLaterSnapshotsPayload)
+  {
+    SnapshotBuffer buffer(TICK_RATE);
+    buffer.Add({10, 10, false, {}, {}, {}, {1, 2}}, OnTime(10));
+    buffer.Add({11, 11, false, {}, {}, {}, {3, 4, 5}}, OnTime(11));
+    buffer.Add({12, 11, true, {}, {}, {}, {6}}, OnTime(12));
+    const WorldSample running = buffer.Sample(10.25);
+    Assert::IsTrue(running.payload == std::vector<std::uint8_t>{3, 4, 5}, L"the later snapshot's payload");
+    Assert::AreEqual(-0.75f / TICK_RATE, running.payloadSeconds, 1.0e-6f, L"three quarters of a tick before it");
+    const WorldSample paused = buffer.Sample(11.5);
+    Assert::IsTrue(paused.payload == std::vector<std::uint8_t>{6}, L"the paused snapshot's payload");
+    Assert::AreEqual(0.0f, paused.payloadSeconds, L"none of the world's time before it");
+    Assert::AreEqual(0.0f, buffer.Sample(20.0).payloadSeconds, L"none past the newest");
+  }
+
   TEST_METHOD(HoldsTheNearestSnapshotOutsideThem)
   {
     SnapshotBuffer buffer(TICK_RATE);

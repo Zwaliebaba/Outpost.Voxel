@@ -7,6 +7,7 @@
 #include "LoopbackTransport.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <memory>
 #include <sstream>
@@ -366,7 +367,10 @@ ReplayOutcome Replay(World& _world, const CommandLog& _log)
   host.Log(record, _log.world);
 
   // Each tick, the commands the host applied at it go out before the step that serves them; what comes back is dropped.
+  // Each step is timed, and nothing it does depends on the time.
   std::size_t next = 0;
+  double stepsMilliseconds = 0.0;
+  double worstMilliseconds = 0.0;
   for (std::size_t tick = 0; tick < _log.ticks.size(); ++tick)
   {
     while (next < _log.commands.size() && _log.commands[next].tick == host.Tick())
@@ -377,7 +381,11 @@ ReplayOutcome Replay(World& _world, const CommandLog& _log)
         static_cast<void>(clients[logged.session]->Send(NeuronCore::EncodeMessage(logged.command)));
       }
     }
+    const std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
     host.Step();
+    const double milliseconds = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    stepsMilliseconds += milliseconds;
+    worstMilliseconds = std::max(worstMilliseconds, milliseconds);
     for (const std::unique_ptr<NeuronCore::Transport>& client : clients)
     {
       while (client->Receive())
@@ -425,7 +433,8 @@ ReplayOutcome Replay(World& _world, const CommandLog& _log)
       break;
     }
   }
-  return {_log.ticks.size(), next, firstDifference};
+  const double meanMilliseconds = _log.ticks.empty() ? 0.0 : stepsMilliseconds / static_cast<double>(_log.ticks.size());
+  return {_log.ticks.size(), next, firstDifference, meanMilliseconds, worstMilliseconds};
 }
 
 } // namespace NeuronServer

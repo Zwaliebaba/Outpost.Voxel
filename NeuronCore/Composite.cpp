@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace NeuronCore
@@ -112,6 +113,46 @@ std::vector<CompositeModel> SingleModelComposites(std::size_t _modelCount)
     composites.push_back({{{static_cast<std::uint16_t>(model), {0, 0, 0}, {0.0f, 0.0f, 0.0f, 1.0f}}}});
   }
   return composites;
+}
+
+std::vector<CompositeVoxel> CompositeVoxels(std::span<const VoxModel> _models, const CompositeModel& _composite)
+{
+  std::vector<CompositeVoxel> voxels;
+  voxels.reserve(CompositeVoxelCount(_models, _composite));
+  for (std::size_t index = 0; index < _composite.components.size(); ++index)
+  {
+    const CompositeComponent& component = _composite.components[index];
+    const VoxModel& model = _models[component.model];
+    const RigidTransform transform = ComponentTransform(component);
+    for (const ModelInstance& instance : model.instances)
+    {
+      for (std::uint32_t record = 0; record < instance.recordCount; ++record)
+      {
+        // A cell's centre, turned by a symmetry of the cube and moved by whole voxels, is a centre again, exactly.
+        const VoxelRecord voxel = UnpackVoxelRecord(model.records[instance.firstRecord + record]);
+        const Int3 cell = InstanceCell(instance, voxel);
+        const Float3 center = TransformPoint(transform, ToFloat3(cell) + Float3{0.5f, 0.5f, 0.5f});
+        voxels.push_back({{static_cast<std::int32_t>(std::floor(center.x)), static_cast<std::int32_t>(std::floor(center.y)),
+                           static_cast<std::int32_t>(std::floor(center.z))},
+                          static_cast<std::uint16_t>(index),
+                          voxel.color});
+      }
+    }
+  }
+  return voxels;
+}
+
+std::uint32_t CompositeVoxelCount(std::span<const VoxModel> _models, const CompositeModel& _composite) noexcept
+{
+  std::uint32_t count = 0;
+  for (const CompositeComponent& component : _composite.components)
+  {
+    for (const ModelInstance& instance : _models[component.model].instances)
+    {
+      count += instance.recordCount;
+    }
+  }
+  return count;
 }
 
 } // namespace NeuronCore

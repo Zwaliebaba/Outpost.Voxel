@@ -9,6 +9,7 @@
     <ClInclude Include="SkirmishLayout.h" />
     <ClInclude Include="WelcomeNames.h" />
     <ClInclude Include="Orders.h" />
+    <ClInclude Include="CombatProfile.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Catalogue.cpp" />
@@ -19,5 +20,6 @@
     <ClCompile Include="SkirmishLayout.cpp" />
     <ClCompile Include="WelcomeNames.cpp" />
     <ClCompile Include="Orders.cpp" />
+    <ClCompile Include="CombatProfile.cpp" />
   </ItemGroup>
 </Project>

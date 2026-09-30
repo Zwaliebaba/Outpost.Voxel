@@ -199,6 +199,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CatalogueTests.cpp" />
+    <ClCompile Include="CombatProfileTests.cpp" />
     <ClCompile Include="DesignCompositeTests.cpp" />
     <ClCompile Include="DesignTests.cpp" />
     <ClCompile Include="OrdersTests.cpp" />

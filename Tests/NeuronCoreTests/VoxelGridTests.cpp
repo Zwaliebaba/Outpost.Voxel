@@ -244,6 +244,35 @@ public:
     Assert::AreEqual(NeuronCore::NO_VOXEL, grid.Trace({{0.0f, 5.0f, 3.0f}, {nan, 1.0f, 0.0f}}, 0.0f).voxel, L"a NaN direction");
     Assert::AreEqual(NeuronCore::NO_VOXEL, grid.Trace({{infinity, 5.0f, 3.0f}, {1.0f, 0.0f, 0.0f}}, 0.0f).voxel, L"an infinite origin");
   }
+
+  // Design/ADR/ADR-035: a grid over a list of cells holds each one's first index, and a segment meets the cells it runs
+  // inside, in the order it enters them.
+  TEST_METHOD(WalksASegmentThroughCells)
+  {
+    const std::vector<Int3> cells{{0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 0, 0}, {-3, 4, 5}};
+    const NeuronCore::VoxelGrid grid(cells);
+    Assert::AreEqual(std::uint32_t{1}, grid.VoxelAt({1, 0, 0}), L"a cell listed twice holds its first index");
+    Assert::AreEqual(std::uint32_t{5}, grid.VoxelAt({-3, 4, 5}), L"and the grid reaches every cell");
+    Assert::AreEqual(NeuronCore::NO_VOXEL, grid.VoxelAt({0, 1, 0}));
+
+    // Along x through the row's middle, from outside: 0, 1 and 2 in turn, entered at a quarter of the way on each.
+    const auto row = NeuronCore::SegmentCells(grid, {-1.0, 0.5, 0.5}, {4.0, 0.0, 0.0}, 0.0, 1.0);
+    Assert::AreEqual(std::size_t{3}, row.size());
+    for (std::uint32_t i = 0; i < 3; ++i)
+    {
+      Assert::AreEqual(i, row[i].value);
+      Assert::AreEqual(0.25 * (i + 1), row[i].entry, 1.0e-12);
+    }
+    // A segment along the face between two rows belongs to one of them, and one that starts on a face and leaves the
+    // cell does not enter it.
+    const auto face = NeuronCore::SegmentCells(grid, {1.5, 1.0, 0.5}, {2.0, 0.0, 0.0}, 0.0, 1.0);
+    Assert::AreEqual(std::size_t{1}, face.size(), L"along a face");
+    Assert::AreEqual(std::uint32_t{3}, face.front().value, L"the cell whose half-open span holds the face");
+    Assert::IsTrue(NeuronCore::SegmentCells(grid, {3.0, 0.5, 0.5}, {5.0, 0.0, 0.0}, 0.0, 1.0).empty(), L"leaving from a face");
+    // Within the given part of the segment only.
+    const auto part = NeuronCore::SegmentCells(grid, {-1.0, 0.5, 0.5}, {4.0, 0.0, 0.0}, 0.3, 0.6);
+    Assert::IsTrue(part.size() == 2 && part[0].value == 0 && part[1].value == 1, L"the cells of its part");
+  }
 };
 
 } // namespace NeuronCoreTests

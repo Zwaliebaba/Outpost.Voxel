@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -212,6 +213,51 @@ public:
     Assert::IsTrue(placed.x == -12.0f + 4.5f && placed.y == 40.0f - 1.0f && placed.z == 7.0f - 2.5f, L"turned, then moved");
     Assert::IsFalse(NeuronCore::IsIdentityComponent(component), L"a turned component moves its model");
     Assert::IsFalse(NeuronCore::IsIdentityComponent({3, {0, 0, 1}, IDENTITY}), L"and so does a moved one");
+  }
+
+  // Design/ADR/ADR-035: a composite's voxels in the order an entity's mask counts them, component after component, each
+  // component's model part after part and each part's records in order, each in the cell its center lands in.
+  TEST_METHOD(ListsTheVoxelsInTheOrderOfAMask)
+  {
+    SeededRandom random(20260930u);
+    const std::vector<NeuronCore::VoxModel> models{TwoPartModel(random, 40, 5), TwoPartModel(random, 30, 4)};
+    const NeuronCore::Rotation quarterTurn{{0.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
+    const CompositeModel composite{{{1, {0, 0, 0}, IDENTITY}, {0, {10, -3, 7}, Stored(quarterTurn)}, {1, {-6, 2, 0}, IDENTITY}}};
+    const std::vector<NeuronCore::CompositeVoxel> voxels = NeuronCore::CompositeVoxels(models, composite);
+    Assert::AreEqual(static_cast<std::size_t>(NeuronCore::CompositeVoxelCount(models, composite)), voxels.size(), L"the count");
+    Assert::AreEqual(models[1].records.size() * 2 + models[0].records.size(), voxels.size(), L"every record of every component");
+    std::size_t next = 0;
+    for (std::size_t index = 0; index < composite.components.size(); ++index)
+    {
+      const CompositeComponent& component = composite.components[index];
+      const NeuronCore::VoxModel& model = models[component.model];
+      const NeuronCore::RigidTransform transform = NeuronCore::ComponentTransform(component);
+      for (const NeuronCore::ModelInstance& instance : model.instances)
+      {
+        for (std::uint32_t record = 0; record < instance.recordCount; ++record, ++next)
+        {
+          const NeuronCore::VoxelRecord voxel = NeuronCore::UnpackVoxelRecord(model.records[instance.firstRecord + record]);
+          const Int3 cell = NeuronCore::InstanceCell(instance, voxel);
+          const NeuronCore::Float3 center = NeuronCore::TransformPoint(
+            transform, {static_cast<float>(cell.x) + 0.5f, static_cast<float>(cell.y) + 0.5f, static_cast<float>(cell.z) + 0.5f});
+          const std::wstring what = std::format(L"voxel {}", next);
+          Assert::AreEqual(static_cast<std::uint16_t>(index), voxels[next].component, what.c_str());
+          Assert::AreEqual(voxel.color, voxels[next].color, what.c_str());
+          Assert::IsTrue(voxels[next].cell.x == static_cast<std::int32_t>(std::floor(center.x)) &&
+                           voxels[next].cell.y == static_cast<std::int32_t>(std::floor(center.y)) &&
+                           voxels[next].cell.z == static_cast<std::int32_t>(std::floor(center.z)),
+                         what.c_str());
+        }
+      }
+    }
+    // Every cell lies within the composite's box.
+    const NeuronCore::VoxelBounds bounds = NeuronCore::CompositeBounds(models, composite).value_or(NeuronCore::VoxelBounds{});
+    for (const NeuronCore::CompositeVoxel& voxel : voxels)
+    {
+      Assert::IsTrue(voxel.cell.x >= bounds.lower.x && voxel.cell.x < bounds.upper.x && voxel.cell.y >= bounds.lower.y &&
+                       voxel.cell.y < bounds.upper.y && voxel.cell.z >= bounds.lower.z && voxel.cell.z < bounds.upper.z,
+                     L"within the box");
+    }
   }
 
   // A composite of components without voxels has no box; one without a voxel among others does not change it.

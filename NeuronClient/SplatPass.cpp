@@ -15,6 +15,7 @@
 #include "OrthographicView.h"
 #include "PerspectiveView.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -34,6 +35,7 @@ enum RootParameter : std::uint8_t
   PlacementsParameter,
   FragmentOfParameter,
   FragmentsParameter,
+  MaskWordsParameter,
   OverdrawParameter,
   RootParameterCount
 };
@@ -92,11 +94,18 @@ SplatPlacements PushSplatPlacements(UploadRing& _ring, std::span<const NeuronCor
 {
   std::vector<PlacementConstants> constants;
   constants.reserve(_placements.size());
+  std::vector<std::uint32_t> maskWords;
   for (const NeuronCore::Placement& placement : _placements)
   {
-    constants.push_back(MakePlacementConstants(placement));
+    const auto firstMaskWord = placement.mask.empty() ? NO_MASK : static_cast<std::uint32_t>(maskWords.size());
+    maskWords.insert(maskWords.end(), placement.mask.begin(), placement.mask.end());
+    constants.push_back(MakePlacementConstants(placement, firstMaskWord));
   }
-  SplatPlacements pushed{_ring.PushBytes(std::as_bytes(std::span(constants))), {}};
+  if (maskWords.empty())
+  {
+    maskWords.push_back(0u);
+  }
+  SplatPlacements pushed{_ring.PushBytes(std::as_bytes(std::span(constants))), _ring.PushBytes(std::as_bytes(std::span(maskWords))), {}};
   pushed.draws.reserve(_placements.size());
   D3D12_GPU_VIRTUAL_ADDRESS rest = 0;
   for (std::uint32_t i = 0; i < _placements.size(); ++i)
@@ -124,11 +133,14 @@ SplatPlacements PushSplatPlacements(UploadRing& _ring, std::span<const NeuronCor
 std::uint64_t SplatPlacementBytes(std::span<const NeuronCore::Placement> _placements) noexcept
 {
   std::uint64_t detonated = 0;
+  std::uint64_t maskWords = 0;
   for (const NeuronCore::Placement& placement : _placements)
   {
     detonated += placement.detonation.has_value() ? 1u : 0u;
+    maskWords += placement.mask.size();
   }
-  return RingBytes(_placements.size() * sizeof(PlacementConstants)) + (detonated + 1) * RingBytes(sizeof(ExplosionConstants));
+  return RingBytes(_placements.size() * sizeof(PlacementConstants)) +
+         RingBytes(std::max<std::uint64_t>(maskWords, 1) * sizeof(std::uint32_t)) + (detonated + 1) * RingBytes(sizeof(ExplosionConstants));
 }
 
 SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Variant _variant)
@@ -156,6 +168,9 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Variant _variant)
   parameters[FragmentsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
   parameters[FragmentsParameter].Descriptor = {3, 0};
   parameters[FragmentsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  parameters[MaskWordsParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  parameters[MaskWordsParameter].Descriptor = {4, 0};
+  parameters[MaskWordsParameter].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   const D3D12_DESCRIPTOR_RANGE overdrawRange{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, 0};
   parameters[OverdrawParameter].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
   parameters[OverdrawParameter].DescriptorTable = {1, &overdrawRange};
@@ -219,7 +234,7 @@ SplatPass::SplatPass(GraphicsDevice& _device, Kind _kind, Variant _variant)
 }
 
 void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scene, D3D12_GPU_VIRTUAL_ADDRESS _viewConstants,
-                       D3D12_GPU_VIRTUAL_ADDRESS _placements, std::span<const SplatDraw> _draws,
+                       const SplatPlacements& _placements, std::span<const SplatDraw> _draws,
                        D3D12_GPU_DESCRIPTOR_HANDLE _overdrawTable) const
 {
   _list->SetGraphicsRootSignature(m_rootSignature.get());
@@ -227,9 +242,10 @@ void SplatPass::Record(ID3D12GraphicsCommandList* _list, const VoxelScene& _scen
   _list->IASetIndexBuffer(&m_indexView);
   _list->SetGraphicsRootConstantBufferView(ViewConstantsParameter, _viewConstants);
   _list->SetGraphicsRootShaderResourceView(RecordsParameter, _scene.Records());
-  _list->SetGraphicsRootShaderResourceView(PlacementsParameter, _placements);
+  _list->SetGraphicsRootShaderResourceView(PlacementsParameter, _placements.constants);
   _list->SetGraphicsRootShaderResourceView(FragmentOfParameter, _scene.FragmentOf());
   _list->SetGraphicsRootShaderResourceView(FragmentsParameter, _scene.Fragments());
+  _list->SetGraphicsRootShaderResourceView(MaskWordsParameter, _placements.maskWords);
   if (m_variant == Variant::Overdraw)
   {
     _list->SetGraphicsRootDescriptorTable(OverdrawParameter, _overdrawTable);

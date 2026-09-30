@@ -105,6 +105,10 @@ struct VoxModel
 // The axis-aligned unit box whose minimum corner is _minCorner: how every voxel of an intact model is drawn.
 [[nodiscard]] Box CellBox(Int3 _minCorner) noexcept;
 
+// The cell, in its model's space, that _voxel of _instance lies in: its minimum corner, turned about the instance's centre
+// voxel, floor(size / 2), and moved by the instance's origin (ModelInstance).
+[[nodiscard]] Int3 InstanceCell(const ModelInstance& _instance, VoxelRecord _voxel) noexcept;
+
 // The box that _record, a packed record of _instance, is drawn as while the model is intact. _instance is unturned: the
 // renderer draws no turned instance (Design/Archive/NeuronVoxelFormat.md §6.1).
 [[nodiscard]] Box VoxelBox(const ModelInstance& _instance, std::uint32_t _record) noexcept;

@@ -169,7 +169,7 @@ public:
             std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
             _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
             targets.BeginSplat(_list);
-            viewSplat.Record(_list, scene, viewConstants, pushed.constants, pushed.draws);
+            viewSplat.Record(_list, scene, viewConstants, pushed, pushed.draws);
             targets.EndSplat(_list);
             targets.BeginSky(_list);
             pass.Record(_list, viewConstants, skyConstants);

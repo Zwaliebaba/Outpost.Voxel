@@ -162,6 +162,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Catalogue.h" />
+    <ClInclude Include="CombatProfile.h" />
     <ClInclude Include="Design.h" />
     <ClInclude Include="DesignComposite.h" />
     <ClInclude Include="Orders.h" />
@@ -172,6 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Catalogue.cpp" />
+    <ClCompile Include="CombatProfile.cpp" />
     <ClCompile Include="Design.cpp" />
     <ClCompile Include="DesignComposite.cpp" />
     <ClCompile Include="Orders.cpp" />

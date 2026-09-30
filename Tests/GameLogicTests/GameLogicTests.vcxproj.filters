@@ -12,5 +12,7 @@
     <ClCompile Include="SkirmishTests.cpp" />
     <ClCompile Include="ClearancesTests.cpp" />
     <ClCompile Include="SkirmishOrdersTests.cpp" />
+    <ClCompile Include="CombatTests.cpp" />
+    <ClCompile Include="SmokeCheckTests.cpp" />
   </ItemGroup>
 </Project>

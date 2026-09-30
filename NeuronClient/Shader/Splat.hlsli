@@ -6,7 +6,7 @@
 // in the frame's structured buffer of placements. The entry-point file sets ORIENTED and ORTHOGRAPHIC: the view splat is
 // the perspective permutation, the shadow splat the orthographic one, and each draws aligned boxes for a whole placement
 // turned by a symmetry of the cube and oriented ones for any other, posed by its detonation once it has one (§7.2,
-// §7.7). PLAIN_DEPTH and COUNT_OVERDRAW make the view splat's measurement variants (§14): one writes plain SV_Depth
+// §7.7). Neither draws a voxel its placement's mask removes (Design/ADR/ADR-035). PLAIN_DEPTH and COUNT_OVERDRAW make the view splat's measurement variants (§14): one writes plain SV_Depth
 // instead of conservative depth, so that PSInvocations shows what conservative depth saves, and the other counts its
 // invocations per pixel for the overdraw view.
 
@@ -64,6 +64,8 @@ StructuredBuffer<PlacementConstants> g_placements : register(t1);
 StructuredBuffer<uint> g_fragmentOf : register(t2);
 StructuredBuffer<Fragment> g_fragments : register(t3);
 #endif
+// The frame's placements' masks, word after word (Design/ADR/ADR-035).
+StructuredBuffer<uint> g_maskWords : register(t4);
 #if COUNT_OVERDRAW
 RWTexture2D<uint> g_overdraw : register(u0);
 #endif
@@ -133,7 +135,8 @@ Box PlacedVoxelBox(PlacementConstants _placement, uint _local, uint _record)
 }
 
 // Vertex v of instance i is corner v mod 4 of the placement's voxel 256 i + v / 4 (§9.1). A voxel past the end of the
-// placement, or one the bounds cull, becomes a degenerate rectangle outside the viewport, which draws nothing.
+// placement, one its mask removes, or one the bounds cull, becomes a degenerate rectangle outside the viewport, which
+// draws nothing.
 SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_InstanceID)
 {
   SplatVaryings varyings;
@@ -149,6 +152,11 @@ SplatVaryings SplatVertex(uint _vertex : SV_VertexID, uint _instance : SV_Instan
   PlacementConstants placement = g_placements[g_placement];
   uint local = _instance * RECTANGLES_PER_INSTANCE + _vertex / 4u;
   if (local >= placement.recordCount)
+  {
+    return varyings;
+  }
+  // Only a voxel of the placement reads its mask, whose words end with its last voxel.
+  if (IsVoxelGone(g_maskWords, placement, local))
   {
     return varyings;
   }

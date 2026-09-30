@@ -30,15 +30,18 @@ public:
   // The tracer keeps copies of both.
   SceneTracer(std::span<const VoxModel> _models, std::span<const Placement> _placements);
 
-  // The nearest hit at or beyond _minDistance over every voxel of every placement, with the voxel's id.
+  // The nearest hit at or beyond _minDistance over every voxel of every placement that it still draws, with the voxel's
+  // id.
   [[nodiscard]] TraceHit Trace(const Ray& _ray, float _minDistance) const noexcept;
 
 private:
   // What the tracer holds for one placement: the grid of its part while it is whole, or its posed boxes once detonated.
+  // Either way, it skips the voxels the placement's mask says are gone (Design/ADR/ADR-035).
   struct Traced
   {
-    std::size_t grid;       // into m_grids, for a whole placement
-    std::vector<Box> boxes; // for a detonated one, in record order
+    std::size_t grid;                  // into m_grids, for a whole placement
+    std::vector<Box> boxes;            // for a detonated one, in record order, of the voxels it still draws
+    std::vector<std::uint32_t> voxels; // each box's voxel within the placement
   };
 
   std::vector<std::uint32_t> m_records;

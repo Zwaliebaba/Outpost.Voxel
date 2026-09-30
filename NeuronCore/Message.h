@@ -24,8 +24,9 @@ namespace NeuronCore
 inline constexpr std::uint32_t PROTOCOL_VERSION = 2;
 
 // The version of every message's layout, in its header. A change of layout bumps it: version 3's welcome tells the
-// session the side it plays (ADR-032), and version 4's command carries the game's own payload (Design/ADR/ADR-033).
-inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 4;
+// session the side it plays (ADR-032), version 4's command carries the game's own payload (Design/ADR/ADR-033), and
+// version 5's snapshot carries what each entity has lost (Design/ADR/ADR-035).
+inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 5;
 
 inline constexpr std::size_t MESSAGE_HEADER_BYTES = 8;
 inline constexpr std::size_t ENTITY_RECORD_BYTES = 48;
@@ -136,10 +137,21 @@ struct DetonationEvent
   Float3 velocity;
 };
 
+// The voxels an entity has lost (Design/ADR/ADR-035): one bit for each voxel of its composite, set for a voxel that is
+// gone. The voxels run component after component, each component's model part after part, and each part's records in
+// their order (NeuronCore/Composite.h). Bit i is bit i % 8 of byte i / 8, and the last byte's spare bits are clear. An
+// entity without a mask has every voxel, and a mask has a bit set, so that each state has one encoding.
+struct EntityMask
+{
+  std::uint32_t entity;
+  std::uint32_t voxelCount; // its composite's, which a receiver holds against its own count
+  std::vector<std::uint8_t> gone;
+};
+
 // Server to client, once a tick: the world as the session's side sees it, whole, or all of it for an observer (ADR-032).
 // The tick is the clock's and never stops; the world tick counts the ticks the world has advanced, and stands still while
-// it is paused, so that debris freezes with it (§6.3, ADR-015). The payload is the game's, which the engine carries
-// without reading (ADR-029).
+// it is paused, so that debris freezes with it (§6.3, ADR-015). The masks say what its entities have lost (ADR-035). The
+// payload is the game's, which the engine carries without reading (ADR-029).
 struct Snapshot
 {
   std::uint64_t tick;
@@ -147,6 +159,7 @@ struct Snapshot
   bool paused;
   std::vector<EntityState> entities;
   std::vector<DetonationEvent> detonations;
+  std::vector<EntityMask> masks;
   std::vector<std::uint8_t> payload;
 };
 
@@ -184,7 +197,7 @@ enum class ProtocolError : std::uint8_t
   NotUnitRotation,    // a rotation further than UNIT_ROTATION_TOLERANCE from unit length, or with w < 0
   DuplicateEntity,    // two records of one entity in a snapshot
   BadModelIndex,      // a component naming a model the welcome's manifest does not have
-  UnknownEntity,      // a detonation of an entity the snapshot does not hold
+  UnknownEntity,      // a detonation or a mask of an entity the snapshot does not hold
   NotCubeRotation,    // a component turned by other than one of the cube's 24 rotations
   BadCompositeIndex,  // an entity naming a composite the receiver's welcome does not have
   BadSide             // an entity, or a welcome's session, naming a side the welcome does not have

@@ -40,13 +40,19 @@ SceneTracer::SceneTracer(std::span<const VoxModel> _models, std::span<const Plac
   const std::span<const std::uint32_t> records(m_records);
   for (const Placement& placement : m_placements)
   {
-    Traced traced{0, {}};
+    Traced traced{0, {}, {}};
     if (placement.detonation.has_value())
     {
+      // Its posed voxels, those it still draws (Design/ADR/ADR-035), with each one's voxel within the placement.
       traced.boxes.reserve(placement.recordCount);
+      traced.voxels.reserve(placement.recordCount);
       for (std::uint32_t i = 0; i < placement.recordCount; ++i)
       {
-        traced.boxes.push_back(PlacedVoxelBox(placement, i, m_records[placement.firstRecord + i]));
+        if (!IsVoxelGone(placement, i))
+        {
+          traced.boxes.push_back(PlacedVoxelBox(placement, i, m_records[placement.firstRecord + i]));
+          traced.voxels.push_back(i);
+        }
       }
     }
     else
@@ -76,7 +82,7 @@ TraceHit SceneTracer::Trace(const Ray& _ray, float _minDistance) const noexcept
       const TraceHit hit = TraceBoxes<true>(traced.boxes, _ray, _minDistance);
       if (hit.voxel != NO_VOXEL)
       {
-        KeepNearer(best, placement.firstVoxel + hit.voxel, hit.distance, hit.normal);
+        KeepNearer(best, placement.firstVoxel + traced.voxels[hit.voxel], hit.distance, hit.normal);
       }
       continue;
     }
@@ -97,6 +103,10 @@ TraceHit SceneTracer::Trace(const Ray& _ray, float _minDistance) const noexcept
       for (std::size_t i = 0; i < step.count; ++i)
       {
         const std::uint32_t local = step.values[i];
+        if (IsVoxelGone(placement, local))
+        {
+          continue;
+        }
         const Box box = PlacedVoxelBox(placement, local, m_records[placement.firstRecord + local]);
         float distance = 0.0f;
         Float3 normal{};
