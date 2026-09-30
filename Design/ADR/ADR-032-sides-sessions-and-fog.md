@@ -1,6 +1,6 @@
 # ADR-032 — Sides, sessions and fog of war
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 3 of [`Design/MvpPlan.md`](../MvpPlan.md) · **Amends:** [ADR-015](ADR-015-client-server-boundary.md)'s sessions, snapshots and commands, and the foreclosure of a snapshot that differs between sessions; [ADR-029](ADR-029-protocol-composites-and-sides.md)'s welcome and the scene's palettes; [ADR-018](ADR-018-client.md)'s client, which learns its side and remembers what it has seen; [ADR-030](ADR-030-skirmish.md)'s skirmish, which serves each side what it sees and which the window plays as side 1; and [`AGENTS.md`](../../AGENTS.md) §2, whose `NeuronServer` and `NeuronClient` rows gain the command log and the client's memory
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 3 of [`Design/MvpPlan.md`](../MvpPlan.md) · **Amends:** [ADR-015](ADR-015-client-server-boundary.md)'s sessions, snapshots and commands, and the foreclosure of a snapshot that differs between sessions; [ADR-029](ADR-029-protocol-composites-and-sides.md)'s welcome and the scene's palettes; [ADR-018](ADR-018-client.md)'s client, which learns its side and remembers what it has seen; [ADR-030](ADR-030-skirmish.md)'s skirmish, which serves each side what it sees and which the window plays as side 1; and [`AGENTS.md`](../../AGENTS.md) §2, whose `NeuronServer` and `NeuronClient` rows gain the command log and the client's memory · **Amended by:** [ADR-033](ADR-033-orders-and-flight.md), whose log is version 2, a command record carrying the game's payload
 
 ## Context
 

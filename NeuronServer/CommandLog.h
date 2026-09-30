@@ -19,7 +19,7 @@ namespace NeuronServer
 // host applied, and the hash of every side's snapshot at every tick. Little-endian: a header, then records, each opening
 // with a byte of its kind.
 inline constexpr std::array<std::uint8_t, 4> COMMAND_LOG_MAGIC{'O', 'V', 'C', 'L'};
-inline constexpr std::uint16_t COMMAND_LOG_VERSION = 1;
+inline constexpr std::uint16_t COMMAND_LOG_VERSION = 2; // 2: a command carries the game's payload (Design/ADR/ADR-033)
 
 // A command the host applied: the tick and the world tick it applied it at, and the session that sent it, by the order the
 // host added them in.
@@ -53,8 +53,8 @@ enum class LogError : std::uint8_t
   Truncated,          // bytes that end inside the header or a record
   NotALog,            // no COMMAND_LOG_MAGIC
   UnsupportedVersion, // another version
-  MalformedLog,       // a reserved field that is not zero, a record of no known kind, a command of no known kind, or ticks out of order
-  BadName             // a model name that is empty, or not letters and digits
+  MalformedLog, // a reserved field that is not zero, a record of no known kind, a command the protocol does not have, or ticks out of order
+  BadName       // a model name that is empty, or not letters and digits
 };
 
 [[nodiscard]] const char* LogErrorName(LogError _error) noexcept;

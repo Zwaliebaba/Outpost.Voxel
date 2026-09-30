@@ -36,8 +36,8 @@ constexpr std::uint32_t COLOR_BYTES_PER_PIXEL = 16;
 // The blend runs in single precision on both sides; the two agree to rounding.
 constexpr float COLOR_TOLERANCE = 1.0e-5f;
 
-constexpr NeuronClient::TextStyle MONOSPACED{L"Consolas", 15.0f, DWRITE_FONT_WEIGHT_NORMAL};
-constexpr NeuronClient::TextStyle PROPORTIONAL{L"Segoe UI", 13.0f, DWRITE_FONT_WEIGHT_BOLD};
+constexpr NeuronClient::TextStyle MONOSPACED{L"Consolas", 15.0f, NeuronClient::REGULAR_WEIGHT};
+constexpr NeuronClient::TextStyle PROPORTIONAL{L"Segoe UI", 13.0f, NeuronClient::BOLD_WEIGHT};
 
 // A DirectWrite factory of the test's own: the shared one, which the canvas gets too.
 [[nodiscard]] winrt::com_ptr<IDWriteFactory2> DirectWriteFactory()
@@ -144,6 +144,35 @@ public:
     const NeuronCore::Float2 offTarget = NeuronClient::CanvasCornerNdc(-64, -32, 64, 32, 0, 128, 64);
     Assert::AreEqual(-2.0f, offTarget.x, L"a corner left of the target");
     Assert::AreEqual(2.0f, offTarget.y, L"a corner above the target");
+  }
+
+  // ADR-034: a segment's quad reaches half its width and a pixel more past its ends and to either side. Chosen so that
+  // every value is exact: from (8, 16) to (24, 16), 2 wide, on a target of 64 by 32. A segment of no length lies along +x.
+  TEST_METHOD(SlopesASegmentsQuadAlongIt)
+  {
+    const std::array<NeuronCore::Float2, 4> expected{{{-0.8125f, 0.125f}, {-0.1875f, 0.125f}, {-0.8125f, -0.125f}, {-0.1875f, -0.125f}}};
+    for (std::uint32_t corner = 0; corner < 4; ++corner)
+    {
+      const NeuronCore::Float2 ndc = NeuronClient::CanvasSegmentCornerNdc({8.0f, 16.0f}, {24.0f, 16.0f}, 1.0f, corner, 64, 32);
+      Assert::AreEqual(expected[corner].x, ndc.x, std::format(L"corner {}", corner).c_str());
+      Assert::AreEqual(expected[corner].y, ndc.y, std::format(L"corner {}", corner).c_str());
+    }
+    const NeuronCore::Float2 dot = NeuronClient::CanvasSegmentCornerNdc({16.0f, 16.0f}, {16.0f, 16.0f}, 0.5f, 3, 64, 32);
+    Assert::AreEqual(2.0f * 17.5f / 64.0f - 1.0f, dot.x, L"a dot's quad about it");
+    Assert::AreEqual(1.0f - 2.0f * 17.5f / 32.0f, dot.y);
+  }
+
+  // All of a pixel within half a pixel less than half the width, none beyond half a pixel more, in proportion between,
+  // with round ends.
+  TEST_METHOD(CoversASegmentsPixels)
+  {
+    constexpr NeuronCore::Float2 START{8.0f, 16.0f};
+    constexpr NeuronCore::Float2 END{24.0f, 16.0f};
+    Assert::AreEqual(1.0f, NeuronClient::CanvasSegmentCoverage({16.0f, 16.0f}, START, END, 1.0f), L"on the segment");
+    Assert::AreEqual(0.5f, NeuronClient::CanvasSegmentCoverage({16.0f, 17.0f}, START, END, 1.0f), L"at its edge");
+    Assert::AreEqual(0.0f, NeuronClient::CanvasSegmentCoverage({16.0f, 17.5f}, START, END, 1.0f), L"half a pixel beyond");
+    Assert::AreEqual(0.5f, NeuronClient::CanvasSegmentCoverage({25.0f, 16.0f}, START, END, 1.0f), L"at its round end");
+    Assert::AreEqual(1.0f, NeuronClient::CanvasSegmentCoverage({10.5f, 10.0f}, {10.0f, 10.0f}, {10.0f, 10.0f}, 1.0f), L"a dot");
   }
 
   TEST_METHOD(GlyphPixelsMapToTheirTexels)
@@ -256,7 +285,7 @@ public:
 
         canvas.Print(L"9876543210", 0.0f, 20.0f, MONOSPACED, {1.0f, 1.0f, 1.0f}, 1.0f);
         Assert::AreEqual(std::size_t{10}, canvas.Atlas().GlyphCount(), L"the same glyphs are found, not rasterized again");
-        canvas.Print(L"0123456789", 0.0f, 40.0f, {L"Consolas", 30.0f, DWRITE_FONT_WEIGHT_NORMAL}, {1.0f, 1.0f, 1.0f}, 1.0f);
+        canvas.Print(L"0123456789", 0.0f, 40.0f, {L"Consolas", 30.0f, NeuronClient::REGULAR_WEIGHT}, {1.0f, 1.0f, 1.0f}, 1.0f);
         Assert::AreEqual(std::size_t{20}, canvas.Atlas().GlyphCount(), L"another size is another set of glyphs");
 
         const std::size_t before = canvas.Quads().size();
@@ -329,7 +358,7 @@ public:
             for (std::int32_t x = left; x < right; ++x)
             {
               float coverage = 1.0f;
-              if (quad.fill == 0u)
+              if (quad.kind == static_cast<std::uint32_t>(NeuronClient::CanvasQuadKind::Glyph))
               {
                 std::int32_t texelX = 0;
                 std::int32_t texelY = 0;
@@ -363,6 +392,107 @@ public:
         Logger::WriteMessage(
           std::format(L"{} quads, {} glyphs in the atlas, {} glyph pixels with ink\n", quads.size(), canvas.Atlas().GlyphCount(), inked)
             .c_str());
+        Assert::AreEqual(0u, failures, L"pixels that differ from the twin's composite");
+      });
+  }
+
+  // ADR-034, R15: segments of every slope, width and alpha, a dot, one that leaves the target, and some over a fill and
+  // over one another, drawn on WARP and composited by the twin: every pixel of the target, its coverage at its centre.
+  // Every pixel must agree, which also shows that the sloped quad holds every pixel the segment covers.
+  TEST_METHOD(DrawsSegmentsAsTheTwinDoes)
+  {
+    RunGpuTest(
+      [](NeuronClient::GraphicsDevice& _device)
+      {
+        constexpr std::uint32_t WIDTH_PIXELS = 128;
+        constexpr std::uint32_t HEIGHT_PIXELS = 96;
+        constexpr Float4 BACKGROUND{0.05f, 0.1f, 0.15f, 1.0f};
+        NeuronClient::DescriptorHeap rtvHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, false, L"Test render target views");
+        NeuronClient::DescriptorHeap shaderHeap(_device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true, L"Test shader views");
+        NeuronClient::Canvas canvas(_device, shaderHeap, COLOR_FORMAT, 1);
+
+        canvas.FillRectangle(40, 30, 50, 30, {0.3f, 0.3f, 0.3f}, 0.6f);
+        canvas.DrawSegment({10.0f, 10.0f}, {118.0f, 10.0f}, 1.0f, {1.0f, 1.0f, 1.0f}, 1.0f);
+        canvas.DrawSegment({10.5f, 20.25f}, {10.5f, 86.0f}, 2.5f, {0.2f, 1.0f, 0.4f}, 0.8f);
+        canvas.DrawSegment({20.0f, 80.0f}, {110.0f, 25.0f}, 3.0f, {1.0f, 0.6f, 0.1f}, 0.7f);
+        canvas.DrawSegment({30.3f, 40.7f}, {97.9f, 71.1f}, 1.5f, {0.4f, 0.7f, 1.0f}, 1.0f);
+        canvas.DrawSegment({64.0f, 48.0f}, {64.0f, 48.0f}, 6.0f, {1.0f, 0.2f, 0.2f}, 0.9f);
+        canvas.DrawSegment({100.0f, 90.0f}, {150.0f, 120.0f}, 4.0f, {0.8f, 0.8f, 0.2f}, 1.0f);
+        const std::vector<NeuronClient::CanvasQuad> quads(canvas.Quads().begin(), canvas.Quads().end());
+
+        const D3D12_CLEAR_VALUE clear{COLOR_FORMAT, {{BACKGROUND.x, BACKGROUND.y, BACKGROUND.z, BACKGROUND.w}}};
+        const winrt::com_ptr<ID3D12Resource> color =
+          NeuronClient::CreateTexture2D(_device, COLOR_FORMAT, WIDTH_PIXELS, HEIGHT_PIXELS, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+                                        D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, L"Test color");
+        const std::uint32_t colorView = rtvHeap.Allocate();
+        _device.Device()->CreateRenderTargetView(color.get(), nullptr, rtvHeap.Cpu(colorView));
+        _device.Execute(
+          [&](ID3D12GraphicsCommandList* _list)
+          {
+            std::array<ID3D12DescriptorHeap*, 1> heaps{shaderHeap.Heap()};
+            _list->SetDescriptorHeaps(static_cast<UINT>(heaps.size()), heaps.data());
+            const D3D12_CPU_DESCRIPTOR_HANDLE target = rtvHeap.Cpu(colorView);
+            _list->ClearRenderTargetView(target, clear.Color, 0, nullptr);
+            _list->OMSetRenderTargets(1, &target, FALSE, nullptr);
+            canvas.Record(_list, 0, WIDTH_PIXELS, HEIGHT_PIXELS);
+          });
+        const std::vector<std::byte> bytes =
+          NeuronClient::ReadTexture2D(_device, color.get(), D3D12_RESOURCE_STATE_RENDER_TARGET, COLOR_BYTES_PER_PIXEL);
+        std::vector<Float4> drawn(static_cast<std::size_t>(WIDTH_PIXELS) * HEIGHT_PIXELS);
+        std::memcpy(static_cast<void*>(drawn.data()), bytes.data(), bytes.size());
+
+        // The twin's composite: a fill over its rectangle, and a segment over every pixel, by its coverage there.
+        std::vector<Float4> expected(drawn.size(), BACKGROUND);
+        std::uint32_t covered = 0;
+        std::uint32_t partly = 0;
+        for (const NeuronClient::CanvasQuad& quad : quads)
+        {
+          for (std::uint32_t y = 0; y < HEIGHT_PIXELS; ++y)
+          {
+            for (std::uint32_t x = 0; x < WIDTH_PIXELS; ++x)
+            {
+              float coverage = 0.0f;
+              if (quad.kind == static_cast<std::uint32_t>(NeuronClient::CanvasQuadKind::Segment))
+              {
+                coverage = NeuronClient::CanvasSegmentCoverage({static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
+                                                               {quad.startX, quad.startY}, {quad.endX, quad.endY}, quad.halfWidthPixels);
+                covered += coverage > 0.0f ? 1u : 0u;
+                partly += coverage > 0.0f && coverage < 1.0f ? 1u : 0u;
+              }
+              else
+              {
+                const bool inside = static_cast<std::int32_t>(x) >= quad.pixelX &&
+                                    static_cast<std::int32_t>(x) < quad.pixelX + static_cast<std::int32_t>(quad.widthPixels) &&
+                                    static_cast<std::int32_t>(y) >= quad.pixelY &&
+                                    static_cast<std::int32_t>(y) < quad.pixelY + static_cast<std::int32_t>(quad.heightPixels);
+                coverage = inside ? 1.0f : 0.0f;
+              }
+              if (coverage > 0.0f)
+              {
+                Float4& pixel = expected[static_cast<std::size_t>(y) * WIDTH_PIXELS + x];
+                pixel = NeuronClient::CanvasBlend(NeuronClient::CanvasPremultiply(quad.color, quad.alpha, coverage), pixel);
+              }
+            }
+          }
+        }
+        Assert::IsTrue(partly > 100, std::format(L"{} of {} covered pixels are partly covered", partly, covered).c_str());
+
+        std::uint32_t failures = 0;
+        for (std::uint32_t y = 0; y < HEIGHT_PIXELS; ++y)
+        {
+          for (std::uint32_t x = 0; x < WIDTH_PIXELS; ++x)
+          {
+            const Float4 actual = drawn[static_cast<std::size_t>(y) * WIDTH_PIXELS + x];
+            const Float4 twin = expected[static_cast<std::size_t>(y) * WIDTH_PIXELS + x];
+            if (!Near(actual, twin) && failures++ < 10)
+            {
+              Logger::WriteMessage(std::format(L"({}, {}): ({}, {}, {}, {}), the twin's ({}, {}, {}, {})\n", x, y, actual.x, actual.y,
+                                               actual.z, actual.w, twin.x, twin.y, twin.z, twin.w)
+                                     .c_str());
+            }
+          }
+        }
+        Logger::WriteMessage(std::format(L"{} segment pixels covered, {} partly\n", covered, partly).c_str());
         Assert::AreEqual(0u, failures, L"pixels that differ from the twin's composite");
       });
   }

@@ -64,6 +64,7 @@ constexpr std::size_t DETONATION_WORLD_TICK = 8;
 constexpr std::size_t DETONATION_VELOCITY = 16;
 constexpr std::size_t COMMAND_KIND = 8;
 constexpr std::size_t COMMAND_ENTITY = 12;
+constexpr std::size_t COMMAND_PAYLOAD_BYTES = 16;
 constexpr std::size_t COMPONENT_RESERVED = 2;
 constexpr std::size_t COMPONENT_TRANSLATION = 4;
 constexpr std::size_t COMPONENT_ROTATION = 16;
@@ -75,10 +76,10 @@ constexpr NeuronCore::WelcomeCounts COUNTS{4, 2};
 // One message of each type, encoded by hand from the layout with Python's struct module rather than by the encoder
 // under test, so that a change of encoding shows here as a diff.
 constexpr std::array<std::uint8_t, 12> GOLDEN_HELLO{
-  0x01, 0x00, 0x03, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+  0x01, 0x00, 0x04, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 };
 constexpr std::array<std::uint8_t, 211> GOLDEN_WELCOME{
-  0x02, 0x00, 0x03, 0x00, 0xD3, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x02, 0x00, 0x04, 0x00, 0xD3, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x33, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x33, 0x3F,
   0x33, 0x33, 0x33, 0x3F, 0x00, 0x00, 0x80, 0x3E, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC,
   0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0xCD, 0xCC, 0x4C, 0x3D, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -90,15 +91,18 @@ constexpr std::array<std::uint8_t, 211> GOLDEN_WELCOME{
   0x3C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0xCA, 0xFE, 0x01,
 };
 constexpr std::array<std::uint8_t, 118> GOLDEN_SNAPSHOT{
-  0x03, 0x00, 0x03, 0x00, 0x76, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+  0x03, 0x00, 0x04, 0x00, 0x76, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
   0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x40,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x3F,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBF, 0x03, 0x00, 0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE, 0x08, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x5A, 0xA5,
 };
-constexpr std::array<std::uint8_t, 16> GOLDEN_COMMAND{
-  0x04, 0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
+constexpr std::array<std::uint8_t, 20> GOLDEN_COMMAND{
+  0x04, 0x00, 0x04, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+constexpr std::array<std::uint8_t, 23> GOLDEN_GAME_COMMAND{
+  0x04, 0x00, 0x04, 0x00, 0x17, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03,
 };
 
 // A quarter turn about y, as the cube's rotations are stored: sin 45° and cos 45°, rounded to float.
@@ -224,7 +228,9 @@ constexpr NeuronCore::Quaternion QUARTER_TURN_ABOUT_Y{0.0f, 0.70710677f, 0.0f, 0
           NeuronCore::Command{NeuronCore::CommandKind::Pause, 0},
           NeuronCore::Command{NeuronCore::CommandKind::Resume, 0},
           NeuronCore::Command{NeuronCore::CommandKind::Detonate, 7},
-          NeuronCore::Command{NeuronCore::CommandKind::Restore, 0xFFFFFFFFu}};
+          NeuronCore::Command{NeuronCore::CommandKind::Restore, 0xFFFFFFFFu},
+          NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {1, 2, 3}},
+          NeuronCore::Command{NeuronCore::CommandKind::Game, 0, Bytes(300, 0xAB)}};
 }
 
 void PutU16(Bytes& _bytes, std::size_t _offset, std::uint16_t _value)
@@ -366,9 +372,12 @@ public:
     Assert::IsTrue(std::ranges::equal(Encoded(GoldenWelcome()), GOLDEN_WELCOME), L"Welcome");
     Assert::IsTrue(std::ranges::equal(Encoded(GoldenSnapshot()), GOLDEN_SNAPSHOT), L"Snapshot");
     Assert::IsTrue(std::ranges::equal(Encoded(NeuronCore::Command{NeuronCore::CommandKind::Detonate, 7}), GOLDEN_COMMAND), L"Command");
+    Assert::IsTrue(std::ranges::equal(Encoded(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {1, 2, 3}}), GOLDEN_GAME_COMMAND),
+                   L"the game's command, with its payload");
     for (const std::span<const std::uint8_t> golden :
          {std::span<const std::uint8_t>(GOLDEN_HELLO), std::span<const std::uint8_t>(GOLDEN_WELCOME),
-          std::span<const std::uint8_t>(GOLDEN_SNAPSHOT), std::span<const std::uint8_t>(GOLDEN_COMMAND)})
+          std::span<const std::uint8_t>(GOLDEN_SNAPSHOT), std::span<const std::uint8_t>(GOLDEN_COMMAND),
+          std::span<const std::uint8_t>(GOLDEN_GAME_COMMAND)})
     {
       Assert::IsTrue(NeuronCore::DecodeMessage(golden, COUNTS).has_value(), L"the golden bytes decode");
     }
@@ -396,7 +405,7 @@ public:
       PutU16(bytes, TYPE_OFFSET, type);
       ExpectRefusal(ProtocolError::UnknownMessage, bytes, std::format(L"type {}", type));
     }
-    for (const std::uint16_t version : {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}, std::uint16_t{4}, std::uint16_t{0xFFFF}})
+    for (const std::uint16_t version : {std::uint16_t{0}, std::uint16_t{1}, std::uint16_t{2}, std::uint16_t{3}, std::uint16_t{0xFFFF}})
     {
       Bytes bytes(GOLDEN_COMMAND.begin(), GOLDEN_COMMAND.end());
       PutU16(bytes, VERSION_OFFSET, version);
@@ -500,7 +509,7 @@ public:
       PutU32(bytes, WELCOME_MODEL_COUNT, 0xFFFFFFFFu);
       ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a model count no message could hold");
     }
-    for (const std::uint32_t kind : {0u, 5u, 0xFFFFFFFFu})
+    for (const std::uint32_t kind : {0u, 6u, 0xFFFFFFFFu})
     {
       Bytes bytes(GOLDEN_COMMAND.begin(), GOLDEN_COMMAND.end());
       PutU32(bytes, COMMAND_KIND, kind);
@@ -515,6 +524,29 @@ public:
       Bytes bytes(GOLDEN_COMMAND.begin(), GOLDEN_COMMAND.end());
       PutU32(bytes, COMMAND_ENTITY, 0);
       ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a detonation naming no entity");
+    }
+    // Design/ADR/ADR-033: only the game's command carries a payload, it always carries one, and it names no entity.
+    {
+      Bytes bytes(GOLDEN_GAME_COMMAND.begin(), GOLDEN_GAME_COMMAND.end());
+      PutU32(bytes, COMMAND_KIND, static_cast<std::uint32_t>(NeuronCore::CommandKind::Detonate));
+      PutU32(bytes, COMMAND_ENTITY, 7);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a detonation with a payload");
+    }
+    {
+      Bytes bytes(GOLDEN_GAME_COMMAND.begin(), GOLDEN_GAME_COMMAND.end());
+      PutU32(bytes, COMMAND_ENTITY, 7);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"the game's command naming an entity");
+    }
+    {
+      Bytes bytes = Encoded(NeuronCore::Command{NeuronCore::CommandKind::Game, 0, {}});
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"the game's command without a payload");
+    }
+    {
+      Bytes bytes(GOLDEN_GAME_COMMAND.begin(), GOLDEN_GAME_COMMAND.end());
+      PutU32(bytes, COMMAND_PAYLOAD_BYTES, 4);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a payload longer than the message");
+      PutU32(bytes, COMMAND_PAYLOAD_BYTES, 2);
+      ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"and one shorter");
     }
   }
 
@@ -578,6 +610,16 @@ public:
       PutU32(bytes, PayloadOffset(sample), static_cast<std::uint32_t>(sample.payload.size() - 1));
       ExpectRefusal(ProtocolError::MalformedMessage, bytes, L"a byte after the payload");
     }
+  }
+
+  // Design/ADR/ADR-033: the game's command carries its payload unread, byte for byte.
+  TEST_METHOD(CarriesTheGamesCommand)
+  {
+    const auto decoded = NeuronCore::DecodeMessage(GOLDEN_GAME_COMMAND, COUNTS);
+    const auto* command = decoded ? std::get_if<NeuronCore::Command>(&*decoded) : nullptr;
+    Assert::IsTrue(command != nullptr, L"it decodes as a command");
+    Assert::IsTrue(command->kind == NeuronCore::CommandKind::Game && command->entity == 0, L"the game's, naming no entity");
+    Assert::IsTrue(command->payload == Bytes{1, 2, 3}, L"with its payload");
   }
 
   // Design/ADR/ADR-032: the welcome tells the session its side, an observer's 0, and one of the welcome's own sides or

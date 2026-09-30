@@ -1,6 +1,6 @@
 # ADR-030 — The skirmish: its layout, its designs as composites, and its names
 
-**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 5: `GameCore`'s layout, composites and names, then `GameLogic::Skirmish`, then the command line and the client · **Amends:** [`AGENTS.md`](../../AGENTS.md) §2, where `GameLogic` and its suite, `GameLib` and `Outpost` now reference `GameCore`; and [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes · **Amended by:** [ADR-032](ADR-032-sides-sessions-and-fog.md), whose skirmish serves each side what its sensors reach, refuses a command on the other side's entity, and is played in the window as side 1
+**Status:** accepted, 2026-09-29 · **Lands with:** phase 2 of [`Design/MvpPlan.md`](../MvpPlan.md), its tasks 2 to 5: `GameCore`'s layout, composites and names, then `GameLogic::Skirmish`, then the command line and the client · **Amends:** [`AGENTS.md`](../../AGENTS.md) §2, where `GameLogic` and its suite, `GameLib` and `Outpost` now reference `GameCore`; and [`MvpPlan.md`](../MvpPlan.md) §8.4, whose fields it sizes · **Amended by:** [ADR-032](ADR-032-sides-sessions-and-fog.md), whose skirmish serves each side what its sensors reach, refuses a command on the other side's entity, and is played in the window as side 1; [ADR-033](ADR-033-orders-and-flight.md), whose ships fly to their orders; and [ADR-034](ADR-034-interface-layer.md), whose first view is the strategic camera's, on the side's core
 
 ## Context
 

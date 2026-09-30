@@ -201,6 +201,7 @@
     <ClCompile Include="CatalogueTests.cpp" />
     <ClCompile Include="DesignCompositeTests.cpp" />
     <ClCompile Include="DesignTests.cpp" />
+    <ClCompile Include="OrdersTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>

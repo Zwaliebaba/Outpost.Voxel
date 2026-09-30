@@ -126,6 +126,65 @@ void FlyToward(ShipMotion& _motion, Float3 _aim, float _desiredSpeed, Float3 _re
   RollAndMove(_motion, BankedUp(_motion, before, turned, _reference, _class, _seconds), _class, _seconds);
 }
 
+// How far aim points lie ahead of a ship on the plane: any length would do, since only their direction counts.
+constexpr float PLANE_AIM_UNITS = 100.0f;
+
+// A halted ship whose up lies within a thousandth of a radian of the world's is level.
+constexpr float LEVEL_COSINE = 0.9999995f;
+
+// _vector on the plane: its y dropped.
+[[nodiscard]] Float3 Flat(Float3 _vector) noexcept
+{
+  return {_vector.x, 0.0f, _vector.z};
+}
+
+[[nodiscard]] float PlaneDistance(Float3 _from, Float3 _to) noexcept
+{
+  return NeuronCore::Length(Flat(_to - _from));
+}
+
+// _vector on the plane at unit length, or _fallback when it has next to none.
+[[nodiscard]] Float3 PlaneDirection(Float3 _vector, Float3 _fallback) noexcept
+{
+  const Float3 flat = Flat(_vector);
+  const float length = NeuronCore::Length(flat);
+  return length > 1.0e-3f ? flat * (1.0f / length) : _fallback;
+}
+
+// A heading on the plane toward _desired from _forward: _desired itself, or the ship's right when _desired lies straight
+// behind it, which TurnToward would otherwise turn about a level axis, out of the plane.
+[[nodiscard]] Float3 PlaneTurn(Float3 _forward, Float3 _desired) noexcept
+{
+  if (NeuronCore::Length(NeuronCore::Cross(_forward, _desired)) < 1.0e-3f && NeuronCore::Dot(_forward, _desired) < 0.0f)
+  {
+    return NeuronCore::Normalize(NeuronCore::Cross(WORLD_UP, _forward));
+  }
+  return _desired;
+}
+
+// Whether a ship at _position is done with corner _corner of _path: within CORNER_REACHED of it, or past the line through
+// it that halves its turn.
+[[nodiscard]] bool CornerDone(Float3 _position, std::span<const Float3> _path, std::size_t _corner) noexcept
+{
+  if (PlaneDistance(_position, _path[_corner]) <= CORNER_REACHED)
+  {
+    return true;
+  }
+  const Float3 in = PlaneDirection(_path[_corner] - _path[_corner - 1], Float3{});
+  const Float3 out = PlaneDirection(_path[_corner + 1] - _path[_corner], Float3{});
+  return NeuronCore::Dot(in, out) > 0.0f && NeuronCore::Dot(Flat(_position - _path[_corner]), in + out) > 0.0f;
+}
+
+// The fastest a ship may take corner _corner of _path: the speed whose turning circle, at its turn rate, swings it out of
+// the corner's turn by CORNER_SWING, and no limit for a corner that hardly turns.
+[[nodiscard]] float CornerSpeed(std::span<const Float3> _path, std::size_t _corner, const ShipClass& _class) noexcept
+{
+  const Float3 in = PlaneDirection(_path[_corner] - _path[_corner - 1], Float3{});
+  const Float3 out = PlaneDirection(_path[_corner + 1] - _path[_corner], Float3{});
+  const float bend = 1.0f - std::clamp(NeuronCore::Dot(in, out), -1.0f, 1.0f);
+  return bend > 1.0e-6f ? _class.turnRate * CORNER_SWING / bend : _class.maxSpeed;
+}
+
 } // namespace
 
 NeuronCore::Rotation ShipRotation(const ShipMotion& _motion) noexcept
@@ -168,6 +227,54 @@ void FlyLeader(ShipMotion& _motion, const Route& _route, const ShipClass& _class
   _motion.progress = _route.Track(_motion.progress, _motion.position);
   const Float3 aim = _route.PositionAt(_motion.progress + LookAhead(_motion.speed, _class));
   FlyToward(_motion, aim, _class.cruiseSpeed, _route.ReferenceUpAt(_motion.progress), _class, _seconds);
+}
+
+float RemainingLength(Float3 _position, std::span<const Float3> _path, std::size_t _next) noexcept
+{
+  float length = PlaneDistance(_position, _path[_next]);
+  for (std::size_t point = _next + 1; point < _path.size(); ++point)
+  {
+    length += PlaneDistance(_path[point - 1], _path[point]);
+  }
+  return length;
+}
+
+std::size_t FlyPath(ShipMotion& _motion, std::span<const Float3> _path, std::size_t _next, float _pace, Float3 _avoid,
+                    const ShipClass& _class, float _seconds) noexcept
+{
+  const std::size_t last = _path.size() - 1;
+  while (_next < last && CornerDone(_motion.position, _path, _next))
+  {
+    ++_next;
+  }
+
+  // The speed it can still slow from, at BRAKING_SHARE of its acceleration, to each corner's speed and to a halt at the
+  // destination.
+  const float braking = 2.0f * BRAKING_SHARE * _class.acceleration;
+  float speed = _pace;
+  float ahead = PlaneDistance(_motion.position, _path[_next]);
+  for (std::size_t corner = _next; corner < last; ++corner)
+  {
+    const float cornerSpeed = CornerSpeed(_path, corner, _class);
+    speed = std::min(speed, std::sqrt(cornerSpeed * cornerSpeed + braking * ahead));
+    ahead += PlaneDistance(_path[corner], _path[corner + 1]);
+  }
+  speed = std::min(speed, std::sqrt(braking * ahead));
+
+  const Float3 toward = PlaneDirection(_path[_next] - _motion.position, _motion.forward);
+  const Float3 aim = PlaneTurn(_motion.forward, PlaneDirection(toward + Flat(_avoid), toward));
+  const float facing = std::max(NeuronCore::Dot(_motion.forward, aim), 0.0f);
+  FlyToward(_motion, _motion.position + aim * PLANE_AIM_UNITS, speed * facing * facing, WORLD_UP, _class, _seconds);
+  return _next;
+}
+
+void Brake(ShipMotion& _motion, const ShipClass& _class, float _seconds) noexcept
+{
+  FlyToward(_motion, _motion.position + _motion.forward * PLANE_AIM_UNITS, 0.0f, WORLD_UP, _class, _seconds);
+  if (_motion.speed <= 0.0f && NeuronCore::Dot(_motion.up, WORLD_UP) >= LEVEL_COSINE)
+  {
+    _motion.up = WORLD_UP;
+  }
 }
 
 void FlyWingman(ShipMotion& _motion, const ShipMotion& _before, const ShipMotion& _after, Float3 _slot, const Route& _route,

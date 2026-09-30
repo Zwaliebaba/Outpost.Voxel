@@ -1,8 +1,10 @@
 #pragma once
 
-// The canvas pass (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010): each instance is one CanvasQuad, a strip of four
-// vertices over the render target the caller binds. A glyph's pixels take the quad's color times the glyph's coverage in
-// the atlas, a fill's the color alone, and the blend state lays them over the target with premultiplied alpha.
+// The canvas pass (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010, ADR-034): each instance is one CanvasQuad, a
+// strip of four vertices over the render target the caller binds, around a rectangle or sloped along a segment. A glyph's
+// pixels take the quad's color times the glyph's coverage in the atlas, a fill's the color alone, and a segment's the
+// color times how much of the pixel the segment covers; the blend state lays them over the target with premultiplied
+// alpha.
 
 #include "CanvasQuad.hlsli"
 #include "CanvasShading.hlsli"
@@ -31,10 +33,13 @@ struct CanvasTarget
 CanvasVaryings CanvasVertex(uint _vertex : SV_VertexID, uint _instance : SV_InstanceID)
 {
   CanvasQuad quad = g_quads[_instance];
+  uint2 target = uint2(g_targetWidthPixels, g_targetHeightPixels);
+  float2 corner =
+    quad.kind == CANVAS_SEGMENT
+      ? CanvasSegmentCornerNdc(float2(quad.startX, quad.startY), float2(quad.endX, quad.endY), quad.halfWidthPixels, _vertex, target)
+      : CanvasCornerNdc(int2(quad.pixelX, quad.pixelY), uint2(quad.widthPixels, quad.heightPixels), _vertex, target);
   CanvasVaryings varyings;
-  varyings.position = float4(CanvasCornerNdc(int2(quad.pixelX, quad.pixelY), uint2(quad.widthPixels, quad.heightPixels), _vertex,
-                                             uint2(g_targetWidthPixels, g_targetHeightPixels)),
-                             0.0, 1.0);
+  varyings.position = float4(corner, 0.0, 1.0);
   varyings.quad = _instance;
   return varyings;
 }
@@ -44,10 +49,15 @@ CanvasTarget CanvasPixel(CanvasVaryings _varyings)
 {
   CanvasQuad quad = g_quads[_varyings.quad];
   float coverage = 1.0;
-  if (quad.fill == 0u)
+  if (quad.kind == CANVAS_GLYPH)
   {
     int2 texel = CanvasAtlasTexel(int2(_varyings.position.xy), int2(quad.pixelX, quad.pixelY), uint2(quad.atlasX, quad.atlasY));
     coverage = g_atlas.Load(int3(texel, 0));
+  }
+  else if (quad.kind == CANVAS_SEGMENT)
+  {
+    coverage =
+      CanvasSegmentCoverage(_varyings.position.xy, float2(quad.startX, quad.startY), float2(quad.endX, quad.endY), quad.halfWidthPixels);
   }
   CanvasTarget target;
   target.color = CanvasPremultiply(quad.color, quad.alpha, coverage);

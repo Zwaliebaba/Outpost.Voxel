@@ -22,7 +22,16 @@ void InputState::OnKey(std::uint32_t _virtualKey, bool _down, bool _repeat) noex
 
 void InputState::OnButton(MouseButton _button, bool _down) noexcept
 {
-  m_buttonsDown[static_cast<std::size_t>(_button)] = _down;
+  const auto button = static_cast<std::size_t>(_button);
+  if (_down && !m_buttonsDown[button])
+  {
+    m_buttonsPressed[button] = true;
+  }
+  if (!_down && m_buttonsDown[button])
+  {
+    m_buttonsReleased[button] = true;
+  }
+  m_buttonsDown[button] = _down;
 }
 
 void InputState::OnMouseMove(std::int32_t _xPixels, std::int32_t _yPixels) noexcept
@@ -35,6 +44,11 @@ void InputState::OnMouseMove(std::int32_t _xPixels, std::int32_t _yPixels) noexc
   m_mouseXPixels = _xPixels;
   m_mouseYPixels = _yPixels;
   m_mouseKnown = true;
+}
+
+void InputState::OnPointerLeft() noexcept
+{
+  m_mouseKnown = false;
 }
 
 void InputState::OnWheel(float _notches) noexcept
@@ -69,9 +83,21 @@ bool InputState::IsAnyButtonDown() const noexcept
   return std::ranges::any_of(m_buttonsDown, [](bool _down) { return _down; });
 }
 
+bool InputState::WasButtonPressed(MouseButton _button) const noexcept
+{
+  return m_buttonsPressed[static_cast<std::size_t>(_button)];
+}
+
+bool InputState::WasButtonReleased(MouseButton _button) const noexcept
+{
+  return m_buttonsReleased[static_cast<std::size_t>(_button)];
+}
+
 void InputState::EndFrame() noexcept
 {
   m_keysPressed.reset();
+  m_buttonsPressed.fill(false);
+  m_buttonsReleased.fill(false);
   m_deltaXPixels = 0.0f;
   m_deltaYPixels = 0.0f;
   m_wheelNotches = 0.0f;

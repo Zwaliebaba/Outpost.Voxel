@@ -143,9 +143,14 @@ void Echo3(inout uint _word, uint3 _value)
     Echo(word, canvasQuad.heightPixels);
     Echo(word, canvasQuad.atlasX);
     Echo(word, canvasQuad.atlasY);
-    Echo(word, canvasQuad.fill);
+    Echo(word, canvasQuad.kind);
     Echo3(word, asuint(canvasQuad.color));
     Echo(word, asuint(canvasQuad.alpha));
+    Echo(word, asuint(canvasQuad.startX));
+    Echo(word, asuint(canvasQuad.startY));
+    Echo(word, asuint(canvasQuad.endX));
+    Echo(word, asuint(canvasQuad.endY));
+    Echo(word, asuint(canvasQuad.halfWidthPixels));
   }
 
   [unroll] for (uint star = 0u; star < 2u; ++star)

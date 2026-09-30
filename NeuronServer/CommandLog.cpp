@@ -134,17 +134,20 @@ private:
                                                });
 }
 
-// Whether _command is one the protocol has: a pause or a resume naming no entity, or a detonate or a restore naming one.
-[[nodiscard]] bool IsCommand(std::uint32_t _kind, std::uint32_t _entity) noexcept
+// Whether a command is one the protocol has: a pause or a resume naming no entity, or a detonate or a restore naming one,
+// none of them with a payload; or the game's own, naming no entity and with a payload (Design/ADR/ADR-033).
+[[nodiscard]] bool IsCommand(std::uint32_t _kind, std::uint32_t _entity, std::size_t _payloadBytes) noexcept
 {
   switch (static_cast<NeuronCore::CommandKind>(_kind))
   {
   case NeuronCore::CommandKind::Pause:
   case NeuronCore::CommandKind::Resume:
-    return _entity == 0;
+    return _entity == 0 && _payloadBytes == 0;
   case NeuronCore::CommandKind::Detonate:
   case NeuronCore::CommandKind::Restore:
-    return _entity != 0;
+    return _entity != 0 && _payloadBytes == 0;
+  case NeuronCore::CommandKind::Game:
+    return _entity == 0 && _payloadBytes != 0;
   }
   return false;
 }
@@ -152,7 +155,7 @@ private:
 [[nodiscard]] bool SameCommand(const LoggedCommand& _a, const LoggedCommand& _b) noexcept
 {
   return _a.tick == _b.tick && _a.worldTick == _b.worldTick && _a.session == _b.session && _a.command.kind == _b.command.kind &&
-         _a.command.entity == _b.command.entity;
+         _a.command.entity == _b.command.entity && _a.command.payload == _b.command.payload;
 }
 
 } // namespace
@@ -208,6 +211,8 @@ std::vector<std::uint8_t> EncodeLogRecord(const LoggedCommand& _command)
   PutU32(bytes, _command.session);
   PutU32(bytes, static_cast<std::uint32_t>(_command.command.kind));
   PutU32(bytes, _command.command.entity);
+  PutU32(bytes, static_cast<std::uint32_t>(_command.command.payload.size()));
+  bytes.insert(bytes.end(), _command.command.payload.begin(), _command.command.payload.end());
   return bytes;
 }
 
@@ -293,15 +298,21 @@ std::expected<CommandLog, LogError> DecodeCommandLog(std::span<const std::uint8_
       const std::uint32_t session = reader.U32();
       const std::uint32_t commandKind = reader.U32();
       const std::uint32_t entity = reader.U32();
+      const std::span<const std::uint8_t> payload = reader.Bytes(reader.U32());
       if (reader.Failed())
       {
         return std::unexpected(LogError::Truncated);
       }
-      if (!IsCommand(commandKind, entity) || session >= log.sessionSides.size() || commandTick != tick || worldTick > commandTick)
+      if (!IsCommand(commandKind, entity, payload.size()) || session >= log.sessionSides.size() || commandTick != tick ||
+          worldTick > commandTick)
       {
         return std::unexpected(LogError::MalformedLog);
       }
-      log.commands.push_back({commandTick, worldTick, session, {static_cast<NeuronCore::CommandKind>(commandKind), entity}});
+      log.commands.push_back(
+        {commandTick,
+         worldTick,
+         session,
+         {static_cast<NeuronCore::CommandKind>(commandKind), entity, std::vector<std::uint8_t>(payload.begin(), payload.end())}});
     }
     else if (kind == TICK_RECORD)
     {

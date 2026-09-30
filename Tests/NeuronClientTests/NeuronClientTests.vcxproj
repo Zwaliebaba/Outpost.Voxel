@@ -211,6 +211,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="RecordingSurface.h" />
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
@@ -221,13 +222,16 @@
     <ClCompile Include="DebugViewPassTests.cpp" />
     <ClCompile Include="ExplosionSplatTests.cpp" />
     <ClCompile Include="GasShellPassTests.cpp" />
+    <ClCompile Include="InterfaceTests.cpp" />
     <ClCompile Include="LastSeenTests.cpp" />
     <ClCompile Include="LayoutEchoTests.cpp" />
     <ClCompile Include="LightingPassTests.cpp" />
     <ClCompile Include="MeasurementTests.cpp" />
+    <ClCompile Include="OverlayTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PickTests.cpp" />
     <ClCompile Include="PlacementSplatTests.cpp" />
     <ClCompile Include="SceneModelsTests.cpp" />
     <ClCompile Include="ShadowSplatTests.cpp" />

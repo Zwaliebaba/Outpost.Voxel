@@ -9,6 +9,7 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="TestSupport.h" />
+    <ClInclude Include="RecordingSurface.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BloomPassTests.cpp" />
@@ -31,6 +32,9 @@
     <ClCompile Include="LastSeenTests.cpp" />
     <ClCompile Include="VoxelSceneTests.cpp" />
     <ClCompile Include="CapturedFrameTests.cpp" />
+    <ClCompile Include="InterfaceTests.cpp" />
+    <ClCompile Include="PickTests.cpp" />
+    <ClCompile Include="OverlayTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\LayoutEcho.hlsli">

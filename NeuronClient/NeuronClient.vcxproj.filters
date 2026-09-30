@@ -51,6 +51,11 @@
     <ClInclude Include="SnapshotBuffer.h" />
     <ClInclude Include="CapturedFrame.h" />
     <ClInclude Include="ComApartment.h" />
+    <ClInclude Include="Surface.h" />
+    <ClInclude Include="Interface.h" />
+    <ClInclude Include="Pick.h" />
+    <ClInclude Include="Overlay.h" />
+    <ClInclude Include="DeferredSurface.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BloomChain.cpp" />
@@ -92,6 +97,10 @@
     <ClCompile Include="SnapshotBuffer.cpp" />
     <ClCompile Include="ToneMapPass.cpp" />
     <ClCompile Include="CapturedFrame.cpp" />
+    <ClCompile Include="Interface.cpp" />
+    <ClCompile Include="Pick.cpp" />
+    <ClCompile Include="Overlay.cpp" />
+    <ClCompile Include="DeferredSurface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

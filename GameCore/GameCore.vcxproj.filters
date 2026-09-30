@@ -8,6 +8,7 @@
     <ClInclude Include="DesignComposite.h" />
     <ClInclude Include="SkirmishLayout.h" />
     <ClInclude Include="WelcomeNames.h" />
+    <ClInclude Include="Orders.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Catalogue.cpp" />
@@ -17,5 +18,6 @@
     <ClCompile Include="DesignComposite.cpp" />
     <ClCompile Include="SkirmishLayout.cpp" />
     <ClCompile Include="WelcomeNames.cpp" />
+    <ClCompile Include="Orders.cpp" />
   </ItemGroup>
 </Project>

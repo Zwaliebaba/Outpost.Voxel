@@ -24,8 +24,8 @@ namespace NeuronCore
 inline constexpr std::uint32_t PROTOCOL_VERSION = 2;
 
 // The version of every message's layout, in its header. A change of layout bumps it: version 3's welcome tells the
-// session the side it plays (ADR-032).
-inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 3;
+// session the side it plays (ADR-032), and version 4's command carries the game's own payload (Design/ADR/ADR-033).
+inline constexpr std::uint16_t MESSAGE_LAYOUT_VERSION = 4;
 
 inline constexpr std::size_t MESSAGE_HEADER_BYTES = 8;
 inline constexpr std::size_t ENTITY_RECORD_BYTES = 48;
@@ -155,15 +155,19 @@ enum class CommandKind : std::uint32_t
   Pause = 1,
   Resume = 2,
   Detonate = 3,
-  Restore = 4
+  Restore = 4,
+  Game = 5 // the game's own command, in the payload (Design/ADR/ADR-033)
 };
 
 // Client to server: pause or resume the world, or, for testing until fighting decides what destroys what, detonate or
-// restore an entity (§5.5). The entity is 0 for a pause or a resume.
+// restore an entity (§5.5); or the game's own command, such as an order, whose payload the engine carries without reading
+// (ADR-033). The entity is 0 for a pause, a resume and the game's command. Only the game's command has a payload, and it
+// always has one.
 struct Command
 {
   CommandKind kind;
   std::uint32_t entity;
+  std::vector<std::uint8_t> payload;
 };
 
 using Message = std::variant<Hello, Welcome, Snapshot, Command>;

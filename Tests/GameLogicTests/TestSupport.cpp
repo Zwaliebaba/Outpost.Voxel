@@ -81,4 +81,20 @@ std::uint16_t ModelOf(const NeuronCore::Snapshot& _snapshot, std::uint32_t _id)
   return entity == _snapshot.entities.end() ? std::uint16_t{0} : entity->composite;
 }
 
+std::unique_ptr<GameLogic::Skirmish> MakeSkirmish(std::uint32_t _seed)
+{
+  auto skirmish = GameLogic::Skirmish::Create({.seed = _seed}, GameDataDirectory());
+  const std::string refusal =
+    skirmish ? std::string() : std::format("{}: {}", GameLogic::SkirmishRefusalName(skirmish.error().refusal), skirmish.error().detail);
+  Assert::IsTrue(skirmish.has_value(), std::wstring(refusal.begin(), refusal.end()).c_str());
+  return skirmish ? std::move(*skirmish) : nullptr;
+}
+
+NeuronCore::Snapshot DescribeSkirmish(const GameLogic::Skirmish& _skirmish, std::uint8_t _side)
+{
+  NeuronCore::Snapshot snapshot{};
+  _skirmish.Describe(snapshot, _side);
+  return snapshot;
+}
+
 } // namespace GameLogicTests

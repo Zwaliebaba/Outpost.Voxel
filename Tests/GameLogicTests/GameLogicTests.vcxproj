@@ -198,11 +198,13 @@
     <ClInclude Include="TestSupport.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ClearancesTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RouteTests.cpp" />
     <ClCompile Include="SectorTests.cpp" />
+    <ClCompile Include="SkirmishOrdersTests.cpp" />
     <ClCompile Include="SkirmishTests.cpp" />
     <ClCompile Include="TestSupport.cpp" />
   </ItemGroup>

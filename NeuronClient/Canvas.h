@@ -7,6 +7,7 @@
 
 #include "CanvasQuad.h"
 #include "GlyphAtlas.h"
+#include "Surface.h"
 #include "UploadRing.h"
 
 #include "Float3.h"
@@ -24,28 +25,13 @@ namespace NeuronClient
 class DescriptorHeap;
 class GraphicsDevice;
 
-// How the canvas sets text: a font family installed on the system, such as Consolas, its em size in pixels of the
-// target, and its weight. A family that is not installed falls back as DirectWrite's system fallback decides.
-struct TextStyle
-{
-  const wchar_t* fontFamily;
-  float sizePixels;
-  DWRITE_FONT_WEIGHT weight;
-};
-
-// The size of a text as laid out, in pixels.
-struct TextExtent
-{
-  float widthPixels;
-  float heightPixels;
-};
-
-// The 2D overlay drawn over the finished frame, and the surface a HUD draws on (Design/Archive/SampleRenderer.md §13,
-// Design/ADR/ADR-010). During a frame it collects rectangles and text: DirectWrite lays text out with IDWriteTextLayout
-// and hands each glyph run to the canvas's own IDWriteTextRenderer, which makes every glyph a quad over its bitmap in
-// the glyph atlas. Record draws the lot, in the order it came, with one instanced draw, and starts the next collection.
-// Direct2D takes no part: DirectWrite lays out and rasterizes on the CPU, and Direct3D 12 does the rest.
-class Canvas
+// The 2D overlay drawn over the finished frame, and the surface the interface and the world's overlay draw on
+// (Design/Archive/SampleRenderer.md §13, Design/ADR/ADR-010, ADR-034). During a frame it collects rectangles, text and
+// segments: DirectWrite lays text out with IDWriteTextLayout and hands each glyph run to the canvas's own
+// IDWriteTextRenderer, which makes every glyph a quad over its bitmap in the glyph atlas. Record draws the lot, in the
+// order it came, with one instanced draw, and starts the next collection. Direct2D takes no part: DirectWrite lays out
+// and rasterizes on the CPU, and Direct3D 12 does the rest.
+class Canvas final : public Surface
 {
 public:
   // Quads beyond this many in one frame are dropped.
@@ -59,19 +45,17 @@ public:
   Canvas& operator=(const Canvas&) = delete;
   Canvas(Canvas&&) = delete;
   Canvas& operator=(Canvas&&) = delete;
-  ~Canvas() = default;
+  ~Canvas() override = default;
 
-  // A rectangle of linear _color with straight _alpha, from its top-left corner, in pixels of the target.
   void FillRectangle(std::int32_t _xPixels, std::int32_t _yPixels, std::uint32_t _widthPixels, std::uint32_t _heightPixels,
-                     NeuronCore::Float3 _color, float _alpha);
-
-  // Lays _text out in _style with its top-left corner at (_xPixels, _yPixels) and draws it in linear _color with straight
-  // _alpha. Lines break at '\n' and nowhere else. Returns the size of the text as laid out.
+                     NeuronCore::Float3 _color, float _alpha) override;
   TextExtent Print(std::wstring_view _text, float _xPixels, float _yPixels, const TextStyle& _style, NeuronCore::Float3 _color,
-                   float _alpha);
+                   float _alpha) override;
+  [[nodiscard]] TextExtent Measure(std::wstring_view _text, const TextStyle& _style) override;
 
-  // The size Print gives _text in _style, without drawing it.
-  [[nodiscard]] TextExtent Measure(std::wstring_view _text, const TextStyle& _style);
+  // A segment is a quad sloped along it (Design/ADR/ADR-034), whose pixels the segment covers in part at its edge.
+  void DrawSegment(NeuronCore::Float2 _start, NeuronCore::Float2 _end, float _widthPixels, NeuronCore::Float3 _color,
+                   float _alpha) override;
 
   // Draws what was collected since the last Record over the render target bound on _list, which is _widthPixels by
   // _heightPixels and in the canvas's format, and starts the next collection. The glyphs new since the last Record are
@@ -95,7 +79,7 @@ private:
   {
     std::wstring fontFamily;
     float sizePixels;
-    DWRITE_FONT_WEIGHT weight;
+    std::uint16_t weight;
     winrt::com_ptr<IDWriteTextFormat> format;
   };
 
