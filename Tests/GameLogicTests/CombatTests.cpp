@@ -218,7 +218,8 @@ public:
     Assert::AreEqual((0.0 + 5.0 / 40.0 + 3.0 / 40.0) * 1.0, outcome.stopFraction, 1.0e-6, L"it stops where it enters the fourth");
 
     // Of its own side, or an asteroid, it stops at the first voxel, and spends nothing.
-    for (const auto& [side, damageable] : {std::pair<std::uint8_t, bool>{1, true}, std::pair<std::uint8_t, bool>{0, false}})
+    for (const auto& [side, damageable] :
+         {std::pair<std::uint8_t, bool>{std::uint8_t{1}, true}, std::pair<std::uint8_t, bool>{std::uint8_t{0}, false}})
     {
       const std::vector<GameLogic::SweptEntity> blocking{Swept(rod, 2, side, damageable, {5.0f, 0.5f, 0.5f})};
       std::vector<GameLogic::SpentDamage> none;
